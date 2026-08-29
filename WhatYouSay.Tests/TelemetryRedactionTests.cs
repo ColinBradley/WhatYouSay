@@ -54,7 +54,8 @@ public class TelemetryRedactionTests
         Assert.IsNull(SurveyPathRedaction.Redact(path));
     }
 
-    private static Survey Survey(ResponseIdentity identity, string code) => new()
+    private static Survey Survey(ResponseIdentity identity, string code) =>
+        new()
     {
         Id = Guid.CreateVersion7(),
         Code = code,

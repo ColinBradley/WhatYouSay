@@ -297,11 +297,15 @@ We're unusually well placed to do this, because every quote is a span into text 
 
 1. **Every point must carry at least one reference.** Enforced in the schema, not just the prompt. A point with no citation is the agent inventing a theme nobody raised.
 2. **Every `Quote` must actually occur in that response's `Body`.** Exact substring match.
-3. **Offsets are snapped, not trusted.** If `Quote` is present but `StartIndex`/`EndIndex` don't line up, we correct the offsets from the found position rather than failing.
+3. **Offsets are not accepted at all.** The tool contract has no offset fields — the app locates the quote itself. That is stronger than validating supplied offsets and correcting them, because a wrong offset stops being something an agent can express. If a quote occurs twice in one response the first occurrence wins, which nobody has to think about.
 4. **Every `ResponseId` must belong to this survey and not be soft-deleted.**
 5. **Failures reject the whole call** — atomically, with a message naming the offending point and quote, so the agent can fix it and retry. No partial summaries.
 
 This makes fabricated quotes structurally impossible rather than merely unlikely, and it costs maybe fifteen lines. Requiring references up front also forces extract-then-summarise ordering, which is independently the thing that most reduces hallucination.
+
+Rejections are counted as `whatyousay.summaries.rejected` tagged by reason — the headline number for how often an agent tries to cite something it cannot substantiate, and so for whether any of this is worth the trouble.
+
+A rejection has to *reach* the agent to be useful. The MCP SDK hides ordinary exception detail from clients, so grounding failures are raised as `McpException`; otherwise the agent gets "an error occurred" and has nothing to fix.
 
 These rules are the responsibility of the service layer, not the MCP layer, so a future "Summarise" button in the UI inherits them for free.
 

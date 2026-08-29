@@ -11,13 +11,10 @@ public static class WhatYouSayTelemetry
     public const string MeterName = ServiceName;
 
     /// <summary>
-    /// Stands in for a survey code on anything to do with an anonymous survey. Telemetry
-    /// carries a timestamp by construction, so tagging a span or metric with the code would
-    /// record "someone answered survey allco26 at 14:32" in the trace store — precisely
-    /// what declining to store <see cref="Response.CreatedAt"/> was meant to prevent.
-    /// It reduces the leak rather than eliminating it: if only one anonymous survey is
-    /// running, request timing still says something. It stops the trace store becoming a
-    /// per-survey submission log.
+    /// Stands in for the code of an anonymous survey. Spans and metrics carry timestamps,
+    /// so tagging one with the code would turn the trace store into the per-survey
+    /// submission log that anonymous mode gives up <see cref="Response.CreatedAt"/> to
+    /// avoid. Does not hide a lone anonymous survey's request timing.
     /// </summary>
     public const string RedactedSurvey = "(anonymous)";
 
@@ -46,19 +43,48 @@ public static class WhatYouSayTelemetry
         unit: "{view}",
         description: "Summary page loads that found a published summary to show.");
 
+    private static readonly Counter<long> sSummariesDrafted = sMeter.CreateCounter<long>(
+        "whatyousay.summaries.drafted",
+        unit: "{summary}",
+        description: "Draft summaries accepted after passing grounding validation.");
+
+    /// <summary>How often an agent cited something it could not substantiate.</summary>
+    private static readonly Counter<long> sSummariesRejected = sMeter.CreateCounter<long>(
+        "whatyousay.summaries.rejected",
+        unit: "{summary}",
+        description: "Draft summaries rejected by grounding validation, by reason.");
+
     /// <summary>
-    /// The code, unless the survey is anonymous. Never tag with a raw code; go through
-    /// this or <see cref="ActivityExtensions.SetSurvey"/> so the rule cannot be forgotten.
+    /// The code, unless the survey is anonymous. Never tag with a raw code; use this or
+    /// <see cref="ActivityExtensions.SetSurvey"/>.
     /// </summary>
-    public static string TagFor(Survey survey) => survey.IsAnonymous ? RedactedSurvey : survey.Code;
+    public static string TagFor(Survey survey) =>
+        survey.IsAnonymous 
+            ? RedactedSurvey 
+            : survey.Code;
 
-    public static void ResponseSubmitted(Survey survey) => sResponsesSubmitted.Add(1, Tags(survey));
+    public static void ResponseSubmitted(Survey survey) =>
+        sResponsesSubmitted.Add(1, Tags(survey));
 
-    public static void ResponseEdited(Survey survey) => sResponsesEdited.Add(1, Tags(survey));
+    public static void ResponseEdited(Survey survey) =>
+        sResponsesEdited.Add(1, Tags(survey));
 
-    public static void ResponseWithdrawn(Survey survey) => sResponsesWithdrawn.Add(1, Tags(survey));
+    public static void ResponseWithdrawn(Survey survey) =>
+        sResponsesWithdrawn.Add(1, Tags(survey));
 
-    public static void SummaryViewed(Survey survey) => sSummariesViewed.Add(1, Tags(survey));
+    public static void SummaryViewed(Survey survey) =>
+        sSummariesViewed.Add(1, Tags(survey));
+
+    public static void SummaryDrafted(Survey survey) =>
+        sSummariesDrafted.Add(1, Tags(survey));
+
+    public static void SummaryRejected(Survey survey, string reason)
+    {
+        var tags = Tags(survey);
+        tags.Add("rejection.reason", reason);
+
+        sSummariesRejected.Add(1, tags);
+    }
 
     private static TagList Tags(Survey survey)
     {

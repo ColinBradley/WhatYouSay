@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="Markdig" />
+    <PackageReference Include="ModelContextProtocol.AspNetCore" />
     <!-- The DbContext lives in WhatYouSay, but the EF tools need Design in the *startup*
          project too. See CLAUDE.md for the migration command. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">

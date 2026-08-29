@@ -20,7 +20,22 @@ Blazor Server, EF Core, SQLite. Design and build order: [PLAN.md](PLAN.md).
 - Static fields take an `s` prefix: `private static readonly FrozenSet<string> sNames = ["x"];`
 - `const` stays PascalCase, unprefixed.
 - Expression bodies suit a single value or a single call. Anything longer — a chained LINQ query especially — gets braces. Judgement, not enforced.
+- An expression body always starts on the line after the `=>`. No exceptions.
+- Prefer `required` properties with `init` over constructor parameters, including on records. Positional records get miswired silently when several parameters share a type.
 - Don't manually wrap text in md files.
+
+## Comments
+
+Comment the non-obvious **why**: a constraint, a footgun, a decision the next person would otherwise undo. Nothing else.
+
+Delete a comment if it does any of these:
+
+- Restates what the code already says.
+- Justifies a convention already written down here.
+- Narrates the decision — alternatives weighed, what was considered and rejected, why one approach beats another.
+- Editorialises: "worth knowing", "earns its place", "unusually well placed".
+
+A doc comment on a type or member is for someone calling it, not for someone reviewing the choice to write it. If it reads as reasoning rather than as information needed to change the code safely, it goes.
 
 ## Packages
 

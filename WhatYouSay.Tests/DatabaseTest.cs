@@ -4,10 +4,7 @@ using WhatYouSay.Data;
 
 namespace WhatYouSay.Tests;
 
-/// <summary>
-/// Real SQLite, real migrations, nothing mocked. Each test instance gets its own private
-/// in-memory database, so no state is shared and the suite runs at method-level parallelism.
-/// </summary>
+/// <summary>Gives each test its own private in-memory database.</summary>
 public abstract class DatabaseTest : IDisposable
 {
     private readonly SqliteConnection mConnection;
@@ -16,8 +13,8 @@ public abstract class DatabaseTest : IDisposable
 
     protected DatabaseTest()
     {
-        // "Filename=:memory:" without a shared cache is private to this connection, and
-        // the schema lives exactly as long as the connection does.
+        // Without a shared cache this is private to the connection, and the schema lives
+        // exactly as long as the connection does.
         mConnection = new SqliteConnection("Filename=:memory:");
         mConnection.Open();
 
@@ -30,7 +27,7 @@ public abstract class DatabaseTest : IDisposable
     /// <summary>Set by MSTest on each test instance.</summary>
     public TestContext TestContext { get; set; } = null!;
 
-    /// <summary>Lets the runner abort a test promptly, which matters once tests interleave.</summary>
+    /// <summary>Lets the runner abort a test promptly.</summary>
     protected CancellationToken Cancellation => this.TestContext.CancellationTokenSource.Token;
 
     protected static Survey NewSurvey(ResponseIdentity identity)

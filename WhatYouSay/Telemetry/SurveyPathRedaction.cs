@@ -1,14 +1,9 @@
 namespace WhatYouSay.Telemetry;
 
 /// <summary>
-/// Strips the survey code out of a request path before it reaches a trace store.
-///
-/// ASP.NET Core instrumentation records the real path, so without this every span for an
-/// anonymous survey would carry "/surveys/allco26" next to a timestamp — a per-survey
-/// submission log, which is exactly the leak anonymous mode gives up timestamps to avoid.
-/// The code is stripped from every survey path rather than only anonymous ones, because
-/// telling them apart needs a database lookup per span, and the route template keeps the
-/// part that helps debugging.
+/// Strips the survey code out of a request path before it reaches a trace store, so spans
+/// for an anonymous survey do not carry "/surveys/allco26" next to a timestamp. Applied to
+/// every survey path, since telling anonymous ones apart needs a database lookup per span.
 /// </summary>
 public static class SurveyPathRedaction
 {

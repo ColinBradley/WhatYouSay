@@ -8,7 +8,8 @@ namespace WhatYouSay.Web.Auth;
 /// </summary>
 public static class ResponderCookie
 {
-    public static string NameFor(Guid surveyId) => $"wys_resp_{surveyId:n}";
+    public static string NameFor(Guid surveyId) =>
+        $"wys_resp_{surveyId:n}";
 
     public static string? Read(HttpContext http, Guid surveyId) =>
         http.Request.Cookies.TryGetValue(NameFor(surveyId), out var token) && !string.IsNullOrEmpty(token)

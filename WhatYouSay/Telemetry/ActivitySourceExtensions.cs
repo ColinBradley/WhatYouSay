@@ -10,8 +10,7 @@ public static class ActivitySourceExtensions
 
     /// <summary>
     /// Starts an activity named after the calling member, tagged with the OpenTelemetry
-    /// code attributes. Naming a span is then the exception rather than the rule, so
-    /// instrumenting a method costs one line and never drifts from the method it describes.
+    /// code attributes.
     /// </summary>
     public static Activity? Start(
         this ActivitySource source,
@@ -30,8 +29,7 @@ public static class ActivitySourceExtensions
             ? source.StartActivity(activityName, kind, parent)
             : source.StartActivity(activityName, kind);
 
-        // Null when nothing is listening, which is the common case in tests and when
-        // telemetry is switched off. Skip the tag work rather than pay for it.
+        // Null when nothing is listening; skip the tag work rather than pay for it.
         if (activity is null)
         {
             return null;

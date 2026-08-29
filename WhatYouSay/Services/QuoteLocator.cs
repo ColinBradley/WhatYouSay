@@ -1,12 +1,13 @@
 namespace WhatYouSay.Services;
 
-public readonly record struct QuoteLocation(int StartIndex, int EndIndex);
+public readonly record struct QuoteLocation
+{
+    public required int StartIndex { get; init; }
 
-/// <summary>
-/// Finds where a quote sits inside a response body. Used when seeding, by the grounding
-/// validation that rejects citations an agent cannot substantiate, and by rendering to
-/// check an offset still lines up before slicing.
-/// </summary>
+    public required int EndIndex { get; init; }
+}
+
+/// <summary>Finds where a quote sits inside a response body.</summary>
 public static class QuoteLocator
 {
     public static QuoteLocation? Locate(string body, string quote)
@@ -18,7 +19,9 @@ public static class QuoteLocator
 
         var start = body.IndexOf(quote, StringComparison.Ordinal);
 
-        return start < 0 ? null : new QuoteLocation(start, start + quote.Length);
+        return start < 0
+            ? null
+            : new QuoteLocation { StartIndex = start, EndIndex = start + quote.Length };
     }
 
     /// <summary>Whether the stored offsets still select exactly the stored quote.</summary>

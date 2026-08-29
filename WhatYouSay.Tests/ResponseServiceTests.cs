@@ -152,9 +152,8 @@ public class ResponseServiceTests : DatabaseTest
 
         var stored = await mDb.Responses.SingleAsync(this.Cancellation);
 
-        // Guid.CreateVersion7 embeds a Unix timestamp. Using one here would leak both the
-        // order people answered in and roughly when, straight past the decision not to
-        // record CreatedAt at all.
+        // A v7 Guid embeds a Unix timestamp, which would leak the order people answered
+        // in and roughly when, past the decision not to record CreatedAt.
         Assert.AreEqual(4, VersionOf(stored.Id));
     }
 
@@ -181,9 +180,11 @@ public class ResponseServiceTests : DatabaseTest
     }
 
     /// <summary>The version nibble sits in the high half of byte 6, big-endian.</summary>
-    private static int VersionOf(Guid id) => (id.ToByteArray(bigEndian: true)[6] >> 4) & 0x0F;
+    private static int VersionOf(Guid id) =>
+        (id.ToByteArray(bigEndian: true)[6] >> 4) & 0x0F;
 
-    private ResponseService Service() => new(mDb);
+    private ResponseService Service() =>
+        new(mDb);
 
     private async Task<Survey> OpenSurveyAsync(ResponseIdentity identity)
     {

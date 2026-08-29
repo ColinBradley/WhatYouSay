@@ -18,8 +18,7 @@ public class SeedDataTests : DatabaseTest
             .Include(s => s.Responses)
             .SingleAsync(s => s.ResponseIdentity == ResponseIdentity.Anonymous, this.Cancellation);
 
-        // The point of anonymous mode is that the data does not exist, not that it is
-        // merely hidden at render time. Nothing downstream can leak what was never stored.
+        // Anonymous means the data does not exist, not that it is hidden at render time.
         Assert.IsNotEmpty(anonymous.Responses);
         Assert.IsTrue(anonymous.Responses.All(r => r.CreatedAt is null));
         Assert.IsTrue(anonymous.Responses.All(r => r.UpdatedAt is null));
@@ -52,12 +51,10 @@ public class SeedDataTests : DatabaseTest
 
         Assert.HasCount(4, surveys);
 
-        // Small, medium and large, so summarisation gets stressed at more than one scale.
         Assert.Contains(s => s.Responses.Count <= 5, surveys);
         Assert.Contains(s => s.Responses.Count is > 10 and < 20, surveys);
         Assert.Contains(s => s.Responses.Count > 50, surveys);
 
-        // Summarising requires a closed survey, so at least one must be ready to go.
         Assert.Contains(s => !s.IsAcceptingResponses, surveys);
     }
 

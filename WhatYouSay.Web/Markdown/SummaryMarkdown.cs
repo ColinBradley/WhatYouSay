@@ -14,5 +14,6 @@ public static class SummaryMarkdown
         .UseAutoLinks()
         .Build();
 
-    public static string ToHtml(string markdown) => Markdig.Markdown.ToHtml(markdown, sPipeline);
+    public static string ToHtml(string markdown) =>
+        Markdig.Markdown.ToHtml(markdown, sPipeline);
 }

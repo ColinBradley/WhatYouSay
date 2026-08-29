@@ -1,9 +1,6 @@
 namespace WhatYouSay.Data;
 
-/// <summary>
-/// A span of a response cited in support of a point. The quote is snapshotted rather than
-/// derived, because it is the key the app validates the agent against on write.
-/// </summary>
+/// <summary>A span of a response cited in support of a point.</summary>
 public class SummaryTopicPointResponseReference
 {
     public int Id { get; set; }

@@ -6,8 +6,8 @@ using OpenTelemetry.Trace;
 namespace WhatYouSay.Tests;
 
 /// <summary>
-/// Every test opens an activity from <see cref="Source"/>, so the spans the code under test
-/// emits nest underneath it and a run shows up as one trace per test.
+/// Every test opens an activity from <see cref="Source"/>, so spans from the code under
+/// test nest underneath it and a run reads as one trace per test.
 /// </summary>
 [TestClass]
 public static class TestTelemetry
@@ -30,9 +30,8 @@ public static class TestTelemetry
     }
 
     /// <summary>
-    /// The reason this is worth having a runner-level hook for: a batch processor holds
-    /// spans until it is flushed, and nothing else in the process will flush it before the
-    /// host exits.
+    /// A batch processor holds spans until flushed, and the test host raises no
+    /// ProcessExit, so without this the whole run is dropped silently.
     /// </summary>
     [AssemblyCleanup]
     public static void Shutdown()

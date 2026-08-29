@@ -4,7 +4,14 @@ using WhatYouSay.Telemetry;
 
 namespace WhatYouSay.Services;
 
-public record SurveyListing(Survey Survey, int ResponseCount, bool HasVisibleSummary);
+public record SurveyListing
+{
+    public required Survey Survey { get; init; }
+
+    public required int ResponseCount { get; init; }
+
+    public required bool HasVisibleSummary { get; init; }
+}
 
 public class SurveyService(WhatYouSayContext db)
 {
@@ -23,10 +30,12 @@ public class SurveyService(WhatYouSayContext db)
         return await db.Surveys
             .Where(s => s.IsPubliclyListed)
             .OrderByDescending(s => s.CreatedAt)
-            .Select(s => new SurveyListing(
-                s,
-                s.Responses.Count(r => !r.IsDeleted),
-                s.Summaries.Any(x => !x.IsDraft && x.IsPublic)))
+            .Select(s => new SurveyListing
+            {
+                Survey = s,
+                ResponseCount = s.Responses.Count(r => !r.IsDeleted),
+                HasVisibleSummary = s.Summaries.Any(x => !x.IsDraft && x.IsPublic)
+            })
             .ToListAsync(cancellationToken);
     }
 

@@ -87,8 +87,6 @@ public class SummaryServiceTests : DatabaseTest
 
         Assert.IsNotEmpty(references);
 
-        // The same guarantee the grounding validation will enforce on agent output, checked
-        // here against hand-written data so the rendering path can trust its offsets.
         foreach (var reference in references)
         {
             Assert.IsTrue(
@@ -114,9 +112,11 @@ public class SummaryServiceTests : DatabaseTest
         Assert.IsTrue(points.All(p => p.References.Count > 0));
     }
 
-    private SummaryService Service() => new(mDb);
+    private SummaryService Service() =>
+        new(mDb);
 
-    private static Summary Summary(string body, bool isDraft, bool isPublic, int daysAgo = 0) => new()
+    private static Summary Summary(string body, bool isDraft, bool isPublic, int daysAgo = 0) =>
+        new()
     {
         Id = Guid.CreateVersion7(),
         Body = body,

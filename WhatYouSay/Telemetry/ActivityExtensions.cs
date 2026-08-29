@@ -6,9 +6,8 @@ namespace WhatYouSay.Telemetry;
 public static class ActivityExtensions
 {
     /// <summary>
-    /// The only way a survey should reach a span. Goes through
-    /// <see cref="WhatYouSayTelemetry.TagFor"/>, so the anonymity rule is applied once
-    /// rather than remembered at every call site.
+    /// The only way a survey should reach a span; applies the anonymity rule via
+    /// <see cref="WhatYouSayTelemetry.TagFor"/>.
     /// </summary>
     public static Activity? SetSurvey(this Activity? activity, Survey survey)
     {

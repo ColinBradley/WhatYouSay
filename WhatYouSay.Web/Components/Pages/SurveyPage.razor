@@ -235,7 +235,8 @@ else
     private string NameLabel() =>
         mSurvey!.ResponseIdentity == ResponseIdentity.Optional ? "Your name (optional)" : "Your name";
 
-    private string StorageNotice() => mSurvey!.ResponseIdentity switch
+    private string StorageNotice() =>
+        mSurvey!.ResponseIdentity switch
     {
         ResponseIdentity.Anonymous =>
             "Anonymous: no name and no timestamp is recorded, not even hidden. A cookie in "

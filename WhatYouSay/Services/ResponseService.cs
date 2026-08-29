@@ -126,5 +126,6 @@ public class ResponseService(WhatYouSayContext db)
         return await query.ToListAsync(cancellationToken);
     }
 
-    private static string? NullIfBlank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private static string? NullIfBlank(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
