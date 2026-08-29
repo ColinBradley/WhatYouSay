@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <!-- xUnit v3 test projects are executables running on Microsoft.Testing.Platform.
+         MTP mode itself is opted into via global.json, not an MSBuild property. -->
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- v3 4.0+ specifically, for ParallelMode.All. -->
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The domain library only. Tests have no reason to build the web front end. -->
+    <ProjectReference Include="..\WhatYouSay\WhatYouSay.csproj" />
+  </ItemGroup>
+
+</Project>

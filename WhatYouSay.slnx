@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="WhatYouSay.Tests/WhatYouSay.Tests.csproj" />
+  <Project Path="WhatYouSay.Web/WhatYouSay.Web.csproj" />
+  <Project Path="WhatYouSay/WhatYouSay.csproj" />
+</Solution>
