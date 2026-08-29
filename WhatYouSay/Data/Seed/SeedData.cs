@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using WhatYouSay.Auth;
+using WhatYouSay.Services;
 
 namespace WhatYouSay.Data;
 
@@ -25,7 +26,10 @@ public static class SeedData
             return;
         }
 
-        db.Surveys.AddRange(Retro(), Takeaway(), CompanyWide(), Diary());
+        var retro = Retro();
+        AddRetroSummary(retro);
+
+        db.Surveys.AddRange(retro, Takeaway(), CompanyWide(), Diary());
         await db.SaveChangesAsync(cancellationToken);
 
         logger.LogInformation("Seeded {Count} surveys. Admin password for all: {Password}", 4, AdminPassword);
@@ -78,7 +82,9 @@ public static class SeedData
 
             survey.Responses.Add(new Response
             {
-                Id = Guid.CreateVersion7(),
+                // v4, not v7: a time-ordered Guid would leak submission order and time in
+                // anonymous surveys. See ResponseService.SubmitAsync.
+                Id = Guid.NewGuid(),
                 Body = body,
                 Author = anonymous ? null : author,
                 AuthTokenHash = Secrets.HashToken(Secrets.NewToken()),
@@ -230,4 +236,130 @@ public static class SeedData
             ("Tue 11 Aug", "Really good stretch of focus in the morning, two clear hours. That's the whole game, I think. Everything else is admin around the edges."),
             ("Wed 12 Aug", "Flat. Nothing wrong exactly, just no energy for any of it. Went for a walk at lunch which is usually the fix but it didn't really land today.")
         ]);
+
+    /// <summary>
+    /// A hand-written summary, as if an admin had typed it rather than an agent. The build
+    /// order expects steps 1-3 to be usable before any MCP exists, and this gives the
+    /// summary page real structure to render — including quote highlighting.
+    /// </summary>
+    private static void AddRetroSummary(Survey survey)
+    {
+        var writtenAt = new DateTimeOffset(2026, 8, 21, 16, 30, 0, TimeSpan.Zero);
+
+        var summary = new Summary
+        {
+            Id = Guid.CreateVersion7(),
+            Body = """
+                Three things dominate this retro, and two of them turn out to be the same thing.
+
+                The build is the loudest complaint: a 22 minute CI run that fails intermittently has
+                pushed people into batching their commits, which makes pull requests larger, which
+                plausibly explains why reviews now take more than a day to get a first comment. That
+                is one loop rather than three separate problems, and the cheapest place to break it
+                is the flaky tests.
+
+                Separately the sprint lost its shape — too much in flight at once, work pulled in on
+                day four, and acceptance criteria vague enough to cost a day and a half of rework.
+                Unowned staging infrastructure cost roughly another day on top.
+
+                Pairing and the new design system components were the clear positives, and both were
+                raised without being asked about.
+                """,
+            IsDraft = false,
+            IsPublic = true,
+            CreatedBy = "human",
+            CreatedAt = writtenAt,
+            UpdatedAt = writtenAt
+        };
+
+        summary.Topics.Add(Topic(
+            "The build feedback loop",
+            "The most cited problem, and the one with knock-on effects elsewhere.",
+            Point(survey, "A full CI run takes 22 minutes and fails often enough that a green build is not a reliable gate.",
+                -0.7, 0.9, [(0, "A full run is 22 minutes and it fails on flaky integration tests maybe one time in four")]),
+            Point(survey, "People have started batching commits to dodge the wait, which is the opposite of what fast feedback should encourage.",
+                -0.5, 0.6, [(0, "I've started batching three or four commits before pushing just to avoid the wait")]),
+            Point(survey, "Flaky tests get re-run rather than fixed, so the safety net is effectively off without anyone having decided to switch it off.",
+                -0.8, 0.7, [(7, "We re-run them and move on, which means we've effectively switched off our own safety net")])));
+
+        summary.Topics.Add(Topic(
+            "Review latency",
+            "Plausibly downstream of the build problem rather than independent of it.",
+            Point(survey, "A first review comment arrives a day or more after the pull request goes up, by which point the author has context-switched away.",
+                -0.6, 0.9, [(5, "I put a PR up Monday morning and got the first comment Tuesday afternoon")]),
+            Point(survey, "Pull requests are getting larger, which is consistent with the commit batching described above.",
+                -0.4, 0.5, [(5, "The PRs are also getting bigger, which can't be helping"), (0, "I've started batching three or four commits before pushing just to avoid the wait")])));
+
+        summary.Topics.Add(Topic(
+            "Sprint shape",
+            null,
+            Point(survey, "Eleven tickets were in flight across six people, so everything was nearly done and nothing actually shipped until Thursday.",
+                -0.6, 0.9, [(9, "Everything was 90% done and nothing actually shipped until the Thursday")]),
+            Point(survey, "Work pulled in on day four makes the original estimate meaningless.",
+                -0.5, 0.7, [(11, "can we stop pulling extra work into the sprint on day four")]),
+            Point(survey, "Vague acceptance criteria on the reporting tickets cost a day and a half of rework.",
+                -0.6, 0.9, [(2, "I spent a day and a half building the wrong thing and only found out at review")])));
+
+        summary.Topics.Add(Topic(
+            "Unowned infrastructure",
+            "Staging has no owner, and it cost time twice in different ways.",
+            Point(survey, "Staging went down with nobody to ask, costing most of a day.",
+                -0.7, 0.8, [(10, "There's no clear ownership and it's turning into a running joke")]),
+            Point(survey, "On-call was dominated by a single repeating alert on that same unowned staging box.",
+                -0.8, 0.9, [(3, "eleven of them the same disk alert on the staging box that nobody owns")])));
+
+        summary.Topics.Add(Topic(
+            "What worked",
+            null,
+            Point(survey, "Pairing on the payments migration produced a better result than either person would have reached alone, and was asked for again.",
+                0.8, 0.5, [(1, "Two days of it and we shipped something neither of us would have got right alone"), (11, "More pairing please")]),
+            Point(survey, "The new design system components saved real time on the settings screens.",
+                0.7, 0.7, [(4, "saved me a lot of time on the settings screens")])));
+
+        survey.Summaries.Add(summary);
+    }
+
+    private static SummaryTopic Topic(string name, string? description, params SummaryTopicPoint[] points)
+    {
+        var topic = new SummaryTopic { Name = name, Description = description };
+        topic.Points.AddRange(points);
+
+        return topic;
+    }
+
+    private static SummaryTopicPoint Point(
+        Survey survey,
+        string description,
+        double sentiment,
+        double objectivity,
+        (int ResponseIndex, string Quote)[] citations)
+    {
+        var point = new SummaryTopicPoint
+        {
+            Description = description,
+            Sentiment = sentiment,
+            Objectivity = objectivity
+        };
+
+        foreach (var (responseIndex, quote) in citations)
+        {
+            var response = survey.Responses[responseIndex];
+
+            // Offsets are located rather than hand-counted, which is also how the grounding
+            // validation will work. A typo in a seed quote fails loudly right here.
+            var location = QuoteLocator.Locate(response.Body, quote)
+                ?? throw new InvalidOperationException(
+                    $"Seed quote not found in response {responseIndex}: \"{quote}\"");
+
+            point.References.Add(new SummaryTopicPointResponseReference
+            {
+                Response = response,
+                Quote = quote,
+                StartIndex = location.StartIndex,
+                EndIndex = location.EndIndex
+            });
+        }
+
+        return point;
+    }
 }

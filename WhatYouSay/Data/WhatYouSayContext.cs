@@ -18,6 +18,12 @@ public class WhatYouSayContext(DbContextOptions<WhatYouSayContext> options) : Db
 
     public DbSet<PointReaction> PointReactions => this.Set<PointReaction>();
 
+    protected override void ConfigureConventions(ModelConfigurationBuilder builder)
+    {
+        // Covers DateTimeOffset? too. Without this, every OrderBy on a timestamp throws.
+        builder.Properties<DateTimeOffset>().HaveConversion<UtcDateTimeOffsetConverter>();
+    }
+
     protected override void OnModelCreating(ModelBuilder model)
     {
         model.Entity<Survey>(survey =>

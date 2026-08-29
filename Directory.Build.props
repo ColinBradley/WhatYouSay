@@ -1,0 +1,9 @@
+<Project>
+
+  <PropertyGroup>
+    <!-- Makes the .editorconfig style rules build errors rather than IDE-only suggestions,
+         so this. qualification and braced methods hold for every contributor and agent. -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+</Project>

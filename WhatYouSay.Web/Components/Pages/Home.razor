@@ -1,7 +1,109 @@
-﻿@page "/"
+@page "/"
+@using WhatYouSay.Services
+@inject SurveyService Surveys
+@inject NavigationManager Navigation
 
-<PageTitle>Home</PageTitle>
+<PageTitle>What You Say</PageTitle>
 
-<h1>Hello, world!</h1>
+<h1>What You Say</h1>
 
-Welcome to your new app.
+<p class="lead">Ask a group one open question, then make sense of what comes back.</p>
+
+<div class="row g-4 mt-1">
+    <div class="col-md-7">
+        <h2 class="h5">Listed surveys</h2>
+
+        @if (mListings is { Count: 0 })
+        {
+            <p class="text-body-secondary">
+                Nothing listed publicly yet. Surveys shared by link don't appear here.
+            </p>
+        }
+        else if (mListings is not null)
+        {
+            <div class="list-group">
+                @foreach (var listing in mListings)
+                {
+                    <a class="list-group-item list-group-item-action"
+                       href="@($"/surveys/{listing.Survey.Code}")">
+                        <div class="d-flex justify-content-between align-items-start gap-3">
+                            <div>
+                                <div class="fw-semibold">@listing.Survey.Title</div>
+                                <div class="small text-body-secondary">@listing.Survey.Description</div>
+                            </div>
+                            <span class="badge text-bg-light flex-shrink-0">
+                                @listing.ResponseCount responses
+                            </span>
+                        </div>
+
+                        <div class="mt-2 d-flex gap-2">
+                            <span class="badge @(listing.Survey.IsAcceptingResponses ? "text-bg-success" : "text-bg-secondary")">
+                                @(listing.Survey.IsAcceptingResponses ? "Open" : "Closed")
+                            </span>
+
+                            @if (listing.HasVisibleSummary)
+                            {
+                                <span class="badge text-bg-info">Summary published</span>
+                            }
+
+                            @if (listing.Survey.IsAnonymous)
+                            {
+                                <span class="badge text-bg-light border">Anonymous</span>
+                            }
+                        </div>
+                    </a>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="col-md-5">
+        <h2 class="h5">Have a code?</h2>
+
+        <form method="post" @formname="open-by-code" @onsubmit="OpenByCode" class="d-flex gap-2">
+            <AntiforgeryToken />
+            <input class="form-control" name="Code" value="@Code" placeholder="e.g. spr47ab"
+                   aria-label="Survey code" />
+            <button class="btn btn-primary" type="submit">Open</button>
+        </form>
+
+        @if (mNotFound is not null)
+        {
+            <p class="text-danger small mt-2">No survey with the code &ldquo;@mNotFound&rdquo;.</p>
+        }
+
+        <p class="small text-body-secondary mt-2">
+            Every survey has a short code at the end of its link.
+        </p>
+    </div>
+</div>
+
+@code {
+    private IReadOnlyList<SurveyListing>? mListings;
+
+    private string? mNotFound;
+
+    [SupplyParameterFromForm]
+    public string? Code { get; set; }
+
+    protected override async Task OnInitializedAsync() =>
+        mListings = await Surveys.ListPubliclyListedAsync();
+
+    private async Task OpenByCode()
+    {
+        var code = this.Code?.Trim();
+
+        if (string.IsNullOrEmpty(code))
+        {
+            return;
+        }
+
+        if (await Surveys.FindByCodeAsync(code) is null)
+        {
+            mNotFound = code;
+            return;
+        }
+
+        Navigation.NavigateTo($"/surveys/{code}");
+    }
+}

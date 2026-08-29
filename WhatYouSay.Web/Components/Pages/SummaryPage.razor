@@ -1,0 +1,161 @@
+@page "/surveys/{Code}/summary"
+@page "/surveys/{Code}/summary/{SummaryId:guid}"
+@using WhatYouSay.Data
+@using WhatYouSay.Services
+@using WhatYouSay.Telemetry
+@using WhatYouSay.Web.Telemetry
+@using WhatYouSay.Web.Markdown
+@inject SurveyService Surveys
+@inject SummaryService Summaries
+
+<PageTitle>@(mSurvey is null ? "Summary" : $"Summary — {mSurvey.Title}")</PageTitle>
+
+@if (mSurvey is null)
+{
+    <h1>Survey not found</h1>
+    <p class="text-body-secondary">No survey has the code &ldquo;@Code&rdquo;.</p>
+    <a href="/">Back to the list</a>
+}
+else
+{
+    <p class="mb-1">
+        <a href="@($"/surveys/{Code}")">&larr; @mSurvey.Title</a>
+    </p>
+
+    <h1>Summary</h1>
+
+    @if (mSummary is null)
+    {
+        <div class="alert alert-secondary mt-3">
+            No summary has been published for this survey yet.
+        </div>
+    }
+    else
+    {
+        @if (mVersions.Count > 1)
+        {
+            <p class="small text-body-secondary">
+                Version @(mVersions.FindIndex(v => v.Id == mSummary.Id) + 1) of @mVersions.Count
+                @foreach (var version in mVersions.Where(v => v.Id != mSummary.Id))
+                {
+                    <text> · </text>
+                    <a href="@($"/surveys/{Code}/summary/{version.Id}")">@version.CreatedAt.ToString("d MMM yyyy")</a>
+                }
+            </p>
+        }
+
+        <div class="mb-4">@((MarkupString)SummaryMarkdown.ToHtml(mSummary.Body))</div>
+
+        @foreach (var topic in mSummary.Topics)
+        {
+            <section class="mb-4">
+                <h2 class="h4">@topic.Name</h2>
+
+                @if (!string.IsNullOrWhiteSpace(topic.Description))
+                {
+                    <p class="text-body-secondary">@topic.Description</p>
+                }
+
+                <ul class="list-unstyled">
+                    @foreach (var point in topic.Points)
+                    {
+                        <li class="mb-3">
+                            <div>@point.Description</div>
+
+                            @if (point.References.Count > 0)
+                            {
+                                <details class="mt-1">
+                                    <summary class="small text-body-secondary">
+                                        @point.References.Count
+                                        @(point.References.Count == 1 ? "quote" : "quotes")
+                                    </summary>
+
+                                    @foreach (var reference in point.References)
+                                    {
+                                        <figure class="mt-2 mb-2 ps-3 border-start">
+                                            @if (mSurvey.AreResponsesPublic
+                                                 && Highlight(reference) is { } context)
+                                            {
+                                                <blockquote class="mb-1 small">
+                                                    <span class="text-body-secondary">@context.Before</span><mark>@context.Quote</mark><span class="text-body-secondary">@context.After</span>
+                                                </blockquote>
+                                            }
+                                            else
+                                            {
+                                                <blockquote class="mb-1">&ldquo;@reference.Quote&rdquo;</blockquote>
+                                            }
+
+                                            <figcaption class="small text-body-secondary">
+                                                @(reference.Response.Author ?? "anonymous")
+                                            </figcaption>
+                                        </figure>
+                                    }
+                                </details>
+                            }
+                        </li>
+                    }
+                </ul>
+            </section>
+        }
+    }
+}
+
+@code {
+    [Parameter]
+    public string Code { get; set; } = string.Empty;
+
+    [Parameter]
+    public Guid? SummaryId { get; set; }
+
+    private Survey? mSurvey;
+
+    private Summary? mSummary;
+
+    private List<Summary> mVersions = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        mSurvey = await Surveys.FindByCodeAsync(this.Code);
+
+        if (mSurvey is null)
+        {
+            return;
+        }
+
+        using var activity = WebTelemetry.Source.Start().SetSurvey(mSurvey);
+
+        mVersions = [.. await Summaries.ListVisibleAsync(mSurvey.Id)];
+
+        mSummary = this.SummaryId is { } id
+            ? await Summaries.FindAsync(id)
+            : await Summaries.FindLatestVisibleAsync(mSurvey.Id);
+
+        // A specific id must still be one this viewer is allowed to see, and must belong to
+        // this survey rather than another one that happens to share a summary id.
+        if (mSummary is not null
+            && (!mSummary.IsVisibleToPublic || mSummary.SurveyId != mSurvey.Id))
+        {
+            mSummary = null;
+        }
+
+        if (mSummary is not null)
+        {
+            WhatYouSayTelemetry.SummaryViewed(mSurvey);
+        }
+    }
+
+    /// <summary>
+    /// Renders the quote in place inside the full response. The offsets are checked rather
+    /// than trusted: if they no longer select the stored quote we fall back to showing the
+    /// quote alone instead of slicing the string blindly.
+    /// </summary>
+    private static (string Before, string Quote, string After)? Highlight(
+        SummaryTopicPointResponseReference reference)
+    {
+        var body = reference.Response.Body;
+
+        return QuoteLocator.Matches(body, reference.Quote, reference.StartIndex, reference.EndIndex)
+            ? (body[..reference.StartIndex], reference.Quote, body[reference.EndIndex..])
+            : null;
+    }
+}

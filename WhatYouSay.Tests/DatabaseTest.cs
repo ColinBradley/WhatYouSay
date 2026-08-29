@@ -6,7 +6,7 @@ namespace WhatYouSay.Tests;
 
 /// <summary>
 /// Real SQLite, real migrations, nothing mocked. Each test instance gets its own private
-/// in-memory database, so no state is shared and the suite runs under ParallelMode.All.
+/// in-memory database, so no state is shared and the suite runs at method-level parallelism.
 /// </summary>
 public abstract class DatabaseTest : IDisposable
 {
@@ -27,20 +27,26 @@ public abstract class DatabaseTest : IDisposable
         mDb.Database.Migrate();
     }
 
-    /// <summary>Lets the runner abort a test promptly, which matters once tests interleave.</summary>
-    protected static CancellationToken Cancellation => TestContext.Current.CancellationToken;
+    /// <summary>Set by MSTest on each test instance.</summary>
+    public TestContext TestContext { get; set; } = null!;
 
-    protected static Survey NewSurvey(ResponseIdentity identity) => new()
+    /// <summary>Lets the runner abort a test promptly, which matters once tests interleave.</summary>
+    protected CancellationToken Cancellation => this.TestContext.CancellationTokenSource.Token;
+
+    protected static Survey NewSurvey(ResponseIdentity identity)
     {
-        Id = Guid.CreateVersion7(),
-        Code = Guid.NewGuid().ToString("n")[..7],
-        Title = "Test survey",
-        Description = "A prompt",
-        AdminPasswordHash = "hash",
-        SummariserTokenHash = Guid.NewGuid().ToString("n"),
-        ResponseIdentity = identity,
-        CreatedAt = DateTimeOffset.UtcNow
-    };
+        return new Survey
+        {
+            Id = Guid.CreateVersion7(),
+            Code = Guid.NewGuid().ToString("n")[..7],
+            Title = "Test survey",
+            Description = "A prompt",
+            AdminPasswordHash = "hash",
+            SummariserTokenHash = Guid.NewGuid().ToString("n"),
+            ResponseIdentity = identity,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+    }
 
     protected async Task<SummaryTopicPoint> SeededPointAsync()
     {
@@ -54,7 +60,7 @@ public abstract class DatabaseTest : IDisposable
         survey.Summaries.Add(summary);
 
         mDb.Surveys.Add(survey);
-        await mDb.SaveChangesAsync(Cancellation);
+        await mDb.SaveChangesAsync(this.Cancellation);
 
         return point;
     }
@@ -65,7 +71,7 @@ public abstract class DatabaseTest : IDisposable
         await using var command = mConnection.CreateCommand();
         command.CommandText = sql;
 
-        return (await command.ExecuteScalarAsync(Cancellation))?.ToString();
+        return (await command.ExecuteScalarAsync(this.Cancellation))?.ToString();
     }
 
     public void Dispose()

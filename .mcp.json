@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "nekotrace": {
+      "type": "http",
+      "url": "http://localhost:8347/mcp"
+    }
+  }
+}

@@ -12,22 +12,28 @@ Blazor Server, EF Core, SQLite. Design and build order: [PLAN.md](PLAN.md).
 
 ## Code style
 
+`.editorconfig` enforces the mechanical parts as build errors via `EnforceCodeStyleInBuild`.
+
 - Blank line between every property.
 - Prefix instance members with `this.` — but not fields.
 - Instance fields take an `m` prefix: `private bool mIsDisposed;`
 - Static fields take an `s` prefix: `private static readonly FrozenSet<string> sNames = ["x"];`
 - `const` stays PascalCase, unprefixed.
+- Expression bodies suit a single value or a single call. Anything longer — a chained LINQ query especially — gets braces. Judgement, not enforced.
+- Don't manually wrap text in md files.
 
 ## Packages
 
-All versions live in `Directory.Packages.props`. Projects carry bare `PackageReference`
-entries with no `Version` attribute.
+All versions live in `Directory.Packages.props`. Projects carry bare `PackageReference` entries with no `Version` attribute.
+
+## Telemetry
+
+**One `ActivitySource` per assembly**. Start spans with the `Start()` extension.
 
 ## Tests
 
-- xUnit v3 on Microsoft.Testing.Platform.
-- `ParallelMode.All` is on, so every test must be parallel-safe.
-- Pass `Cancellation` to every async call.
+- MSTest on Microsoft.Testing.Platform. `global.json` opts into MTP mode for `dotnet test`.
+- `Parallelize(Scope = ExecutionScope.MethodLevel)`, so every test must be parallel-safe: no shared database, no shared static state, no ordering dependencies.
 - Real SQLite and real migrations. No mocking, no UI tests.
 
 ## Commands
@@ -46,5 +52,4 @@ dotnet ef migrations add <Name> --project WhatYouSay --startup-project WhatYouSa
 
 ## Development data
 
-Seeded on startup: four surveys, admin password `letmein`, summariser tokens `dev-retro`,
-`dev-lunch`, `dev-company`, `dev-diary`.
+Seeded on startup: four surveys, admin password `letmein`, summariser tokens `dev-retro`, `dev-lunch`, `dev-company`, `dev-diary`.

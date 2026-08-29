@@ -1,0 +1,247 @@
+@page "/surveys/{Code}"
+@using WhatYouSay.Data
+@using WhatYouSay.Services
+@using WhatYouSay.Web.Auth
+@inject SurveyService Surveys
+@inject ResponseService Responses
+@inject SummaryService Summaries
+@inject NavigationManager Navigation
+
+<PageTitle>@(mSurvey?.Title ?? "Survey")</PageTitle>
+
+@if (mSurvey is null)
+{
+    <h1>Survey not found</h1>
+    <p class="text-body-secondary">
+        No survey has the code &ldquo;@Code&rdquo;. Codes are case-sensitive.
+    </p>
+    <a href="/">Back to the list</a>
+}
+else
+{
+    <h1>@mSurvey.Title</h1>
+    <p class="lead">@mSurvey.Description</p>
+
+    <div class="d-flex gap-2 mb-4">
+        <span class="badge @(mSurvey.IsAcceptingResponses ? "text-bg-success" : "text-bg-secondary")">
+            @(mSurvey.IsAcceptingResponses ? "Open for responses" : "Closed")
+        </span>
+
+        @if (mHasVisibleSummary)
+        {
+            <a class="badge text-bg-info text-decoration-none" href="@($"/surveys/{Code}/summary")">
+                Read the summary
+            </a>
+        }
+    </div>
+
+    @if (mOwnResponse is not null)
+    {
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Your response</span>
+                @if (mOwnResponse.UpdatedAt is not null)
+                {
+                    <span class="small text-body-secondary">edited</span>
+                }
+            </div>
+            <div class="card-body">
+                @if (mSurvey.IsAcceptingResponses)
+                {
+                    <form method="post" @formname="edit-response" @onsubmit="SaveEdit">
+                        <AntiforgeryToken />
+
+                        @if (!mSurvey.IsAnonymous)
+                        {
+                            <div class="mb-3">
+                                <label class="form-label" for="edit-author">@NameLabel()</label>
+                                <input class="form-control" id="edit-author" name="Author" value="@Author" />
+                            </div>
+                        }
+
+                        <div class="mb-3">
+                            <label class="form-label" for="edit-body">Your answer</label>
+                            <textarea class="form-control" id="edit-body" name="Body" rows="6">@Body</textarea>
+                        </div>
+
+                        @if (mError is not null)
+                        {
+                            <p class="text-danger">@mError</p>
+                        }
+
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-primary" type="submit">Save changes</button>
+                        </div>
+                    </form>
+
+                    <form method="post" @formname="withdraw-response" @onsubmit="Withdraw" class="mt-2">
+                        <AntiforgeryToken />
+                        <button class="btn btn-outline-danger btn-sm" type="submit">Withdraw my response</button>
+                    </form>
+                }
+                else
+                {
+                    <p style="white-space: pre-wrap">@mOwnResponse.Body</p>
+                    <p class="small text-body-secondary mb-0">
+                        This survey has closed, so responses are frozen. That's what keeps the
+                        quotes in the summary accurate.
+                    </p>
+                }
+            </div>
+        </div>
+    }
+    else if (mSurvey.IsAcceptingResponses)
+    {
+        <form method="post" @formname="submit-response" @onsubmit="Submit">
+            <AntiforgeryToken />
+
+            @if (!mSurvey.IsAnonymous)
+            {
+                <div class="mb-3">
+                    <label class="form-label" for="author">@NameLabel()</label>
+                    <input class="form-control" id="author" name="Author" value="@Author" />
+                </div>
+            }
+
+            <div class="mb-3">
+                <label class="form-label" for="body">Your answer</label>
+                <textarea class="form-control" id="body" name="Body" rows="6">@Body</textarea>
+            </div>
+
+            @if (mError is not null)
+            {
+                <p class="text-danger">@mError</p>
+            }
+
+            <button class="btn btn-primary" type="submit">Submit</button>
+        </form>
+
+        <p class="small text-body-secondary mt-3">@StorageNotice()</p>
+    }
+    else
+    {
+        <div class="alert alert-secondary">
+            This survey is closed and is no longer taking responses.
+        </div>
+    }
+}
+
+@code {
+    [Parameter]
+    public string Code { get; set; } = string.Empty;
+
+    [CascadingParameter]
+    public HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    public string? Body { get; set; }
+
+    [SupplyParameterFromForm]
+    public string? Author { get; set; }
+
+    private Survey? mSurvey;
+
+    private Response? mOwnResponse;
+
+    private bool mHasVisibleSummary;
+
+    private string? mError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        mSurvey = await Surveys.FindByCodeAsync(this.Code);
+
+        if (mSurvey is null)
+        {
+            return;
+        }
+
+        mHasVisibleSummary = await Summaries.FindLatestVisibleAsync(mSurvey.Id) is not null;
+
+        var token = ResponderCookie.Read(this.HttpContext, mSurvey.Id);
+
+        if (token is not null)
+        {
+            mOwnResponse = await Responses.FindOwnAsync(mSurvey.Id, token);
+        }
+
+        // On a GET, prefill the editor with what is already stored.
+        if (mOwnResponse is not null && this.Body is null)
+        {
+            this.Body = mOwnResponse.Body;
+            this.Author = mOwnResponse.Author;
+        }
+    }
+
+    private async Task Submit()
+    {
+        if (mSurvey is null || !Validate(mSurvey))
+        {
+            return;
+        }
+
+        var token = await Responses.SubmitAsync(mSurvey, this.Body!, this.Author);
+
+        // Static SSR, so the response has not started and a cookie can still be written.
+        // This is exactly why these pages are not interactive.
+        ResponderCookie.Write(this.HttpContext, mSurvey.Id, token);
+
+        Navigation.NavigateTo($"/surveys/{this.Code}");
+    }
+
+    private async Task SaveEdit()
+    {
+        if (mSurvey is null || mOwnResponse is null || !Validate(mSurvey))
+        {
+            return;
+        }
+
+        await Responses.EditAsync(mSurvey, mOwnResponse, this.Body!, this.Author);
+
+        Navigation.NavigateTo($"/surveys/{this.Code}");
+    }
+
+    private async Task Withdraw()
+    {
+        if (mSurvey is null || mOwnResponse is null)
+        {
+            return;
+        }
+
+        await Responses.WithdrawAsync(mSurvey, mOwnResponse);
+        ResponderCookie.Clear(this.HttpContext, mSurvey.Id);
+
+        Navigation.NavigateTo($"/surveys/{this.Code}");
+    }
+
+    private bool Validate(Survey survey)
+    {
+        if (string.IsNullOrWhiteSpace(this.Body))
+        {
+            mError = "An answer is required.";
+            return false;
+        }
+
+        if (survey.ResponseIdentity == ResponseIdentity.Required && string.IsNullOrWhiteSpace(this.Author))
+        {
+            mError = "This survey asks everyone to put their name to what they write.";
+            return false;
+        }
+
+        mError = null;
+        return true;
+    }
+
+    private string NameLabel() =>
+        mSurvey!.ResponseIdentity == ResponseIdentity.Optional ? "Your name (optional)" : "Your name";
+
+    private string StorageNotice() => mSurvey!.ResponseIdentity switch
+    {
+        ResponseIdentity.Anonymous =>
+            "Anonymous: no name and no timestamp is recorded, not even hidden. A cookie in "
+            + "this browser is the only link back to your response.",
+        ResponseIdentity.Optional =>
+            "Your answer, the name you give if any, and the time are stored.",
+        _ => "Your answer, your name and the time are stored."
+    };
+}

@@ -1,0 +1,36 @@
+root = true
+
+[*.{cs,csx}]
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+
+# Instance members are qualified with this. Fields are not — they carry an m or s prefix
+# instead, so the qualifier would be redundant noise on the one thing already marked.
+dotnet_style_qualification_for_field = false:silent
+dotnet_style_qualification_for_property = true:error
+dotnet_style_qualification_for_method = true:error
+dotnet_style_qualification_for_event = true:error
+
+# Expression bodies suit a single value or a single call. Anything longer — a chained LINQ
+# query especially — gets braces. Not enforced, because no analyser can tell "one short
+# call" from "a query that grew"; it is a judgement call at review time.
+csharp_style_expression_bodied_methods = when_on_single_line:silent
+csharp_style_expression_bodied_local_functions = when_on_single_line:silent
+csharp_style_expression_bodied_constructors = false:silent
+csharp_style_expression_bodied_operators = when_on_single_line:silent
+csharp_style_expression_bodied_properties = true:silent
+csharp_style_expression_bodied_indexers = true:silent
+csharp_style_expression_bodied_accessors = true:silent
+csharp_style_expression_bodied_lambdas = true:silent
+
+csharp_new_line_before_open_brace = all
+csharp_prefer_braces = true:error
+
+[*.{razor,cshtml}]
+indent_style = space
+indent_size = 4
+
+[*.{json,props,targets,csproj,slnx,yml,yaml}]
+indent_style = space
+indent_size = 2

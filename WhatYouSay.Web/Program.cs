@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using WhatYouSay.Web.Components;
 using WhatYouSay.Data;
+using WhatYouSay.Services;
+using WhatYouSay.Web.Telemetry;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,6 +12,12 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddDbContext<WhatYouSayContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("WhatYouSay")));
+
+builder.Services.AddScoped<SurveyService>();
+builder.Services.AddScoped<ResponseService>();
+builder.Services.AddScoped<SummaryService>();
+
+builder.Services.AddWhatYouSayTelemetry();
 
 var app = builder.Build();
 

@@ -5,18 +5,19 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-    <!-- xUnit v3 test projects are executables running on Microsoft.Testing.Platform.
-         MTP mode itself is opted into via global.json, not an MSBuild property. -->
     <OutputType>Exe</OutputType>
+    <EnableMSTestRunner>true</EnableMSTestRunner>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- v3 4.0+ specifically, for ParallelMode.All. -->
-    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="MSTest" />
+    <PackageReference Include="OpenTelemetry" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
   </ItemGroup>
 
   <ItemGroup>
-    <Using Include="Xunit" />
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+    <Using Include="WhatYouSay.Telemetry" />
   </ItemGroup>
 
   <ItemGroup>

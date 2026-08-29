@@ -485,3 +485,7 @@ $RECYCLE.BIN/
 *.db
 *.db-shm
 *.db-wal
+
+# OpenTelemetry self-diagnostics (opt-in, local debugging only)
+OTEL_DIAGNOSTICS.json
+*.log
