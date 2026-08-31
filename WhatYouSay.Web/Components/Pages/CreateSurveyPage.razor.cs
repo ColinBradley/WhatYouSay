@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Microsoft.AspNetCore.Components;
 using WhatYouSay.Data;
 using WhatYouSay.Services;
@@ -8,6 +9,54 @@ namespace WhatYouSay.Web.Components.Pages;
 
 public partial class CreateSurveyPage
 {
+    /// <summary>Placeholder copy for the title and question boxes, shown as a matched pair.</summary>
+    private sealed record Example
+    {
+        public required string Title { get; init; }
+
+        public required string Prompt { get; init; }
+    }
+
+    // A visitor sees one of these, so the spread across work, social and single-author uses is
+    // what stops the app reading as a tool for one of them. Keep it varied when adding.
+    private static readonly ImmutableArray<Example> sExamples =
+    [
+        new Example()
+        {
+            Title = "Sprint 48 retro",
+            Prompt = "What went well, what didn't, and what would you change? Be as blunt as you like.",
+        },
+        new Example()
+        {
+            Title = "Where are we eating on Friday?",
+            Prompt = "Somewhere new, somewhere familiar, or somewhere with food you can actually eat. Say what you'd rather avoid too.",
+        },
+        new Example()
+        {
+            Title = "The new deploy process, one month on",
+            Prompt = "What is better than before, what is worse, and what would you rip out entirely?",
+        },
+        new Example()
+        {
+            Title = "Summer trip: what are we actually doing?",
+            Prompt = "Dates that work, dates that don't, and one thing you'd like to do while we're there.",
+        },
+        new Example()
+        {
+            Title = "How is the reading group going?",
+            Prompt = "What is working, what isn't, and what should we read next?",
+        },
+        new Example()
+        {
+            Title = "Week 12",
+            Prompt = "What happened, what I learned, and what is still bothering me.",
+        },
+    ];
+
+    // Field initialiser rather than OnInitialized: nothing here depends on parameters, and the
+    // page is static SSR, so one instance is one page load is one example.
+    private readonly Example mExample = sExamples[Random.Shared.Next(sExamples.Length)];
+
     private CreatedSurvey? mCreated;
 
     private string? mShareLink;

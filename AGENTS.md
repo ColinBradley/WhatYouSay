@@ -25,6 +25,7 @@ Blazor Server, EF Core, SQLite. Design and build order: [PLAN.md](PLAN.md).
 - Object initializers keep the constructor parentheses: `new Thing() { ... }`, never `new Thing { ... }`.
 - Trailing commas everywhere they are legal: object, collection and array initializers, collection expressions, switch expressions, enums.
 - Prefer `required` properties with `init` over constructor parameters, including on records. Positional records get miswired silently when several parameters share a type.
+- Favour immutable types wherever they fit: `record` for data, `init` over `set`, `readonly` fields, `ImmutableArray<T>` or `FrozenSet<T>` for static tables, `IReadOnlyList<T>` on anything a caller should not mutate. EF entities and Blazor `[SupplyParameterFromForm]` / `[Inject]` properties are the exceptions — both need settable properties.
 - Don't manually wrap text in md files.
 
 ## UI
