@@ -56,6 +56,7 @@ All versions live in `Directory.Packages.props`. Projects carry bare `PackageRef
 ## Tests
 
 - MSTest on Microsoft.Testing.Platform. `global.json` opts into MTP mode for `dotnet test`.
+- MTP flags, not VSTest flags: `--report-trx` not `--logger trx`, `--no-banner` not `--nologo`, `--coverage` not `--collect`. A VSTest flag is forwarded to the test app unrecognised and fails the run as "Zero tests ran", exit 5.
 - `Parallelize(Scope = ExecutionScope.MethodLevel)`, so every test must be parallel-safe: no shared database, no shared static state, no ordering dependencies.
 - Real SQLite and real migrations. No mocking, no UI tests.
 
