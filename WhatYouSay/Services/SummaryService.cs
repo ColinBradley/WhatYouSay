@@ -17,17 +17,22 @@ public class SummaryService(WhatYouSayContext db)
     {
         using var activity = WhatYouSayTelemetry.Source.Start();
 
-        return await this.Detailed()
+        var summary = await this.Detailed()
             .Where(s => s.SurveyId == surveyId && !s.IsDraft && s.IsPublic)
             .OrderByDescending(s => s.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
+
+        return Assembled(summary);
     }
 
     public async Task<Summary?> FindAsync(Guid summaryId, CancellationToken cancellationToken = default)
     {
         using var activity = WhatYouSayTelemetry.Source.Start();
 
-        return await this.Detailed().FirstOrDefaultAsync(s => s.Id == summaryId, cancellationToken);
+        var summary = await this.Detailed()
+            .FirstOrDefaultAsync(s => s.Id == summaryId, cancellationToken);
+
+        return Assembled(summary);
     }
 
     public async Task<IReadOnlyList<Summary>> ListVisibleAsync(
@@ -74,7 +79,7 @@ public class SummaryService(WhatYouSayContext db)
 
         var summary = replacing is { } id
             ? await db.Summaries
-                .Include(s => s.Topics)
+                .Include(s => s.Nodes)
                 .FirstOrDefaultAsync(s => s.Id == id && s.SurveyId == survey.Id, cancellationToken)
             : null;
 
@@ -114,53 +119,54 @@ public class SummaryService(WhatYouSayContext db)
             summary.UpdatedAt = now;
 
             // The agent submits a whole summary each time, so replace rather than merge.
-            db.SummaryTopics.RemoveRange(summary.Topics);
-            summary.Topics.Clear();
+            db.SummaryNodes.RemoveRange(summary.Nodes);
+            summary.Nodes.Clear();
         }
 
-        foreach (var topicDraft in draft.Topics)
+        foreach (var node in draft.Nodes)
         {
-            var topic = new SummaryTopic()
-            {
-                Name = topicDraft.Name,
-                Description = topicDraft.Description,
-            };
-
-            foreach (var pointDraft in topicDraft.Points)
-            {
-                var point = new SummaryTopicPoint()
-                {
-                    Description = pointDraft.Description,
-                    Sentiment = pointDraft.Sentiment,
-                    Objectivity = pointDraft.Objectivity,
-                };
-
-                foreach (var referenceDraft in pointDraft.References)
-                {
-                    var response = responses[referenceDraft.ResponseId];
-                    var location = QuoteLocator.Locate(response.Body, referenceDraft.Quote)!.Value;
-
-                    point.References.Add(new SummaryTopicPointResponseReference()
-                    {
-                        ResponseId = response.Id,
-                        Quote = referenceDraft.Quote,
-                        StartIndex = location.StartIndex,
-                        EndIndex = location.EndIndex,
-                        Intensity = referenceDraft.Intensity,
-                    });
-                }
-
-                topic.Points.Add(point);
-            }
-
-            summary.Topics.Add(topic);
+            Graft(node, null);
         }
 
         await db.SaveChangesAsync(cancellationToken);
 
+        SummaryTree.Assemble(summary);
+
         WhatYouSayTelemetry.SummaryDrafted(survey);
 
         return summary;
+
+        void Graft(NodeDraft draftNode, SummaryNode? parent)
+        {
+            var node = new SummaryNode()
+            {
+                Text = draftNode.Text,
+                Parent = parent,
+            };
+
+            foreach (var referenceDraft in draftNode.References)
+            {
+                var response = responses[referenceDraft.ResponseId];
+                var location = QuoteLocator.Locate(response.Body, referenceDraft.Quote)!.Value;
+
+                node.References.Add(new SummaryNodeReference()
+                {
+                    ResponseId = response.Id,
+                    Quote = referenceDraft.Quote,
+                    StartIndex = location.StartIndex,
+                    EndIndex = location.EndIndex,
+                });
+            }
+
+            // Every node carries SummaryId, so every node joins the flat collection. Added
+            // depth-first, which is what makes the identity keys come out in reading order.
+            summary.Nodes.Add(node);
+
+            foreach (var child in draftNode.Children)
+            {
+                Graft(child, node);
+            }
+        }
     }
 
     /// <summary>Runs before anything is written, so a failure leaves nothing behind.</summary>
@@ -180,9 +186,9 @@ public class SummaryService(WhatYouSayContext db)
                 + "produces quotes that stop matching, so close the survey first.");
         }
 
-        if (draft.Topics.Count == 0)
+        if (draft.Nodes.Count == 0)
         {
-            throw this.Reject(survey, "empty_summary", "/topics", "A summary needs at least one topic.");
+            throw this.Reject(survey, "empty_summary", "/nodes", "A summary needs at least one node.");
         }
 
         var responses = await db.Responses
@@ -192,77 +198,9 @@ public class SummaryService(WhatYouSayContext db)
         // Every problem is collected rather than thrown on, so one retry can fix the lot.
         var failures = new List<GroundingFailure>();
 
-        for (var t = 0; t < draft.Topics.Count; t++)
+        for (var i = 0; i < draft.Nodes.Count; i++)
         {
-            var topic = draft.Topics[t];
-
-            if (topic.Points.Count == 0)
-            {
-                failures.Add(new GroundingFailure()
-                {
-                    Path = $"/topics/{t}/points",
-                    Reason = "empty_topic",
-                    Message = $"Topic \"{topic.Name}\" has no points. Drop it or give it one.",
-                });
-
-                continue;
-            }
-
-            for (var p = 0; p < topic.Points.Count; p++)
-            {
-                var point = topic.Points[p];
-
-                if (point.References.Count == 0)
-                {
-                    failures.Add(new GroundingFailure()
-                    {
-                        Path = $"/topics/{t}/points/{p}/references",
-                        Reason = "point_without_citation",
-                        Message = $"Point \"{Trim(point.Description)}\" cites nothing. Every point "
-                            + "must quote at least one response.",
-                    });
-
-                    continue;
-                }
-
-                for (var r = 0; r < point.References.Count; r++)
-                {
-                    var path = $"/topics/{t}/points/{p}/references/{r}";
-                    var reference = point.References[r];
-
-                    if (!responses.TryGetValue(reference.ResponseId, out var response))
-                    {
-                        failures.Add(new GroundingFailure()
-                        {
-                            Path = $"{path}/responseId",
-                            Reason = "unknown_response",
-                            Message = $"Point \"{Trim(point.Description)}\" cites response "
-                                + $"{reference.ResponseId}, which is not a live response on this survey.",
-                        });
-
-                        continue;
-                    }
-
-                    if (QuoteLocator.Locate(response.Body, reference.Quote) is not null)
-                    {
-                        continue;
-                    }
-
-                    var mismatch = QuoteLocator.Diagnose(response.Body, reference.Quote);
-
-                    failures.Add(new GroundingFailure()
-                    {
-                        Path = $"{path}/quote",
-                        Reason = "quote_not_found",
-                        Message = $"Point \"{Trim(point.Description)}\" quotes "
-                            + $"\"{Trim(reference.Quote)}\", which does not occur in response "
-                            + $"{reference.ResponseId}. Quotes must be copied exactly from the "
-                            + "response text.",
-                        Nearest = mismatch.Nearest,
-                        Detail = mismatch.Detail,
-                    });
-                }
-            }
+            Check(draft.Nodes[i], $"/nodes/{i}", supported: false);
         }
 
         if (failures.Count > 0)
@@ -271,6 +209,78 @@ public class SummaryService(WhatYouSayContext db)
         }
 
         return responses;
+
+        // Nothing on a node says what sort of thing it is, so the rule cannot ask which nodes
+        // are obliged to cite. What it can ask is that every path down the tree ends somewhere
+        // real: a leaf either cites for itself or sits under something that does. A heading
+        // needs no citation because the requirement lands on what hangs below it, and a
+        // childless node with none is not a heading, whatever it was meant to be.
+        void Check(NodeDraft node, string path, bool supported)
+        {
+            for (var r = 0; r < node.References.Count; r++)
+            {
+                CheckReference(node, node.References[r], $"{path}/references/{r}");
+            }
+
+            // Support inherits down a branch, so a child of a cited node need not re-cite.
+            var grounded = supported || node.References.Count > 0;
+
+            if (node.Children.Count == 0)
+            {
+                if (!grounded)
+                {
+                    failures.Add(new GroundingFailure()
+                    {
+                        Path = $"{path}/references",
+                        Reason = "branch_without_citation",
+                        Message = $"Nothing cites \"{Trim(node.Text)}\", it has nothing under it, "
+                            + "and nothing above it cites a response either. Every branch has to "
+                            + "end in something somebody actually wrote.",
+                    });
+                }
+
+                return;
+            }
+
+            for (var c = 0; c < node.Children.Count; c++)
+            {
+                Check(node.Children[c], $"{path}/children/{c}", grounded);
+            }
+        }
+
+        void CheckReference(NodeDraft node, ReferenceDraft reference, string path)
+        {
+            if (!responses.TryGetValue(reference.ResponseId, out var response))
+            {
+                failures.Add(new GroundingFailure()
+                {
+                    Path = $"{path}/responseId",
+                    Reason = "unknown_response",
+                    Message = $"\"{Trim(node.Text)}\" cites response {reference.ResponseId}, which "
+                        + "is not a live response on this survey.",
+                });
+
+                return;
+            }
+
+            if (QuoteLocator.Locate(response.Body, reference.Quote) is not null)
+            {
+                return;
+            }
+
+            var mismatch = QuoteLocator.Diagnose(response.Body, reference.Quote);
+
+            failures.Add(new GroundingFailure()
+            {
+                Path = $"{path}/quote",
+                Reason = "quote_not_found",
+                Message = $"\"{Trim(node.Text)}\" quotes \"{Trim(reference.Quote)}\", which does "
+                    + $"not occur in response {reference.ResponseId}. Quotes must be copied "
+                    + "exactly from the response text.",
+                Nearest = mismatch.Nearest,
+                Detail = mismatch.Detail,
+            });
+        }
     }
 
     private SummaryGroundingException Reject(
@@ -333,17 +343,27 @@ public class SummaryService(WhatYouSayContext db)
         return value.Length <= 60 ? value : value[..60] + "…";
     }
 
+    private static Summary? Assembled(Summary? summary)
+    {
+        if (summary is not null)
+        {
+            SummaryTree.Assemble(summary);
+        }
+
+        return summary;
+    }
+
     /// <summary>
-    /// Loads the whole tree. Withdrawn responses are filtered out here rather than at
-    /// render time, so no caller can surface one by accident.
+    /// Loads every node of the summary flat, in one query — EF cannot eager-load an arbitrary
+    /// depth, so the tree is stitched afterwards. Withdrawn responses are filtered out here
+    /// rather than at render time, so no caller can surface one by accident.
     /// </summary>
     private IQueryable<Summary> Detailed()
     {
         return db.Summaries
-            .Include(s => s.Topics)
-                .ThenInclude(t => t.Points)
-                    .ThenInclude(p => p.References.Where(r => !r.Response.IsDeleted))
-                        .ThenInclude(r => r.Response)
+            .Include(s => s.Nodes)
+                .ThenInclude(n => n.References.Where(r => !r.Response.IsDeleted))
+                    .ThenInclude(r => r.Response)
             .AsSplitQuery();
     }
 }

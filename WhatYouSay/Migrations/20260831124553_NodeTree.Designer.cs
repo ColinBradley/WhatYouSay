@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using WhatYouSay.Data;
 
@@ -10,9 +11,11 @@ using WhatYouSay.Data;
 namespace WhatYouSay.Migrations
 {
     [DbContext(typeof(WhatYouSayContext))]
-    partial class WhatYouSayContextModelSnapshot : ModelSnapshot
+    [Migration("20260831124553_NodeTree")]
+    partial class NodeTree
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.11");
@@ -129,8 +132,18 @@ namespace WhatYouSay.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<double?>("Objectivity")
+                        .HasColumnType("REAL");
+
                     b.Property<int?>("ParentId")
                         .HasColumnType("INTEGER");
+
+                    b.Property<double?>("Sentiment")
+                        .HasColumnType("REAL");
 
                     b.Property<Guid>("SummaryId")
                         .HasColumnType("TEXT");
@@ -156,6 +169,9 @@ namespace WhatYouSay.Migrations
 
                     b.Property<int>("EndIndex")
                         .HasColumnType("INTEGER");
+
+                    b.Property<double?>("Intensity")
+                        .HasColumnType("REAL");
 
                     b.Property<int>("NodeId")
                         .HasColumnType("INTEGER");

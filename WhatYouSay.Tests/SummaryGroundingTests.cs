@@ -20,16 +20,134 @@ public class SummaryGroundingTests : DatabaseTest
 
         var summary = await this.Service().SaveDraftAsync(
             survey,
-            Draft(Point("CI is slow enough to change behaviour", (responses[0], "22 minutes"))),
+            Draft(Cites("CI is slow enough to change behaviour", (responses[0], "22 minutes"))),
             "agent",
             null,
             this.Cancellation);
 
-        var reference = summary.Topics.Single().Points.Single().References.Single();
+        var reference = summary.Nodes.SelectMany(n => n.References).Single();
 
         Assert.AreEqual("22 minutes", AnnaSaid[reference.StartIndex..reference.EndIndex]);
         Assert.IsTrue(summary.IsDraft);
         Assert.AreEqual("agent", summary.CreatedBy);
+    }
+
+    [TestMethod]
+    public async Task A_tree_is_stored_flat_and_reads_back_nested()
+    {
+        using var activity = TestTelemetry.Source.Start();
+
+        var (survey, responses) = await this.ClosedSurveyAsync();
+
+        var cited = Cites("CI is slow", (responses[0], "22 minutes")) with
+        {
+            Children = [Node("Which is why people batch commits")],
+        };
+
+        var saved = await this.Service().SaveDraftAsync(
+            survey,
+            Draft(cited),
+            "agent",
+            null,
+            this.Cancellation);
+
+        mDb.ChangeTracker.Clear();
+
+        var reloaded = (await this.Service().FindAsync(saved.Id, this.Cancellation))!;
+        var root = reloaded.Roots.Single();
+
+        Assert.HasCount(3, reloaded.Nodes);
+        Assert.AreEqual("Tooling", root.Text);
+        Assert.AreEqual("CI is slow", root.Children.Single().Text);
+        Assert.AreEqual("Which is why people batch commits", root.Children.Single().Children.Single().Text);
+        Assert.AreEqual(3, SummaryTree.Depth(reloaded.Roots));
+    }
+
+    [TestMethod]
+    public async Task Support_inherits_down_a_branch()
+    {
+        using var activity = TestTelemetry.Source.Start();
+
+        var (survey, responses) = await this.ClosedSurveyAsync();
+
+        // The leaf cites nothing of its own, which is legal because the node above it does.
+        // Making it re-cite would only copy one quote twice.
+        var cited = Cites("CI is slow", (responses[0], "22 minutes")) with
+        {
+            Children = [Node("Enough that a green build is not a gate")],
+        };
+
+        var summary = await this.Service().SaveDraftAsync(
+            survey,
+            Draft(cited),
+            "agent",
+            null,
+            this.Cancellation);
+
+        Assert.HasCount(3, summary.Nodes);
+    }
+
+    [TestMethod]
+    public async Task A_leaf_nothing_supports_is_rejected()
+    {
+        using var activity = TestTelemetry.Source.Start();
+
+        var (survey, _) = await this.ClosedSurveyAsync();
+
+        var rejection = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
+            () => this.Service().SaveDraftAsync(
+                survey,
+                Draft(Node("Morale is low")),
+                "agent",
+                null,
+                this.Cancellation));
+
+        Assert.AreEqual("branch_without_citation", rejection.Reason);
+        Assert.AreEqual("/nodes/0/children/0/references", rejection.Failures.Single().Path);
+    }
+
+    [TestMethod]
+    public async Task A_heading_needs_no_citation_of_its_own()
+    {
+        using var activity = TestTelemetry.Source.Start();
+
+        var (survey, responses) = await this.ClosedSurveyAsync();
+
+        // Nothing marks the root as a heading. It passes because the requirement lands on
+        // what hangs below it, which is cited.
+        var summary = await this.Service().SaveDraftAsync(
+            survey,
+            Draft(Cites("CI is slow", (responses[0], "22 minutes"))),
+            "agent",
+            null,
+            this.Cancellation);
+
+        Assert.IsEmpty(summary.Roots.Single().References);
+    }
+
+    [TestMethod]
+    public async Task A_childless_node_with_no_citation_is_rejected_whatever_it_meant_to_be()
+    {
+        using var activity = TestTelemetry.Source.Start();
+
+        var (survey, _) = await this.ClosedSurveyAsync();
+
+        // Read as a heading this is an empty section; read as a finding it is uncited. The
+        // untyped rule cannot tell the two apart, and rejects both.
+        var rejection = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
+            () => this.Service().SaveDraftAsync(
+                survey,
+                new SummaryDraft()
+                {
+                    Body = "Overview",
+                    Nodes = [Node("Tooling")],
+                },
+                "agent",
+                null,
+                this.Cancellation));
+
+        Assert.AreEqual("branch_without_citation", rejection.Reason);
+        Assert.AreEqual("/nodes/0/references", rejection.Failures.Single().Path);
     }
 
     [TestMethod]
@@ -42,7 +160,7 @@ public class SummaryGroundingTests : DatabaseTest
         var rejection = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
             () => this.Service().SaveDraftAsync(
                 survey,
-                Draft(Point("CI takes 45 minutes", (responses[0], "45 minutes"))),
+                Draft(Cites("CI takes 45 minutes", (responses[0], "45 minutes"))),
                 "agent",
                 null,
                 this.Cancellation));
@@ -50,24 +168,6 @@ public class SummaryGroundingTests : DatabaseTest
         Assert.AreEqual("quote_not_found", rejection.Reason);
 
         Assert.Contains("45 minutes", rejection.Message, StringComparison.Ordinal);
-    }
-
-    [TestMethod]
-    public async Task A_point_citing_nothing_is_rejected()
-    {
-        using var activity = TestTelemetry.Source.Start();
-
-        var (survey, _) = await this.ClosedSurveyAsync();
-
-        var rejection = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
-            () => this.Service().SaveDraftAsync(
-                survey,
-                Draft(new PointDraft { Description = "Morale is low", References = [] }),
-                "agent",
-                null,
-                this.Cancellation));
-
-        Assert.AreEqual("point_without_citation", rejection.Reason);
     }
 
     [TestMethod]
@@ -80,7 +180,7 @@ public class SummaryGroundingTests : DatabaseTest
         var rejection = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
             () => this.Service().SaveDraftAsync(
                 survey,
-                Draft(Point("Something", (Guid.NewGuid(), "22 minutes"))),
+                Draft(Cites("Something", (Guid.NewGuid(), "22 minutes"))),
                 "agent",
                 null,
                 this.Cancellation));
@@ -102,7 +202,7 @@ public class SummaryGroundingTests : DatabaseTest
         var rejection = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
             () => this.Service().SaveDraftAsync(
                 survey,
-                Draft(Point("On-call hurt", (responses[1], "fourteen pages"))),
+                Draft(Cites("On-call hurt", (responses[1], "fourteen pages"))),
                 "agent",
                 null,
                 this.Cancellation));
@@ -122,34 +222,12 @@ public class SummaryGroundingTests : DatabaseTest
         var rejection = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
             () => this.Service().SaveDraftAsync(
                 survey,
-                Draft(Point("CI is slow", (responses[0], "22 minutes"))),
+                Draft(Cites("CI is slow", (responses[0], "22 minutes"))),
                 "agent",
                 null,
                 this.Cancellation));
 
         Assert.AreEqual("survey_open", rejection.Reason);
-    }
-
-    [TestMethod]
-    public async Task A_topic_with_no_points_is_rejected()
-    {
-        using var activity = TestTelemetry.Source.Start();
-
-        var (survey, _) = await this.ClosedSurveyAsync();
-
-        var rejection = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
-            () => this.Service().SaveDraftAsync(
-                survey,
-                new SummaryDraft()
-                {
-                    Body = "Overview",
-                    Topics = [new TopicDraft { Name = "Tooling", Points = [] }],
-                },
-                "agent",
-                null,
-                this.Cancellation));
-
-        Assert.AreEqual("empty_topic", rejection.Reason);
     }
 
     [TestMethod]
@@ -159,22 +237,14 @@ public class SummaryGroundingTests : DatabaseTest
 
         var (survey, responses) = await this.ClosedSurveyAsync();
 
-        // The good topic must not survive the bad one.
+        // The good branch must not survive the bad one.
         var draft = new SummaryDraft()
         {
             Body = "Overview",
-            Topics =
+            Nodes =
             [
-                new TopicDraft()
-                {
-                    Name = "Tooling",
-                    Points = [Point("CI is slow", (responses[0], "22 minutes"))],
-                },
-                new TopicDraft()
-                {
-                    Name = "On-call",
-                    Points = [Point("Pager noise", (responses[1], "invented text"))],
-                },
+                Heading("Tooling", Cites("CI is slow", (responses[0], "22 minutes"))),
+                Heading("On-call", Cites("Pager noise", (responses[1], "invented text"))),
             ],
         };
 
@@ -182,7 +252,7 @@ public class SummaryGroundingTests : DatabaseTest
             () => this.Service().SaveDraftAsync(survey, draft, "agent", null, this.Cancellation));
 
         Assert.AreEqual(0, await mDb.Summaries.CountAsync(this.Cancellation));
-        Assert.AreEqual(0, await mDb.SummaryTopics.CountAsync(this.Cancellation));
+        Assert.AreEqual(0, await mDb.SummaryNodes.CountAsync(this.Cancellation));
         Assert.AreEqual(0, await mDb.References.CountAsync(this.Cancellation));
     }
 
@@ -194,7 +264,7 @@ public class SummaryGroundingTests : DatabaseTest
         var (survey, responses) = await this.ClosedSurveyAsync();
         var service = this.Service();
 
-        var draft = Draft(Point("CI is slow", (responses[0], "22 minutes")));
+        var draft = Draft(Cites("CI is slow", (responses[0], "22 minutes")));
         var summary = await service.SaveDraftAsync(survey, draft, "agent", null, this.Cancellation);
 
         summary.IsDraft = false;
@@ -216,14 +286,14 @@ public class SummaryGroundingTests : DatabaseTest
 
         var first = await service.SaveDraftAsync(
             survey,
-            Draft(Point("CI is slow", (responses[0], "22 minutes"))),
+            Draft(Cites("CI is slow", (responses[0], "22 minutes"))),
             "agent",
             null,
             this.Cancellation);
 
         var second = await service.SaveDraftAsync(
             survey,
-            Draft(Point("On-call was noisy", (responses[1], "fourteen pages"))),
+            Draft(Cites("On-call was noisy", (responses[1], "fourteen pages"))),
             "agent",
             first.Id,
             this.Cancellation);
@@ -231,9 +301,15 @@ public class SummaryGroundingTests : DatabaseTest
         Assert.AreEqual(first.Id, second.Id);
         Assert.AreEqual(1, await mDb.Summaries.CountAsync(this.Cancellation));
 
-        // The old topic tree is gone rather than merged with the new one.
-        Assert.AreEqual(1, await mDb.SummaryTopics.CountAsync(this.Cancellation));
-        Assert.AreEqual("On-call was noisy", (await mDb.SummaryTopicPoints.SingleAsync(this.Cancellation)).Description);
+        // The old tree is gone rather than merged with the new one.
+        Assert.AreEqual(2, await mDb.SummaryNodes.CountAsync(this.Cancellation));
+
+        Assert.AreEqual(
+            "On-call was noisy",
+            await mDb.SummaryNodes
+                .Where(n => n.ParentId != null)
+                .Select(n => n.Text)
+                .SingleAsync(this.Cancellation));
     }
 
     [TestMethod]
@@ -247,18 +323,13 @@ public class SummaryGroundingTests : DatabaseTest
         var draft = new SummaryDraft()
         {
             Body = "Overview",
-            Topics =
+            Nodes =
             [
-                new TopicDraft()
-                {
-                    Name = "Tooling",
-                    Points =
-                    [
-                        Point("Invented", (responses[0], "45 minutes")),
-                        new PointDraft { Description = "Uncited", References = [] },
-                    ],
-                },
-                new TopicDraft { Name = "Empty", Points = [] },
+                Heading(
+                    "Tooling",
+                    Cites("Invented", (responses[0], "45 minutes")),
+                    Node("Uncited")),
+                Node("Empty"),
             ],
         };
 
@@ -268,15 +339,15 @@ public class SummaryGroundingTests : DatabaseTest
         Assert.HasCount(3, rejection.Failures);
 
         Assert.AreSequenceEqual(
-            ["quote_not_found", "point_without_citation", "empty_topic"],
+            ["quote_not_found", "branch_without_citation", "branch_without_citation"],
             rejection.Failures.Select(f => f.Reason).ToArray(),
             SequenceOrder.InAnyOrder);
 
         Assert.AreSequenceEqual(
             [
-                "/topics/0/points/0/references/0/quote",
-                "/topics/0/points/1/references",
-                "/topics/1/points",
+                "/nodes/0/children/0/references/0/quote",
+                "/nodes/0/children/1/references",
+                "/nodes/1/references",
             ],
             rejection.Failures.Select(f => f.Path).ToArray(),
             SequenceOrder.InAnyOrder);
@@ -292,7 +363,7 @@ public class SummaryGroundingTests : DatabaseTest
         var rejection = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
             () => this.Service().SaveDraftAsync(
                 survey,
-                Draft(Point("CI is slow", (responses[0], "A full run is 22 minutes and it failed often."))),
+                Draft(Cites("CI is slow", (responses[0], "A full run is 22 minutes and it failed often."))),
                 "agent",
                 null,
                 this.Cancellation));
@@ -309,20 +380,30 @@ public class SummaryGroundingTests : DatabaseTest
         return new SummaryService(mDb);
     }
 
-    private static SummaryDraft Draft(PointDraft point)
+    private static SummaryDraft Draft(NodeDraft child)
     {
         return new SummaryDraft()
         {
             Body = "Overview",
-            Topics = [new TopicDraft { Name = "Tooling", Points = [point] }],
+            Nodes = [Heading("Tooling", child)],
         };
     }
 
-    private static PointDraft Point(string description, params (Guid Response, string Quote)[] citations)
+    /// <summary>A node reads as a heading only by having children; nothing on it says so.</summary>
+    private static NodeDraft Heading(string text, params NodeDraft[] children)
     {
-        return new PointDraft()
+        return Node(text) with { Children = children };
+    }
+
+    private static NodeDraft Node(string text)
+    {
+        return new NodeDraft() { Text = text };
+    }
+
+    private static NodeDraft Cites(string text, params (Guid Response, string Quote)[] citations)
+    {
+        return Node(text) with
         {
-            Description = description,
             References =
             [
                 .. citations.Select(c => new ReferenceDraft { ResponseId = c.Response, Quote = c.Quote }),

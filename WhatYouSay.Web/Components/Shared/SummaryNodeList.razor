@@ -1,0 +1,8 @@
+@using WhatYouSay.Data
+
+<ul class="list-unstyled @(this.Depth == 0 ? null : "ps-4 border-start")">
+    @foreach (var node in this.Nodes)
+    {
+        <SummaryNodeView Node="@node" Depth="@this.Depth" Inherited="@this.Inherited" />
+    }
+</ul>

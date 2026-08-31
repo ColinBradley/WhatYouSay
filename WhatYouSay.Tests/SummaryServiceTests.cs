@@ -26,6 +26,25 @@ public class SummaryServiceTests : DatabaseTest
     }
 
     [TestMethod]
+    public async Task An_unpublished_version_is_still_reachable_by_id()
+    {
+        using var activity = TestTelemetry.Source.Start();
+
+        var survey = NewSurvey(ResponseIdentity.Required);
+        var draft = Summary("draft", isDraft: true, isPublic: false);
+
+        survey.Summaries.Add(draft);
+
+        mDb.Surveys.Add(survey);
+        await mDb.SaveChangesAsync(this.Cancellation);
+
+        // Visibility is the caller's decision, not the loader's: the summary page can then
+        // show a draft to an admin without a second way of loading one.
+        Assert.IsNotNull(await this.Service().FindAsync(draft.Id, this.Cancellation));
+        Assert.HasCount(1, await this.Service().ListAllAsync(survey.Id, this.Cancellation));
+    }
+
+    [TestMethod]
     public async Task The_newest_published_version_wins()
     {
         using var activity = TestTelemetry.Source.Start();
@@ -46,7 +65,7 @@ public class SummaryServiceTests : DatabaseTest
     }
 
     [TestMethod]
-    public async Task References_to_withdrawn_responses_disappear_but_the_point_survives()
+    public async Task References_to_withdrawn_responses_disappear_but_the_node_survives()
     {
         using var activity = TestTelemetry.Source.Start();
 
@@ -55,10 +74,10 @@ public class SummaryServiceTests : DatabaseTest
         var survey = await mDb.Surveys.SingleAsync(s => s.Code == "spr47ab", this.Cancellation);
         var summary = (await this.Service().FindLatestVisibleAsync(survey.Id, this.Cancellation))!;
 
-        var point = summary.Topics.SelectMany(t => t.Points).First(p => p.References.Count > 0);
-        var citedResponseId = point.References[0].ResponseId;
-        var pointId = point.Id;
-        var before = point.References.Count;
+        var node = summary.Nodes.First(n => n.References.Count > 0);
+        var citedResponseId = node.References[0].ResponseId;
+        var nodeId = node.Id;
+        var before = node.References.Count;
 
         var cited = await mDb.Responses.SingleAsync(r => r.Id == citedResponseId, this.Cancellation);
         cited.IsDeleted = true;
@@ -67,10 +86,10 @@ public class SummaryServiceTests : DatabaseTest
         mDb.ChangeTracker.Clear();
 
         var reloaded = (await this.Service().FindLatestVisibleAsync(survey.Id, this.Cancellation))!;
-        var reloadedPoint = reloaded.Topics.SelectMany(t => t.Points).Single(p => p.Id == pointId);
+        var reloadedNode = reloaded.Nodes.Single(n => n.Id == nodeId);
 
-        Assert.HasCount(before - 1, reloadedPoint.References);
-        Assert.DoesNotContain(r => r.ResponseId == citedResponseId, reloadedPoint.References);
+        Assert.HasCount(before - 1, reloadedNode.References);
+        Assert.DoesNotContain(r => r.ResponseId == citedResponseId, reloadedNode.References);
     }
 
     [TestMethod]
@@ -83,7 +102,7 @@ public class SummaryServiceTests : DatabaseTest
         var survey = await mDb.Surveys.SingleAsync(s => s.Code == "spr47ab", this.Cancellation);
         var summary = (await this.Service().FindLatestVisibleAsync(survey.Id, this.Cancellation))!;
 
-        var references = summary.Topics.SelectMany(t => t.Points).SelectMany(p => p.References).ToList();
+        var references = summary.Nodes.SelectMany(n => n.References).ToList();
 
         Assert.IsNotEmpty(references);
 
@@ -97,7 +116,7 @@ public class SummaryServiceTests : DatabaseTest
     }
 
     [TestMethod]
-    public async Task Every_seeded_point_cites_at_least_one_response()
+    public async Task Every_seeded_branch_resolves_to_a_citation()
     {
         using var activity = TestTelemetry.Source.Start();
 
@@ -106,10 +125,44 @@ public class SummaryServiceTests : DatabaseTest
         var survey = await mDb.Surveys.SingleAsync(s => s.Code == "spr47ab", this.Cancellation);
         var summary = (await this.Service().FindLatestVisibleAsync(survey.Id, this.Cancellation))!;
 
-        var points = summary.Topics.SelectMany(t => t.Points).ToList();
+        Assert.IsNotEmpty(summary.Nodes);
 
-        Assert.IsNotEmpty(points);
-        Assert.IsTrue(points.All(p => p.References.Count > 0));
+        foreach (var root in summary.Roots)
+        {
+            Grounded(root, supported: false);
+        }
+
+        static void Grounded(SummaryNode node, bool supported)
+        {
+            var grounded = supported || node.References.Count > 0;
+
+            if (node.Children.Count == 0)
+            {
+                Assert.IsTrue(grounded, $"Nothing cites \"{node.Text}\" or anything above it.");
+
+                return;
+            }
+
+            foreach (var child in node.Children)
+            {
+                Grounded(child, grounded);
+            }
+        }
+    }
+
+    [TestMethod]
+    public async Task The_seeded_tree_goes_deeper_than_two_levels()
+    {
+        using var activity = TestTelemetry.Source.Start();
+
+        await SeedData.EnsureSeededAsync(mDb, this.Cancellation);
+
+        var survey = await mDb.Surveys.SingleAsync(s => s.Code == "spr47ab", this.Cancellation);
+        var summary = (await this.Service().FindLatestVisibleAsync(survey.Id, this.Cancellation))!;
+
+        // Two levels is the topic-and-point shape the tree replaced, so the seed has to
+        // exercise something the old model could not express.
+        Assert.IsGreaterThan(2, SummaryTree.Depth(summary.Roots));
     }
 
     private SummaryService Service() =>

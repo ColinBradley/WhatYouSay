@@ -26,17 +26,17 @@ public class EnumStorageTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var point = await this.SeededPointAsync();
+        var leaf = await this.SeededLeafAsync();
 
-        mDb.PointReactions.Add(new PointReaction()
+        mDb.NodeReactions.Add(new NodeReaction()
         {
-            PointId = point.Id,
+            NodeId = leaf.Id,
             ResponderTokenHash = "hash",
             Kind = ReactionKind.Misrepresents,
         });
 
         await mDb.SaveChangesAsync(this.Cancellation);
 
-        Assert.AreEqual("Misrepresents", await this.ScalarAsync("SELECT Kind FROM PointReactions"));
+        Assert.AreEqual("Misrepresents", await this.ScalarAsync("SELECT Kind FROM NodeReactions"));
     }
 }

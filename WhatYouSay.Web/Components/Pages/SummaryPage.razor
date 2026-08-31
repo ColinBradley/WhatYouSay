@@ -20,9 +20,28 @@ else
 
     @if (mSummary is null)
     {
-        <div class="alert alert-secondary mt-3">
-            No summary has been published for this survey yet.
-        </div>
+        @if (SummaryId is null)
+        {
+            <div class="alert alert-secondary mt-3">
+                No summary has been published for this survey yet.
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-secondary mt-3">
+                That version isn&rsquo;t available.
+                <a href="@($"/surveys/{Code}/summary")">See the current summary</a>.
+            </div>
+        }
+
+        @if (mIsAdmin && mUnpublished > 0)
+        {
+            <p>
+                @mUnpublished unpublished
+                @(mUnpublished == 1 ? "version is" : "versions are") waiting for you.
+                <a href="@($"/surveys/{Code}/admin/summaries")">Review them</a>.
+            </p>
+        }
     }
     else
     {
@@ -34,133 +53,48 @@ else
                 {
                     <text> · </text>
                     <a href="@($"/surveys/{Code}/summary/{version.Id}")">@version.CreatedAt.ToString("d MMM yyyy")</a>
+                    @(version.IsVisibleToPublic ? null : " (unpublished)")
                 }
             </p>
         }
 
         <div class="mb-4">@((MarkupString)SummaryMarkdown.ToHtml(mSummary.Body))</div>
 
-        <div class="alert alert-light border small">
-            @if (mCanReact)
-            {
-                <text>
-                    You answered this survey, so you can react to any point below. Say what you
-                    agree with, what matters most to you, and flag anything that misrepresents
-                    what you wrote.
-                </text>
-            }
-            else
-            {
-                <text>
-                    Only people who answered this survey can react to its points. You can still
-                    see what everyone else thought.
-                </text>
-            }
-        </div>
+        @if (!mSummary.IsVisibleToPublic)
+        {
+            <div class="alert alert-warning small">
+                This version has not been published. You can see it because you administer
+                this survey; nobody else can, and nobody can react to it yet.
+                <a href="@($"/surveys/{Code}/admin/summaries")">Publish it</a> to open it up.
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-light border small">
+                @if (mReading.CanReact)
+                {
+                    <text>
+                        You answered this survey, so you can react to anything below that says
+                        something. Say what you agree with, what matters most to you, and flag
+                        anything that misrepresents what you wrote.
+                    </text>
+                }
+                else
+                {
+                    <text>
+                        Only people who answered this survey can react to it. You can still see
+                        what everyone else thought.
+                    </text>
+                }
+            </div>
+        }
 
         <form method="post" @formname="react" @onsubmit="ReactAsync">
             <AntiforgeryToken />
 
-            @foreach (var topic in mSummary.Topics)
-            {
-                <section class="mb-4">
-                    <h2 class="h4">@topic.Name</h2>
-
-                    @if (!string.IsNullOrWhiteSpace(topic.Description))
-                    {
-                        <p class="text-body-secondary">@topic.Description</p>
-                    }
-
-                    <ul class="list-unstyled">
-                        @foreach (var point in topic.Points)
-                        {
-                            var tally = this.TallyFor(point.Id);
-
-                            <li class="mb-4">
-                                <div>@point.Description</div>
-
-                                @if (point.References.Count > 0)
-                                {
-                                    <details class="mt-1">
-                                        <summary class="small text-body-secondary">
-                                            @point.References.Count
-                                            @(point.References.Count == 1 ? "quote" : "quotes")
-                                        </summary>
-
-                                        @foreach (var reference in point.References)
-                                        {
-                                            <figure class="mt-2 mb-2 ps-3 border-start">
-                                                @if (mSurvey.AreResponsesPublic
-                                                     && Highlight(reference) is { } context)
-                                                {
-                                                    <blockquote class="mb-1 small">
-                                                        <span class="text-body-secondary">@context.Before</span><mark>@context.Quote</mark><span class="text-body-secondary">@context.After</span>
-                                                    </blockquote>
-                                                }
-                                                else
-                                                {
-                                                    <blockquote class="mb-1">&ldquo;@reference.Quote&rdquo;</blockquote>
-                                                }
-
-                                                <figcaption class="small text-body-secondary">
-                                                    @(reference.Response.Author ?? "anonymous")
-                                                </figcaption>
-                                            </figure>
-                                        }
-                                    </details>
-                                }
-
-                                <div class="d-flex gap-2 align-items-center mt-2 flex-wrap">
-                                    <button type="submit" name="Action" class="btn btn-sm @Pressed(tally, ReactionKind.Agree)"
-                                            value="@($"{point.Id}:{ReactionKind.Agree}:toggle")"
-                                            disabled="@(!mCanReact)" title="@mReactReason">
-                                        Agree@(tally.Agree > 0 ? $" · {tally.Agree}" : "")
-                                    </button>
-
-                                    <button type="submit" name="Action" class="btn btn-sm @Pressed(tally, ReactionKind.Important)"
-                                            value="@($"{point.Id}:{ReactionKind.Important}:toggle")"
-                                            disabled="@(!mCanReact)" title="@mReactReason">
-                                        Matters to me@(tally.Important > 0 ? $" · {tally.Important}" : "")
-                                    </button>
-
-                                    @if (tally.Misrepresents > 0)
-                                    {
-                                        <span class="badge text-bg-warning">
-                                            @tally.Misrepresents flagged this as misrepresenting them
-                                        </span>
-                                    }
-                                </div>
-
-                                <details class="mt-2" open="@tally.Mine.Contains(ReactionKind.Misrepresents)">
-                                    <summary class="small text-body-secondary">
-                                        This misrepresents what I said
-                                    </summary>
-
-                                    <textarea class="form-control form-control-sm mt-2" rows="2"
-                                              name="@NoteField(point.Id)" disabled="@(!mCanReact)"
-                                              title="@mReactReason"
-                                              placeholder="What did we get wrong?">@tally.MyNote</textarea>
-
-                                    <div class="d-flex gap-2 mt-2">
-                                        <button type="submit" name="Action" class="btn btn-sm btn-outline-warning"
-                                                value="@($"{point.Id}:{ReactionKind.Misrepresents}:set")"
-                                                disabled="@(!mCanReact)" title="@mReactReason">
-                                            @(tally.Mine.Contains(ReactionKind.Misrepresents) ? "Update" : "Flag this point")
-                                        </button>
-
-                                        <button type="submit" name="Action" class="btn btn-sm btn-link text-body-secondary"
-                                                value="@($"{point.Id}:{ReactionKind.Misrepresents}:withdraw")"
-                                                disabled="@(!mCanReact || !tally.Mine.Contains(ReactionKind.Misrepresents))"
-                                                title="@(mCanReact ? "You have not flagged this point." : mReactReason)">
-                                            Withdraw
-                                        </button>
-                                    </div>
-                                </details>
-                            </li>
-                        }
-                    </ul>
-                </section>
-            }
+            <CascadingValue Value="@mReading" IsFixed="true">
+                <SummaryNodeList Nodes="@mRoots" />
+            </CascadingValue>
         </form>
     }
 }

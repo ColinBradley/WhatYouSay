@@ -45,21 +45,22 @@ public abstract class DatabaseTest : IDisposable
         };
     }
 
-    protected async Task<SummaryTopicPoint> SeededPointAsync()
+    /// <summary>A survey with a heading over one grounded node, the smallest usable tree.</summary>
+    protected async Task<SummaryNode> SeededLeafAsync()
     {
         var survey = NewSurvey(ResponseIdentity.Required);
         var summary = new Summary { Body = "overview" };
-        var topic = new SummaryTopic { Name = "Tooling" };
-        var point = new SummaryTopicPoint { Description = "CI is slow" };
+        var heading = new SummaryNode { Text = "Tooling" };
+        var leaf = new SummaryNode { Text = "CI is slow", Parent = heading };
 
-        topic.Points.Add(point);
-        summary.Topics.Add(topic);
+        summary.Nodes.Add(heading);
+        summary.Nodes.Add(leaf);
         survey.Summaries.Add(summary);
 
         mDb.Surveys.Add(survey);
         await mDb.SaveChangesAsync(this.Cancellation);
 
-        return point;
+        return leaf;
     }
 
     /// <summary>Raw SQL, to assert what actually landed in the file rather than what EF hands back.</summary>

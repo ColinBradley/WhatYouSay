@@ -56,7 +56,7 @@ public static class WhatYouSayTelemetry
     private static readonly Counter<long> sReactionsAdded = sMeter.CreateCounter<long>(
         "whatyousay.reactions.added",
         unit: "{reaction}",
-        description: "Reactions a responder added to a summary point, by kind.");
+        description: "Reactions a responder added to a summary node, by kind.");
 
     private static readonly Counter<long> sReactionsRemoved = sMeter.CreateCounter<long>(
         "whatyousay.reactions.removed",

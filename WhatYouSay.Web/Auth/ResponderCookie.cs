@@ -3,7 +3,7 @@ namespace WhatYouSay.Web.Auth;
 /// <summary>
 /// Holds the plaintext responder token. Only its hash is stored, so this cookie is the
 /// only way back to your own response — it authorises editing while the survey is open and
-/// will authorise reacting to summary points. Lose it and you lose both, which is the
+/// will authorise reacting to summary nodes. Lose it and you lose both, which is the
 /// price of having no accounts.
 /// </summary>
 public static class ResponderCookie

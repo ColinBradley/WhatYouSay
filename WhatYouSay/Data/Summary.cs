@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace WhatYouSay.Data;
 
 /// <summary>
@@ -14,7 +16,7 @@ public class Summary
 
     /// <summary>
     /// Narrative overview in markdown, two or three paragraphs. Deliberately NOT a prose
-    /// duplicate of the topics — that is what stops the two representations drifting.
+    /// duplicate of the tree — that is what stops the two representations drifting.
     /// </summary>
     public required string Body { get; set; }
 
@@ -30,7 +32,20 @@ public class Summary
     /// <summary>"agent" or "human", shown in the version list.</summary>
     public string? CreatedBy { get; set; }
 
-    public List<SummaryTopic> Topics { get; set; } = [];
+    /// <summary>Every node in the tree, flat. Roots are the ones with no parent.</summary>
+    public List<SummaryNode> Nodes { get; set; } = [];
+
+    /// <summary>
+    /// The tops of the tree, in insertion order. What hangs below them is wired by
+    /// <see cref="SummaryTree.Assemble"/>, which every service read runs.
+    /// </summary>
+    /// <remarks>
+    /// Not mapped: a collection of entities on an entity is a navigation by convention, and
+    /// EF would give this one a second foreign key of its own.
+    /// </remarks>
+    [NotMapped]
+    public IEnumerable<SummaryNode> Roots =>
+        this.Nodes.Where(node => node.ParentId is null).OrderBy(node => node.Id);
 
     /// <summary>Admins always; everyone else only once blessed and made public.</summary>
     public bool IsVisibleToPublic => !this.IsDraft && this.IsPublic;

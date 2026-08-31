@@ -10,13 +10,11 @@ public class WhatYouSayContext(DbContextOptions<WhatYouSayContext> options) : Db
 
     public DbSet<Summary> Summaries => this.Set<Summary>();
 
-    public DbSet<SummaryTopic> SummaryTopics => this.Set<SummaryTopic>();
+    public DbSet<SummaryNode> SummaryNodes => this.Set<SummaryNode>();
 
-    public DbSet<SummaryTopicPoint> SummaryTopicPoints => this.Set<SummaryTopicPoint>();
+    public DbSet<SummaryNodeReference> References => this.Set<SummaryNodeReference>();
 
-    public DbSet<SummaryTopicPointResponseReference> References => this.Set<SummaryTopicPointResponseReference>();
-
-    public DbSet<PointReaction> PointReactions => this.Set<PointReaction>();
+    public DbSet<NodeReaction> NodeReactions => this.Set<NodeReaction>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder builder)
     {
@@ -54,27 +52,27 @@ public class WhatYouSayContext(DbContextOptions<WhatYouSayContext> options) : Db
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        model.Entity<SummaryTopic>(topic =>
+        model.Entity<SummaryNode>(node =>
         {
-            topic.HasOne(t => t.Summary)
-                .WithMany(s => s.Topics)
-                .HasForeignKey(t => t.SummaryId)
+            // Indexed because loading a tree is one query filtered on nothing else.
+            node.HasIndex(n => n.SummaryId);
+
+            node.HasOne(n => n.Summary)
+                .WithMany(s => s.Nodes)
+                .HasForeignKey(n => n.SummaryId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            node.HasOne(n => n.Parent)
+                .WithMany(n => n.Children)
+                .HasForeignKey(n => n.ParentId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        model.Entity<SummaryTopicPoint>(point =>
+        model.Entity<SummaryNodeReference>(reference =>
         {
-            point.HasOne(p => p.Topic)
-                .WithMany(t => t.Points)
-                .HasForeignKey(p => p.TopicId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        model.Entity<SummaryTopicPointResponseReference>(reference =>
-        {
-            reference.HasOne(r => r.Point)
-                .WithMany(p => p.References)
-                .HasForeignKey(r => r.PointId)
+            reference.HasOne(r => r.Node)
+                .WithMany(n => n.References)
+                .HasForeignKey(r => r.NodeId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             // Responses are soft-deleted, never hard-deleted, so this restrict should be
@@ -86,17 +84,17 @@ public class WhatYouSayContext(DbContextOptions<WhatYouSayContext> options) : Db
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
-        model.Entity<PointReaction>(reaction =>
+        model.Entity<NodeReaction>(reaction =>
         {
             reaction.Property(r => r.Kind).HasConversion<string>();
 
-            // One toggle per kind per responder per point, so Agree and Important can
+            // One toggle per kind per responder per node, so Agree and Important can
             // coexist while neither can be double-counted.
-            reaction.HasIndex(r => new { r.PointId, r.ResponderTokenHash, r.Kind }).IsUnique();
+            reaction.HasIndex(r => new { r.NodeId, r.ResponderTokenHash, r.Kind }).IsUnique();
 
-            reaction.HasOne(r => r.Point)
-                .WithMany(p => p.Reactions)
-                .HasForeignKey(r => r.PointId)
+            reaction.HasOne(r => r.Node)
+                .WithMany(n => n.Reactions)
+                .HasForeignKey(r => r.NodeId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

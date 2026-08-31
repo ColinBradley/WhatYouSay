@@ -24,5 +24,5 @@ public class Response
     /// <summary>Null when Anonymous, or when never edited.</summary>
     public DateTimeOffset? UpdatedAt { get; set; }
 
-    public List<SummaryTopicPointResponseReference> References { get; set; } = [];
+    public List<SummaryNodeReference> References { get; set; } = [];
 }

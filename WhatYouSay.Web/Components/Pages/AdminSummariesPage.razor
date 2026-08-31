@@ -1,4 +1,5 @@
 @page "/surveys/{Code}/admin/summaries"
+@using WhatYouSay.Data
 
 <PageTitle>Summaries</PageTitle>
 
@@ -43,8 +44,8 @@ else
                             <td>@summary.CreatedAt.ToLocalTime().ToString("d MMM yyyy HH:mm")</td>
                             <td>@(summary.CreatedBy ?? "unknown")</td>
                             <td class="small text-body-secondary">
-                                @summary.Topics.Count topics,
-                                @summary.Topics.Sum(t => t.Points.Count) points
+                                @summary.Nodes.Count nodes,
+                                @SummaryTree.Depth(summary.Roots) deep
                             </td>
                             <td>
                                 @if (summary.IsVisibleToPublic)
@@ -95,7 +96,8 @@ else
 
         <p class="small text-body-secondary">
             Publishing makes a summary visible to everyone with the link and lets responders
-            react to its points. An agent can only write drafts — publishing is yours.
+            react to the nodes that say something. An agent can only write drafts —
+            publishing is yours.
         </p>
     }
 }

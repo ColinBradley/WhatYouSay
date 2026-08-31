@@ -254,75 +254,113 @@ public static class SeedData
             UpdatedAt = writtenAt,
         };
 
-        summary.Topics.Add(Topic(
-            "The build feedback loop",
-            "The most cited problem, and the one with knock-on effects elsewhere.",
-            Point(survey, "A full CI run takes 22 minutes and fails often enough that a green build is not a reliable gate.",
-                -0.7, 0.9, [(0, "A full run is 22 minutes and it fails on flaky integration tests maybe one time in four")]),
-            Point(survey, "People have started batching commits to dodge the wait, which is the opposite of what fast feedback should encourage.",
-                -0.5, 0.6, [(0, "I've started batching three or four commits before pushing just to avoid the wait")]),
-            Point(survey, "Flaky tests get re-run rather than fixed, so the safety net is effectively off without anyone having decided to switch it off.",
-                -0.8, 0.7, [(7, "We re-run them and move on, which means we've effectively switched off our own safety net")])));
 
-        summary.Topics.Add(Topic(
-            "Review latency",
-            "Plausibly downstream of the build problem rather than independent of it.",
-            Point(survey, "A first review comment arrives a day or more after the pull request goes up, by which point the author has context-switched away.",
-                -0.6, 0.9, [(5, "I put a PR up Monday morning and got the first comment Tuesday afternoon")]),
-            Point(survey, "Pull requests are getting larger, which is consistent with the commit batching described above.",
-                -0.4, 0.5, [(5, "The PRs are also getting bigger, which can't be helping"), (0, "I've started batching three or four commits before pushing just to avoid the wait")])));
-
-        summary.Topics.Add(Topic(
-            "Sprint shape",
-            null,
-            Point(survey, "Eleven tickets were in flight across six people, so everything was nearly done and nothing actually shipped until Thursday.",
-                -0.6, 0.9, [(9, "Everything was 90% done and nothing actually shipped until the Thursday")]),
-            Point(survey, "Work pulled in on day four makes the original estimate meaningless.",
-                -0.5, 0.7, [(11, "can we stop pulling extra work into the sprint on day four")]),
-            Point(survey, "Vague acceptance criteria on the reporting tickets cost a day and a half of rework.",
-                -0.6, 0.9, [(2, "I spent a day and a half building the wrong thing and only found out at review")])));
-
-        summary.Topics.Add(Topic(
-            "Unowned infrastructure",
-            "Staging has no owner, and it cost time twice in different ways.",
-            Point(survey, "Staging went down with nobody to ask, costing most of a day.",
-                -0.7, 0.8, [(10, "There's no clear ownership and it's turning into a running joke")]),
-            Point(survey, "On-call was dominated by a single repeating alert on that same unowned staging box.",
-                -0.8, 0.9, [(3, "eleven of them the same disk alert on the staging box that nobody owns")])));
-
-        summary.Topics.Add(Topic(
-            "What worked",
-            null,
-            Point(survey, "Pairing on the payments migration produced a better result than either person would have reached alone, and was asked for again.",
-                0.8, 0.5, [(1, "Two days of it and we shipped something neither of us would have got right alone"), (11, "More pairing please")]),
-            Point(survey, "The new design system components saved real time on the settings screens.",
-                0.7, 0.7, [(4, "saved me a lot of time on the settings screens")])));
+        summary.Nodes.AddRange(Tree(
+            Node("The build feedback loop",
+                Cites(survey, "A full CI run takes 22 minutes and fails often enough that a green build is not a reliable gate.",
+                    [(0, "A full run is 22 minutes and it fails on flaky integration tests maybe one time in four")],
+                    Cites(survey, "The same three suites are the ones that fail.",
+                        [(7, "Flaky tests, same three suites every time")]),
+                    Cites(survey, "Re-running a flake rather than fixing it has switched the safety net off by degrees.",
+                        [(7, "We re-run them and move on, which means we've effectively switched off our own safety net")])),
+                Cites(survey, "People have started batching commits to dodge the wait.",
+                    [(0, "I've started batching three or four commits before pushing just to avoid the wait")],
+                    // Cites nothing of its own: inherited support, which is what the branch rule allows.
+                    Node("Which is the opposite of what fast feedback is meant to encourage, and the person doing it knows it."))),
+            Node("Review latency",
+                Cites(survey, "A first review comment arrives a day or more after the pull request goes up.",
+                    [(5, "I put a PR up Monday morning and got the first comment Tuesday afternoon")],
+                    Cites(survey, "By then the author has context-switched away and has to reload the whole change.",
+                        [(5, "by which point I'd context-switched twice and had to reload the whole thing in my head")])),
+                Cites(survey, "Pull requests are getting larger, which is consistent with the commit batching above.",
+                    [
+                        (5, "The PRs are also getting bigger, which can't be helping"),
+                        (0, "I've started batching three or four commits before pushing just to avoid the wait"),
+                    ])),
+            Node("Sprint shape",
+                Cites(survey, "Eleven tickets in flight across six people meant everything was nearly done and nothing shipped until Thursday.",
+                    [(9, "Everything was 90% done and nothing actually shipped until the Thursday")]),
+                Cites(survey, "Work pulled in on day four makes the original estimate meaningless.",
+                    [(11, "can we stop pulling extra work into the sprint on day four")]),
+                Cites(survey, "Vague acceptance criteria on the reporting tickets cost a day and a half of rework.",
+                    [(2, "I spent a day and a half building the wrong thing and only found out at review")],
+                    Cites(survey, "The acceptance criteria conversation wanted before the ticket is pulled, not during.",
+                        [(2, "the AC conversation needs to happen before the ticket is pulled, not during")])),
+                Cites(survey, "A time box on spike tickets wanted.",
+                    [(8, "putting a time box on spike tickets, they always balloon")])),
+            Node("Unowned infrastructure",
+                Node("Staging",
+                    Cites(survey, "Staging was down for most of a Tuesday with nobody to ask.",
+                        [(10, "Staging was down for most of Tuesday and nobody knew who to ask")],
+                        Cites(survey, "It has no owner and is becoming a running joke that costs a day each time.",
+                            [(10, "There's no clear ownership and it's turning into a running joke")])),
+                    Cites(survey, "On-call was dominated by a single repeating disk alert on that same box.",
+                        [(3, "eleven of them the same disk alert on the staging box that nobody owns")],
+                        Cites(survey, "The cost landed the next day rather than during the night.",
+                            [(3, "I got about four hours sleep on the Wednesday and was useless on the Thursday")])))),
+            Node("What worked",
+                Cites(survey, "Pairing on the payments migration produced a better result than either person would have reached alone.",
+                    [(1, "Two days of it and we shipped something neither of us would have got right alone")],
+                    Cites(survey, "Hard to justify while the board is full, which ties back to work in progress.",
+                        [(1, "it's hard to justify when the board is full")]),
+                    Cites(survey, "More pairing wanted.",
+                        [(11, "More pairing please")])),
+                Cites(survey, "The new design system components saved real time on the settings screens.",
+                    [(4, "saved me a lot of time on the settings screens")])),
+            Node("Left open",
+                Cites(survey, "Whether standup is still doing anything, or is status theatre for someone who is not in the room.",
+                    [(6, "we're doing status theatre for a manager who isn't even in the room")]))));
 
         survey.Summaries.Add(summary);
     }
 
-    private static SummaryTopic Topic(string name, string? description, params SummaryTopicPoint[] points)
+    /// <summary>
+    /// Flattens the tree the way the service does, because a summary stores every node in
+    /// one list and only the parent links describe the shape.
+    /// </summary>
+    private static List<SummaryNode> Tree(params SummaryNode[] roots)
     {
-        var topic = new SummaryTopic { Name = name, Description = description };
-        topic.Points.AddRange(points);
+        var nodes = new List<SummaryNode>();
 
-        return topic;
+        void Walk(SummaryNode node)
+        {
+            nodes.Add(node);
+
+            foreach (var child in node.Children)
+            {
+                Walk(child);
+            }
+        }
+
+        foreach (var root in roots)
+        {
+            Walk(root);
+        }
+
+        return nodes;
     }
 
-    private static SummaryTopicPoint Point(
+    private static SummaryNode Node(string text, params SummaryNode[] children)
+    {
+        var node = new SummaryNode() { Text = text };
+
+        foreach (var child in children)
+        {
+            child.Parent = node;
+            node.Children.Add(child);
+        }
+
+        return node;
+    }
+
+    private static SummaryNode Cites(
         Survey survey,
-        string description,
-        double sentiment,
-        double objectivity,
-        (int ResponseIndex, string Quote)[] citations
+        string text,
+        (int ResponseIndex, string Quote)[] citations,
+        params SummaryNode[] children
     )
     {
-        var point = new SummaryTopicPoint()
-        {
-            Description = description,
-            Sentiment = sentiment,
-            Objectivity = objectivity,
-        };
+        var node = Node(text, children);
 
         foreach (var (responseIndex, quote) in citations)
         {
@@ -333,7 +371,7 @@ public static class SeedData
                 ?? throw new InvalidOperationException(
                     $"Seed quote not found in response {responseIndex}: \"{quote}\"");
 
-            point.References.Add(new SummaryTopicPointResponseReference()
+            node.References.Add(new SummaryNodeReference()
             {
                 Response = response,
                 Quote = quote,
@@ -342,6 +380,6 @@ public static class SeedData
             });
         }
 
-        return point;
+        return node;
     }
 }

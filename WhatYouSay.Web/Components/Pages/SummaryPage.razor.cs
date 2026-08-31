@@ -10,26 +10,26 @@ namespace WhatYouSay.Web.Components.Pages;
 
 public partial class SummaryPage
 {
-    private static readonly PointReactionTally sNoReactions = new()
-    {
-        Agree = 0,
-        Important = 0,
-        Misrepresents = 0,
-        Mine = new HashSet<ReactionKind>(),
-    };
-
     private Survey? mSurvey;
 
     private Summary? mSummary;
 
     private List<Summary> mVersions = [];
 
-    private IReadOnlyDictionary<int, PointReactionTally> mTallies =
-        new Dictionary<int, PointReactionTally>();
+    private IReadOnlyList<SummaryNode> mRoots = [];
 
-    private bool mCanReact;
+    private bool mIsAdmin;
 
-    private string? mReactReason;
+    /// <summary>Only ever non-zero for an admin, since only they list unpublished versions.</summary>
+    private int mUnpublished;
+
+    private SummaryReading mReading = new()
+    {
+        ResponsesArePublic = false,
+        CanReact = false,
+        ReactReason = null,
+        Tallies = new Dictionary<int, NodeReactionTally>(),
+    };
 
     private string? mResponderToken;
 
@@ -43,6 +43,9 @@ public partial class SummaryPage
 
     [Inject]
     private ReactionService Reactions { get; set; } = default!;
+
+    [Inject]
+    private AdminSession Session { get; set; } = default!;
 
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
@@ -79,14 +82,27 @@ public partial class SummaryPage
             new Crumb { Text = "Summary" },
         ];
 
-        mVersions = [.. await this.Summaries.ListVisibleAsync(mSurvey.Id)];
+        mIsAdmin = await this.Session.CanAdministerAsync(mSurvey.Id);
 
+        mVersions =
+        [
+            .. mIsAdmin
+                ? await this.Summaries.ListAllAsync(mSurvey.Id)
+                : await this.Summaries.ListVisibleAsync(mSurvey.Id),
+        ];
+
+        mUnpublished = mVersions.Count(v => !v.IsVisibleToPublic);
+
+        // The bare URL is the public one, so it resolves to the newest published version for
+        // everyone including an admin — what the group sees is what an admin checking the
+        // link should see. A draft is reached by its own id, which is what the admin summary
+        // list links to.
         mSummary = this.SummaryId is { } id
             ? await this.Summaries.FindAsync(id)
             : await this.Summaries.FindLatestVisibleAsync(mSurvey.Id);
 
         if (mSummary is not null
-            && (!mSummary.IsVisibleToPublic || mSummary.SurveyId != mSurvey.Id))
+            && (mSummary.SurveyId != mSurvey.Id || !(mSummary.IsVisibleToPublic || mIsAdmin)))
         {
             mSummary = null;
         }
@@ -96,20 +112,32 @@ public partial class SummaryPage
             return;
         }
 
+        mRoots = [.. mSummary.Roots];
         mResponderToken = ResponderCookie.Read(this.HttpContext, mSurvey.Id);
-        mCanReact = await this.Reactions.CanReactAsync(mSurvey.Id, mResponderToken);
-        mTallies = await this.Reactions.TallyAsync(mSummary.Id, mResponderToken);
 
-        mReactReason = mCanReact
-            ? null
-            : "Only people who answered this survey can react to its points.";
+        // Reacting is what publishing turns on, so an unpublished version an admin is
+        // previewing takes no reactions — they would attach to nodes the next draft replaces.
+        var canReact = mSummary.IsVisibleToPublic
+            && await this.Reactions.CanReactAsync(mSurvey.Id, mResponderToken);
+
+        mReading = new SummaryReading()
+        {
+            ResponsesArePublic = mSurvey.AreResponsesPublic,
+            CanReact = canReact,
+            ReactReason = this.ReactReason(canReact),
+            Tallies = await this.Reactions.TallyAsync(mSummary.Id, mResponderToken),
+        };
 
         WhatYouSayTelemetry.SummaryViewed(mSurvey);
     }
 
     private async Task ReactAsync()
     {
-        if (mSurvey is null || mSummary is null || mResponderToken is null || this.Action is null)
+        if (mSurvey is null
+            || mSummary is null
+            || !mReading.CanReact
+            || mResponderToken is null
+            || this.Action is null)
         {
             return;
         }
@@ -117,7 +145,7 @@ public partial class SummaryPage
         var parts = this.Action.Split(':');
 
         if (parts.Length != 3
-            || !int.TryParse(parts[0], out var pointId)
+            || !int.TryParse(parts[0], out var nodeId)
             || !Enum.TryParse<ReactionKind>(parts[1], out var kind))
         {
             return;
@@ -126,16 +154,16 @@ public partial class SummaryPage
         switch (parts[2])
         {
             case "toggle":
-                await this.Reactions.ToggleAsync(mSurvey, pointId, mResponderToken, kind);
+                await this.Reactions.ToggleAsync(mSurvey, nodeId, mResponderToken, kind);
                 break;
 
             case "set":
-                var note = this.HttpContext.Request.Form[NoteField(pointId)].ToString();
-                await this.Reactions.SetObjectionAsync(mSurvey, pointId, mResponderToken, note);
+                var note = this.HttpContext.Request.Form[SummaryReading.NoteField(nodeId)].ToString();
+                await this.Reactions.SetObjectionAsync(mSurvey, nodeId, mResponderToken, note);
                 break;
 
             case "withdraw":
-                await this.Reactions.WithdrawAsync(mSurvey, pointId, mResponderToken, kind);
+                await this.Reactions.WithdrawAsync(mSurvey, nodeId, mResponderToken, kind);
                 break;
         }
 
@@ -143,39 +171,21 @@ public partial class SummaryPage
             this.HttpContext.Request.Path + this.HttpContext.Request.QueryString);
     }
 
+    private string? ReactReason(bool canReact)
+    {
+        if (canReact)
+        {
+            return null;
+        }
+
+        return mSummary!.IsVisibleToPublic
+            ? "Only people who answered this survey can react to it."
+            : "This version has not been published yet.";
+    }
+
     /// <summary>Versions are held newest first, but read oldest first.</summary>
     private int VersionNumber()
     {
         return mVersions.Count - mVersions.FindIndex(v => v.Id == mSummary!.Id);
-    }
-
-    private static string NoteField(int pointId)
-    {
-        return $"Note_{pointId}";
-    }
-
-    private static string Pressed(PointReactionTally tally, ReactionKind kind)
-    {
-        return tally.Mine.Contains(kind) ? "btn-success" : "btn-outline-secondary";
-    }
-
-    private PointReactionTally TallyFor(int pointId)
-    {
-        return mTallies.TryGetValue(pointId, out var tally) ? tally : sNoReactions;
-    }
-
-    /// <summary>
-    /// If the offsets no longer select the stored quote, show the quote alone rather than
-    /// slicing the body blindly.
-    /// </summary>
-    private static (string Before, string Quote, string After)? Highlight(
-        SummaryTopicPointResponseReference reference
-    )
-    {
-        var body = reference.Response.Body;
-
-        return QuoteLocator.Matches(body, reference.Quote, reference.StartIndex, reference.EndIndex)
-            ? (body[..reference.StartIndex], reference.Quote, body[reference.EndIndex..])
-            : null;
     }
 }

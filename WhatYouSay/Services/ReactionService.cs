@@ -5,8 +5,8 @@ using WhatYouSay.Telemetry;
 
 namespace WhatYouSay.Services;
 
-/// <summary>How one point stands with the group, and where the current viewer sits on it.</summary>
-public record PointReactionTally
+/// <summary>How one node stands with the group, and where the current viewer sits on it.</summary>
+public record NodeReactionTally
 {
     public required int Agree { get; init; }
 
@@ -24,7 +24,7 @@ public class ReactionService(WhatYouSayContext db)
     /// <summary>Adds the reaction, or takes it back if it was already there.</summary>
     public async Task ToggleAsync(
         Survey survey,
-        int pointId,
+        int nodeId,
         string responderToken,
         ReactionKind kind,
         CancellationToken cancellationToken = default
@@ -34,16 +34,16 @@ public class ReactionService(WhatYouSayContext db)
 
         activity?.SetTag("reaction.kind", kind.ToString());
 
-        var hash = await this.AuthoriseAsync(survey, pointId, responderToken, activity, cancellationToken);
-        var existing = await this.FindAsync(pointId, hash, kind, cancellationToken);
+        var hash = await this.AuthoriseAsync(survey, nodeId, responderToken, activity, cancellationToken);
+        var existing = await this.FindAsync(nodeId, hash, kind, cancellationToken);
 
         if (existing is null)
         {
-            this.Add(survey, pointId, hash, kind, null);
+            this.Add(survey, nodeId, hash, kind, null);
         }
         else
         {
-            db.PointReactions.Remove(existing);
+            db.NodeReactions.Remove(existing);
             WhatYouSayTelemetry.ReactionRemoved(survey, kind);
         }
 
@@ -53,7 +53,7 @@ public class ReactionService(WhatYouSayContext db)
     /// <summary>Raises an objection, or rewords one already raised.</summary>
     public async Task SetObjectionAsync(
         Survey survey,
-        int pointId,
+        int nodeId,
         string responderToken,
         string? note,
         CancellationToken cancellationToken = default
@@ -61,13 +61,13 @@ public class ReactionService(WhatYouSayContext db)
     {
         using var activity = WhatYouSayTelemetry.Source.Start().SetSurvey(survey);
 
-        var hash = await this.AuthoriseAsync(survey, pointId, responderToken, activity, cancellationToken);
-        var existing = await this.FindAsync(pointId, hash, ReactionKind.Misrepresents, cancellationToken);
+        var hash = await this.AuthoriseAsync(survey, nodeId, responderToken, activity, cancellationToken);
+        var existing = await this.FindAsync(nodeId, hash, ReactionKind.Misrepresents, cancellationToken);
         var trimmed = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
 
         if (existing is null)
         {
-            this.Add(survey, pointId, hash, ReactionKind.Misrepresents, trimmed);
+            this.Add(survey, nodeId, hash, ReactionKind.Misrepresents, trimmed);
         }
         else
         {
@@ -79,7 +79,7 @@ public class ReactionService(WhatYouSayContext db)
 
     public async Task WithdrawAsync(
         Survey survey,
-        int pointId,
+        int nodeId,
         string responderToken,
         ReactionKind kind,
         CancellationToken cancellationToken = default
@@ -87,25 +87,25 @@ public class ReactionService(WhatYouSayContext db)
     {
         using var activity = WhatYouSayTelemetry.Source.Start().SetSurvey(survey);
 
-        var hash = await this.AuthoriseAsync(survey, pointId, responderToken, activity, cancellationToken);
-        var existing = await this.FindAsync(pointId, hash, kind, cancellationToken);
+        var hash = await this.AuthoriseAsync(survey, nodeId, responderToken, activity, cancellationToken);
+        var existing = await this.FindAsync(nodeId, hash, kind, cancellationToken);
 
         if (existing is null)
         {
             return;
         }
 
-        db.PointReactions.Remove(existing);
+        db.NodeReactions.Remove(existing);
         WhatYouSayTelemetry.ReactionRemoved(survey, kind);
 
         await db.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>
-    /// Counts for every point on a summary, plus what this responder has already said.
-    /// A null token is a viewer who did not respond: counts only.
+    /// Counts for every node on a summary, plus what this responder has already said. A null
+    /// token is a viewer who did not respond: counts only.
     /// </summary>
-    public async Task<IReadOnlyDictionary<int, PointReactionTally>> TallyAsync(
+    public async Task<IReadOnlyDictionary<int, NodeReactionTally>> TallyAsync(
         Guid summaryId,
         string? responderToken,
         CancellationToken cancellationToken = default
@@ -113,14 +113,14 @@ public class ReactionService(WhatYouSayContext db)
     {
         using var activity = WhatYouSayTelemetry.Source.Start();
 
-        var reactions = await db.PointReactions
-            .Where(r => r.Point.Topic.SummaryId == summaryId)
+        var reactions = await db.NodeReactions
+            .Where(r => r.Node.SummaryId == summaryId)
             .ToListAsync(cancellationToken);
 
         var mineHash = responderToken is null ? null : Secrets.HashToken(responderToken);
 
         return reactions
-            .GroupBy(r => r.PointId)
+            .GroupBy(r => r.NodeId)
             .ToDictionary(
                 group => group.Key,
                 group => Tally(group, mineHash));
@@ -140,12 +140,12 @@ public class ReactionService(WhatYouSayContext db)
         return await this.RespondedAsync(surveyId, Secrets.HashToken(responderToken), cancellationToken);
     }
 
-    private static PointReactionTally Tally(IEnumerable<PointReaction> reactions, string? mineHash)
+    private static NodeReactionTally Tally(IEnumerable<NodeReaction> reactions, string? mineHash)
     {
         var all = reactions.ToList();
         var mine = all.Where(r => r.ResponderTokenHash == mineHash).ToList();
 
-        return new PointReactionTally()
+        return new NodeReactionTally()
         {
             Agree = all.Count(r => r.Kind == ReactionKind.Agree),
             Important = all.Count(r => r.Kind == ReactionKind.Important),
@@ -155,11 +155,11 @@ public class ReactionService(WhatYouSayContext db)
         };
     }
 
-    private void Add(Survey survey, int pointId, string hash, ReactionKind kind, string? note)
+    private void Add(Survey survey, int nodeId, string hash, ReactionKind kind, string? note)
     {
-        db.PointReactions.Add(new PointReaction()
+        db.NodeReactions.Add(new NodeReaction()
         {
-            PointId = pointId,
+            NodeId = nodeId,
             ResponderTokenHash = hash,
             Kind = kind,
             Note = note,
@@ -169,21 +169,21 @@ public class ReactionService(WhatYouSayContext db)
         WhatYouSayTelemetry.ReactionAdded(survey, kind);
     }
 
-    private Task<PointReaction?> FindAsync(
-        int pointId,
+    private Task<NodeReaction?> FindAsync(
+        int nodeId,
         string hash,
         ReactionKind kind,
         CancellationToken cancellationToken
     )
     {
-        return db.PointReactions.FirstOrDefaultAsync(
-            r => r.PointId == pointId && r.ResponderTokenHash == hash && r.Kind == kind,
+        return db.NodeReactions.FirstOrDefaultAsync(
+            r => r.NodeId == nodeId && r.ResponderTokenHash == hash && r.Kind == kind,
             cancellationToken);
     }
 
     private async Task<string> AuthoriseAsync(
         Survey survey,
-        int pointId,
+        int nodeId,
         string responderToken,
         System.Diagnostics.Activity? activity,
         CancellationToken cancellationToken
@@ -199,11 +199,15 @@ public class ReactionService(WhatYouSayContext db)
                 "Only people who responded to this survey can react to its summary.");
         }
 
-        if (!await this.PointBelongsAsync(survey.Id, pointId, cancellationToken))
-        {
-            activity.RecordFailure("unknown_point");
+        var belongs = await db.SummaryNodes.AnyAsync(
+            n => n.Id == nodeId && n.Summary.SurveyId == survey.Id,
+            cancellationToken);
 
-            throw new InvalidOperationException($"Point {pointId} is not on a summary of this survey.");
+        if (!belongs)
+        {
+            activity.RecordFailure("unknown_node");
+
+            throw new InvalidOperationException($"Node {nodeId} is not on a summary of this survey.");
         }
 
         return hash;
@@ -213,13 +217,6 @@ public class ReactionService(WhatYouSayContext db)
     {
         return await db.Responses.AnyAsync(
             r => r.SurveyId == surveyId && r.AuthTokenHash == hash && !r.IsDeleted,
-            cancellationToken);
-    }
-
-    private async Task<bool> PointBelongsAsync(Guid surveyId, int pointId, CancellationToken cancellationToken)
-    {
-        return await db.SummaryTopicPoints.AnyAsync(
-            p => p.Id == pointId && p.Topic.Summary.SurveyId == surveyId,
             cancellationToken);
     }
 }

@@ -1,13 +1,13 @@
 namespace WhatYouSay.Data;
 
-/// <summary>A span of a response cited in support of a point.</summary>
-public class SummaryTopicPointResponseReference
+/// <summary>A span of a response cited in support of a node.</summary>
+public class SummaryNodeReference
 {
     public int Id { get; set; }
 
-    public int PointId { get; set; }
+    public int NodeId { get; set; }
 
-    public SummaryTopicPoint Point { get; set; } = null!;
+    public SummaryNode Node { get; set; } = null!;
 
     public Guid ResponseId { get; set; }
 
@@ -19,7 +19,4 @@ public class SummaryTopicPointResponseReference
     public int StartIndex { get; set; }
 
     public int EndIndex { get; set; }
-
-    /// <summary>0..1, how strongly this quote supports the point.</summary>
-    public double? Intensity { get; set; }
 }

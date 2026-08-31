@@ -227,34 +227,30 @@ public static class SummariserApi
         {
             Info = Describe(summary),
             Body = summary.Body,
-            Topics =
+            Nodes = [.. summary.Roots.Select(Describe)],
+        });
+    }
+
+    /// <summary>
+    /// Nested on the way out as well as in, so what an agent reads back has the same shape
+    /// as what it would send.
+    /// </summary>
+    private static NodeDetail Describe(SummaryNode node)
+    {
+        return new NodeDetail()
+        {
+            Id = node.Id,
+            Text = node.Text,
+            References =
             [
-                .. summary.Topics.Select(topic => new TopicDetail()
+                .. node.References.Select(reference => new ReferenceDetail()
                 {
-                    Name = topic.Name,
-                    Description = topic.Description,
-                    Points =
-                    [
-                        .. topic.Points.Select(point => new PointDetail()
-                        {
-                            Id = point.Id,
-                            Description = point.Description,
-                            Sentiment = point.Sentiment,
-                            Objectivity = point.Objectivity,
-                            References =
-                            [
-                                .. point.References.Select(reference => new ReferenceDetail()
-                                {
-                                    ResponseId = reference.ResponseId,
-                                    Quote = reference.Quote,
-                                    Intensity = reference.Intensity,
-                                }),
-                            ],
-                        }),
-                    ],
+                    ResponseId = reference.ResponseId,
+                    Quote = reference.Quote,
                 }),
             ],
-        });
+            Children = [.. node.Children.Select(Describe)],
+        };
     }
 
     private static async Task<Results<Ok<IReadOnlyList<ReactionInfo>>, ProblemHttpResult>> GetReactionsAsync(
@@ -278,23 +274,24 @@ public static class SummariserApi
             return NoSuchSummary(summaryId);
         }
 
-        var points = summary.Topics.SelectMany(t => t.Points).ToList();
-        var pointIds = points.Select(p => p.Id).ToList();
+        // Flat, in reading order: a second pass wants the nodes people objected to, and the
+        // tree structure it would need to fix them comes from GET /summaries/{id}.
+        var nodes = SummaryTree.Flatten(summary.Roots).ToList();
 
-        var reactions = await db.PointReactions
-            .Where(r => pointIds.Contains(r.PointId))
+        var reactions = await db.NodeReactions
+            .Where(r => r.Node.SummaryId == summary.Id)
             .ToListAsync(cancellationToken);
 
         IReadOnlyList<ReactionInfo> result =
         [
-            .. points.Select(point =>
+            .. nodes.Select(node =>
             {
-                var mine = reactions.Where(r => r.PointId == point.Id).ToList();
+                var mine = reactions.Where(r => r.NodeId == node.Id).ToList();
 
                 return new ReactionInfo()
                 {
-                    PointId = point.Id,
-                    PointDescription = point.Description,
+                    NodeId = node.Id,
+                    NodeText = node.Text,
                     Agree = mine.Count(r => r.Kind == ReactionKind.Agree),
                     Important = mine.Count(r => r.Kind == ReactionKind.Important),
                     Misrepresents = mine.Count(r => r.Kind == ReactionKind.Misrepresents),
@@ -453,15 +450,13 @@ public static class SummariserApi
 
     private static DraftResult Result(Survey survey, Summary summary)
     {
-        var points = summary.Topics.SelectMany(t => t.Points).ToList();
-
         return new DraftResult()
         {
             SummaryId = summary.Id,
             EditUrl = $"/surveys/{survey.Code}/admin/summaries/{summary.Id}",
-            TopicCount = summary.Topics.Count,
-            PointCount = points.Count,
-            ReferenceCount = points.Sum(p => p.References.Count),
+            NodeCount = summary.Nodes.Count,
+            MaxDepth = SummaryTree.Depth(summary.Roots),
+            ReferenceCount = summary.Nodes.Sum(n => n.References.Count),
         };
     }
 
@@ -474,8 +469,8 @@ public static class SummariserApi
             IsDraft = summary.IsDraft,
             IsPublic = summary.IsPublic,
             CreatedBy = summary.CreatedBy,
-            TopicCount = summary.Topics.Count,
-            PointCount = summary.Topics.Sum(t => t.Points.Count),
+            NodeCount = summary.Nodes.Count,
+            MaxDepth = SummaryTree.Depth(summary.Roots),
         };
     }
 }

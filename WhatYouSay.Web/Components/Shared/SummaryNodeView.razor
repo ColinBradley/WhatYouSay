@@ -1,0 +1,116 @@
+@using WhatYouSay.Data
+@using WhatYouSay.Services
+
+<li class="@this.ItemClass()">
+    @if (this.Depth == 0)
+    {
+        <h2 class="h4 mb-1">@this.Node.Text</h2>
+    }
+    else
+    {
+        <div>@this.Node.Text</div>
+    }
+
+    @if (this.Node.References.Count > 0)
+    {
+        <details class="mt-1">
+            <summary class="small text-body-secondary">
+                @this.Node.References.Count
+                @(this.Node.References.Count == 1 ? "quote" : "quotes")
+            </summary>
+
+            @foreach (var reference in this.Node.References)
+            {
+                <figure class="mt-2 mb-2 ps-3 border-start">
+                    @if (this.Reading.ResponsesArePublic && Highlight(reference) is { } context)
+                    {
+                        <blockquote class="mb-1 small">
+                            <span class="text-body-secondary">@context.Before</span><mark>@context.Quote</mark><span class="text-body-secondary">@context.After</span>
+                        </blockquote>
+                    }
+                    else
+                    {
+                        <blockquote class="mb-1">&ldquo;@reference.Quote&rdquo;</blockquote>
+                    }
+
+                    <figcaption class="small text-body-secondary">
+                        @(reference.Response.Author ?? "anonymous")
+                    </figcaption>
+                </figure>
+            }
+        </details>
+    }
+    else if (this.Inherited)
+    {
+        <div class="small text-body-secondary fst-italic mt-1">
+            Rests on the quotes above rather than any of its own.
+        </div>
+    }
+
+    <div class="d-flex gap-2 align-items-center mt-2 flex-wrap">
+        <button type="submit" name="Action" class="btn btn-sm @Pressed(this.Tally, ReactionKind.Agree)"
+                value="@($"{this.Node.Id}:{ReactionKind.Agree}:toggle")"
+                disabled="@(!this.Reading.CanReact)" title="@this.Reading.ReactReason">
+            Agree@(this.Tally.Agree > 0 ? $" · {this.Tally.Agree}" : "")
+        </button>
+
+        <button type="submit" name="Action" class="btn btn-sm @Pressed(this.Tally, ReactionKind.Important)"
+                value="@($"{this.Node.Id}:{ReactionKind.Important}:toggle")"
+                disabled="@(!this.Reading.CanReact)" title="@this.Reading.ReactReason">
+            Matters to me@(this.Tally.Important > 0 ? $" · {this.Tally.Important}" : "")
+        </button>
+
+        @if (this.Tally.Misrepresents > 0)
+        {
+            <span class="badge text-bg-warning">
+                @this.Tally.Misrepresents flagged this as misrepresenting them
+            </span>
+        }
+    </div>
+
+    <details class="mt-2" open="@this.Tally.Mine.Contains(ReactionKind.Misrepresents)">
+        <summary class="small text-body-secondary">
+            This misrepresents what I said
+        </summary>
+
+        <textarea class="form-control form-control-sm mt-2" rows="2"
+                  name="@SummaryReading.NoteField(this.Node.Id)" disabled="@(!this.Reading.CanReact)"
+                  title="@this.Reading.ReactReason"
+                  placeholder="What did we get wrong?">@this.Tally.MyNote</textarea>
+
+        <div class="d-flex gap-2 mt-2">
+            <button type="submit" name="Action" class="btn btn-sm btn-outline-warning"
+                    value="@($"{this.Node.Id}:{ReactionKind.Misrepresents}:set")"
+                    disabled="@(!this.Reading.CanReact)" title="@this.Reading.ReactReason">
+                @(this.Tally.Mine.Contains(ReactionKind.Misrepresents) ? "Update" : "Flag this")
+            </button>
+
+            <button type="submit" name="Action" class="btn btn-sm btn-link text-body-secondary"
+                    value="@($"{this.Node.Id}:{ReactionKind.Misrepresents}:withdraw")"
+                    disabled="@(!this.Reading.CanReact || !this.Tally.Mine.Contains(ReactionKind.Misrepresents))"
+                    title="@(this.Reading.CanReact ? "You have not flagged this." : this.Reading.ReactReason)">
+                Withdraw
+            </button>
+        </div>
+    </details>
+
+    @if (this.Node.Children.Count > 0)
+    {
+        @if (this.Collapse())
+        {
+            <details class="mt-2">
+                <summary class="small text-body-secondary">
+                    @this.Node.Children.Count more below
+                </summary>
+
+                <SummaryNodeList Nodes="@this.Node.Children" Depth="@(this.Depth + 1)"
+                                 Inherited="@this.PassesSupportDown()" />
+            </details>
+        }
+        else
+        {
+            <SummaryNodeList Nodes="@this.Node.Children" Depth="@(this.Depth + 1)"
+                             Inherited="@this.PassesSupportDown()" />
+        }
+    }
+</li>

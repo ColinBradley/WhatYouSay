@@ -12,9 +12,13 @@ public record SummaryInfo
 
     public string? CreatedBy { get; init; }
 
-    public required int TopicCount { get; init; }
+    public required int NodeCount { get; init; }
 
-    public required int PointCount { get; init; }
+    /// <summary>
+    /// Levels, not edges. Reported rather than capped: a staircase should be visible without
+    /// being illegal.
+    /// </summary>
+    public required int MaxDepth { get; init; }
 }
 
 public record SummaryDetail
@@ -23,29 +27,18 @@ public record SummaryDetail
 
     public required string Body { get; init; }
 
-    public required IReadOnlyList<TopicDetail> Topics { get; init; }
+    public required IReadOnlyList<NodeDetail> Nodes { get; init; }
 }
 
-public record TopicDetail
-{
-    public required string Name { get; init; }
-
-    public string? Description { get; init; }
-
-    public required IReadOnlyList<PointDetail> Points { get; init; }
-}
-
-public record PointDetail
+public record NodeDetail
 {
     public required int Id { get; init; }
 
-    public required string Description { get; init; }
-
-    public double? Sentiment { get; init; }
-
-    public double? Objectivity { get; init; }
+    public required string Text { get; init; }
 
     public required IReadOnlyList<ReferenceDetail> References { get; init; }
+
+    public required IReadOnlyList<NodeDetail> Children { get; init; }
 }
 
 public record ReferenceDetail
@@ -53,16 +46,14 @@ public record ReferenceDetail
     public required Guid ResponseId { get; init; }
 
     public required string Quote { get; init; }
-
-    public double? Intensity { get; init; }
 }
 
-/// <summary>Per-point reaction counts, plus every objection in full.</summary>
+/// <summary>Per-node reaction counts, plus every objection in full.</summary>
 public record ReactionInfo
 {
-    public required int PointId { get; init; }
+    public required int NodeId { get; init; }
 
-    public required string PointDescription { get; init; }
+    public required string NodeText { get; init; }
 
     public required int Agree { get; init; }
 
@@ -80,9 +71,9 @@ public record DraftResult
 
     public required string EditUrl { get; init; }
 
-    public required int TopicCount { get; init; }
+    public required int NodeCount { get; init; }
 
-    public required int PointCount { get; init; }
+    public required int MaxDepth { get; init; }
 
     public required int ReferenceCount { get; init; }
 }

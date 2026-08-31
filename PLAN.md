@@ -4,17 +4,17 @@ Namespace / app name: `WhatYouSay`. Product name: **What You Say**.
 
 A small, self-hosted tool for collecting free-text feedback from a group of people who trust each other, then making sense of it with an AI agent. Built for sprint retros, dev cycle reviews and architecture feedback at work. Not a service, not multi-tenant, no user accounts.
 
-> **Status: building.** Steps 1–6 complete. Next up is step 7, the move from flat topics and points to a [node tree](#summarynode) — a model change worth making before an edit UI gets written against the old shape.
+> **Status: building.** Steps 1–7 complete. The tree is stored, validated, served and rendered, and the drafting runs step 7 exists to force turned up an answer worth having: depth carries meaning, and [typed nodes did not](#node-kinds-tried-removed). A node is text, references and children. Next is step 8, the summary edit UI.
 
 ## Principles
 
 - **One survey = one free-text prompt.** Title + Description *is* the question. There are no fields, no sub-questions, no form builder. Ever.
 - **Quick and dirty, but faithful.** The whole value is in the summary being a true reflection of what people actually wrote. Fidelity is the thing to protect. Anonymity is a supported option, not the point of the tool.
 - **The agent drafts, the human publishes.** AI never gets the last word.
-- **Every claim is grounded in a real quote, and the app proves it.** A node that asserts something and can't be traced to what someone actually wrote doesn't get stored. Headings are exempt because they assert nothing — which is what [node kinds](#node-kinds) exist to make checkable. See [Grounding](#grounding-the-app-validates-the-agent).
+- **Every claim is grounded in a real quote, and the app proves it.** A node that can't be traced to what someone actually wrote doesn't get stored. A heading is exempt only because the requirement lands on what hangs below it: every branch has to end in a citation. See [Grounding](#grounding-the-app-validates-the-agent).
 - **The group gets to answer back.** A summary nobody can object to is just one person's reading with extra steps. Responders react to the nodes, including flagging ones that misrepresent them.
 - **No vocabulary from one use of it.** The tool is for sprint retros, dev cycle reviews, holiday planning, takeaway votes and one-person diaries. The app's own words — labels, headings, entity names, endpoints, error text — never name any one of those. Example *content* is the exception, and earns it by coming as a varied set rather than a single case: the `/new` placeholders rotate per page load through a retro, a lunch vote, a deploy-process review, a trip, a reading group and a solo diary, so no one visit reads as what the tool is for. Vocabulary is what silently narrows a tool to the first thing it was used for.
-- **The responses are the precious data.** Summaries are derived: a version can be deleted and redrawn from the responses at any time. That is what makes the summary model safe to change — getting the [kind vocabulary](#node-kinds) wrong costs a migration and a re-run, not anyone's words.
+- **The responses are the precious data.** Summaries are derived: a version can be deleted and redrawn from the responses at any time. That is what makes the summary model safe to change — [getting the node vocabulary wrong](#node-kinds-tried-removed) cost a migration and a re-run, not anyone's words. It has already been cashed in once.
 - No frills. If a feature needs a design doc, it's deferred.
 
 ## Why not just paste the responses into a chat?
@@ -37,14 +37,14 @@ The fourth is the one that matters most, and it's why responder reactions are v1
 | AI integration | REST API hosted in the app. Agent authenticates with a survey-scoped token. No API key in the app. |
 | Summaries | Versioned. Each generation run creates a new one; public page shows the newest published. |
 | Secrets | Everything hashed. Summariser token shown once at creation; regenerate if lost. |
-| Summary structure | A tree of `SummaryNode`, depth uncapped. Every node carries a `Kind`; the closed kind vocabulary is what grounding validates against. |
+| Summary structure | A tree of `SummaryNode`, depth uncapped. A node is text, references and children — [nothing types it](#node-kinds-tried-removed), so grounding validates the shape of a branch rather than the sort of node. |
 | Summary editing | Explicit edit page with forms. **No ordering concept** while the agent rewrites whole drafts; a real editor forces an ordinal. |
 | Response identity | `ResponseIdentity` per survey: `Required` (default), `Optional`, `Anonymous`. Set at creation, immutable. Anonymous records **no timestamp at all**. |
 | Response editing | Authors can edit until the survey stops accepting responses, then frozen. Admins never edit — soft-delete only. |
 | Reopening | Allowed only while no summary exists. After that, run a new survey. |
 | Responder reactions | **In v1.** Agree / Important / Misrepresents-me, per node, by people who responded. |
 | Cross-survey work | Deferred, and solved with a `Collection` entity — **not** accounts. Auth seam built now. |
-| Node relations | Deferred, and smaller than they were: a node has one parent, so `Kind` already types the edge above it. What remains deferred is the *cross-cutting* link. Open vocabulary there, unlike `Kind`. |
+| Node relations | Deferred. What remains deferred is the *cross-cutting* link — the one a tree structurally cannot hold. Open vocabulary, unlike anything grounding keys off. |
 
 ### Response editing: a window, then frozen
 
@@ -147,10 +147,7 @@ The tree. One entity replaces `SummaryTopic` and `SummaryTopicPoint`, because th
 Id           int      identity PK
 SummaryId    Guid     on every node, not just roots — one query loads the whole tree
 ParentId     int?     null at a root
-Text         string   terse; a few words to a sentence
-Kind         enum     Frame | Facet | Claim | Detail | Question | Want; stored as string
-Sentiment    double?  -1 (negative) .. +1 (positive)
-Objectivity  double?  0 (pure opinion) .. 1 (verifiable fact)
+Text         string   terse; a few words to a sentence. The only thing a node says about itself
 Children     SummaryNode[]
 References   SummaryNodeReference[]
 Reactions    NodeReaction[]
@@ -166,34 +163,25 @@ Reactions    NodeReaction[]
 
 **Single-child nodes are legitimate.** "Puzzling things → What's next for 3D? → What's the plan?" sharpens a heading into a question in two steps and reads correctly. The staircase worth worrying about is the one with nothing at the bottom, and that is a judgement, which is exactly why it is guidance rather than a rule.
 
-Sentiment and Objectivity are populated by the agent from day one but **not rendered in v1**. Storing them costs nothing and means the data is already there when we design a display for it.
+**A node has text, references and children, and nothing else.** No type, no scores. What a node means has to be in its text, which is also what the [brief](#api-surface) tells the agent: "A real budget held by the team" reads as a fact, so if it is something people want, write it as one.
 
-#### Node kinds
-
-`Kind` is what has to survive the collapse of Topic and Point into one entity. Two levels used to supply that typing for free: a topic asserted nothing and carried no references, a point asserted something and had to be cited. In an untyped tree the distinction evaporates, and an unreferenced node in the middle becomes the obvious hiding place for a claim nobody made, wearing a heading's clothes. `Kind` puts the distinction back and makes it checkable at any depth.
-
-| Kind | What it is | Must ground |
-|---|---|---|
-| `Frame` | a section of the summary's own structure — "What went well" | no |
-| `Facet` | a dimension things are grouped by: a team, a component, a person | no |
-| `Claim` | a finding: something is the case | yes |
-| `Detail` | elaboration, qualification or an aside on the node above | yes |
-| `Question` | something left open — "what's next for 3D?" | yes |
-| `Want` | a desire or a proposal — "want more people doing Atlas things" | yes |
-
-**A closed set, unlike relation types.** The [deferred relation vocabulary](#deferred) is open on purpose, because no fixed list serves retros, holiday planning and diaries at once. `Kind` is the opposite case: validation keys off it, and a rule cannot depend on a vocabulary its caller can extend. IBIS reached the same conclusion from the other direction — the tiny fixed vocabulary is the design, not an unfinished bit.
-
-Not everyone draws the line there. The [W3C annotation motivations](#typed-nodes) are a fixed core *with* a documented extension hatch, which is the obvious middle path and the one to reach for if six kinds start failing on a use nobody anticipated. Closed is a choice here rather than settled practice — and a cheap one to revisit, because [the responses are the precious data](#principles) and summaries can be redrawn.
-
-A node has exactly one parent, so **`Kind` also types the edge above it**. `Detail` under a `Claim` reads as elaboration of that claim; the same node directly under a `Frame` has nothing to elaborate. Which pairings make sense is described in the brief and left unvalidated — the useful ones are obvious and the odd ones are usually a reasonable stretch rather than an error. The point is that the tree gets relation typing for nothing, and that the deferred relations feature shrinks to cross-cutting links as a result. This is not a new trick: [RST types the edge where Compendium types the node](#typed-nodes), and with one parent per node those are the same statement.
-
-**Attribution is not a kind.** "Colin loves it" looks like its own sort of node, but it is a `Claim` whose evidence happens to be one person's response — which is precisely what `References` record. A kind for it would duplicate the reference.
-
-**Depth does not mean the same thing on every branch.** Under "What went well" the second level is a `Facet` — a team name — while under "Puzzling things" the second level is already a `Claim`. Real notes do this constantly and it reads fine. It is also the reason containment cannot be given one global meaning: the node has to say what it is, because its depth does not.
-
-**Grounding inherits down a branch.** A must-ground node with no references of its own resolves to its nearest grounded ancestor's. Demanding a fresh citation at every level would only make the agent copy one quote four times — more tokens, one more chance to corrupt it per repeat, no more truth than citing it once. What must hold is that **the topmost must-ground node in any branch carries references of its own**. A branch rooted in an unsupported claim is rejected.
+**Grounding inherits down a branch.** A node with no references of its own resolves to its nearest cited ancestor's. Demanding a fresh citation at every level would only make the agent copy one quote four times — more tokens, one more chance to corrupt it per repeat, no more truth than citing it once. What must hold is that **every branch ends in a citation**: a leaf either cites for itself or sits under something that does.
 
 The honest cost: a fabricated claim four levels under a real quote rides on that quote. Requiring re-citation would not catch it either, since the agent is holding the quote already. So the mitigation is display rather than validation — inherited support renders visibly weaker than direct support, and the human reviewing the draft can see how far a claim sits from its evidence.
+
+#### Node kinds: tried, removed
+
+A `Kind` on every node — `Frame | Facet | Claim | Detail | Question | Want` — shipped with the tree and was taken out again after a run of fresh drafting sessions. The reasoning for it was sound and is worth keeping: two levels used to supply that typing for free, a topic asserted nothing while a point had to be cited, and in an untyped tree an unreferenced node in the middle becomes the obvious hiding place for a claim nobody made, wearing a heading's clothes. `Kind` put the distinction back and made it checkable at any depth.
+
+What killed it was not the theory but the drafting. **A vocabulary offered to an agent is a vocabulary it tries to satisfy.** Six named boxes turned out to be leading — the agent reached for a kind and then wrote a node to fit it — restrictive where the honest node was between two of them, and confusing in a way that cost attention the quotes needed more. Worse, the label leaked into the prose: nodes were written as sentence fragments completed by their kind, so `{ "text": "A real budget held by the team.", "kind": "Want" }` reads as a fact everywhere the kind is not also on screen. Six kinds also meant six chances to pick the wrong one, in a payload where the field was `required` and a miss was a bare `400`.
+
+**What replaces it is one rule instead of two:** every branch of the tree ends in a citation. A node with children reads as the heading over them and needs none of its own, because the requirement lands on what hangs below it; a childless node with nothing above it cited is rejected whether it was meant as an empty section or an uncited finding. The untyped rule cannot tell those apart, and does not need to — both are wrong.
+
+**The cost is exactly the one the typed design predicted.** An uncited node in the middle of a branch can now carry a claim nobody made, and nothing checkable stops it. That is a real loss of the [grounding](#grounding-the-app-validates-the-agent) guarantee, accepted because a rule the agent routinely trips over protects less in practice than a rule it can follow. The mitigations are the ones already there: inherited support renders visibly weaker than direct support, a human publishes, and [the responses are the precious data](#principles) — summaries can be redrawn.
+
+If the hiding-place problem shows up in real drafts, the thing to reach for is not the six kinds again but a single boolean the agent is not asked to reason about — or display that makes an uncited middle node obvious to whoever is reviewing.
+
+**Sentiment, Objectivity and Intensity: tried, removed** with `Kind` and for the same reason. They were collected from day one and never rendered, on the theory that storing them cost nothing. Storing them cost nothing; *asking for them* cost attention on every node and every quote, in a payload whose one job is character-exact citation. Nothing had been built that read them. Removed rather than left as dead weight in the contract; the shape of the number is recorded here if a display is ever designed that wants it.
 
 ### SummaryNodeReference
 ```
@@ -203,7 +191,6 @@ ResponseId  Guid
 Quote       string   snapshot of the referenced text
 StartIndex  int      offset into Response.Body
 EndIndex    int
-Intensity   double?  0..1, how strongly this quote supports the node
 ```
 
 `int`, not `uint` — `uint` maps badly through EF/SQLite. `Quote` earns its place three times over: it makes the API contract self-describing, it lets the UI render a quote without loading the whole response, it future-proofs response editing — and it's the key the app validates against on write. See below.
@@ -224,7 +211,7 @@ CreatedAt          DateTimeOffset?  null when Anonymous
 
 Unique on `(NodeId, ResponderTokenHash, Kind)`, so each is an independent toggle and `Agree` + `Important` can coexist. `Misrepresents` isn't mechanically exclusive with the others — someone can agree with a point in general and still object to how their words were used for it.
 
-**Only must-ground nodes take reactions.** Agreeing with "What went well" means nothing, and "this misrepresents me" is unanswerable against a heading. The same [kind](#node-kinds) split that decides what has to be cited decides what carries reaction controls, so there is one rule rather than two. `Detail` is included deliberately: a qualification is often the exact place a summary gets someone wrong.
+**Every node takes reactions.** Agreeing with "What went well" means nothing, but with [kinds gone](#node-kinds-tried-removed) there is nothing on a node that says it is a heading, and inventing a proxy — has children, has no references — would put reaction controls in the wrong place on a tree that does not obey the proxy. A meaningless control is cheaper than a missing one: what must not happen is a node someone wants to object to arriving without the button.
 
 **Only people who responded can react.** The reaction is keyed on the response cookie for that survey, which is both the permission check and the dedupe key. Reactions from passers- by would dilute the signal, and "this misrepresents what I said" is meaningless from someone who didn't say anything.
 
@@ -353,10 +340,10 @@ The test for the left column: does violating it produce something that reads as 
 
 ### 5. Read a summary
 1. `/surveys/{code}/summary` — narrative overview, then the tree as a nested list.
-2. Each node: its text, rendered by [kind](#node-kinds) — structural nodes read as headings, the rest as statements.
+2. Each node: its text. Roots read as headings because that is what the top of a tree is, not because the node says so — depth is the only thing left to render by.
 3. A node that has references carries an expander showing the supporting quotes. A node relying on inherited support says so, visibly more quietly than one citing its own.
 4. If responses are visible to you, each quote links through to the full response with the quoted span highlighted.
-5. If you responded to this survey, every must-ground node carries agree / important / misrepresents-me controls, the last opening a small note box. Counts are visible to everyone; the notes are for the admin and the next drafting pass.
+5. If you responded to this survey, every node carries agree / important / misrepresents-me controls, the last opening a small note box. Counts are visible to everyone; the notes are for the admin and the next drafting pass.
 6. Deep branches collapse below a sensible level rather than indenting off the screen. Which level is a rendering decision, not a stored one — nothing about depth is a property of the data.
 
 ## API surface
@@ -404,7 +391,7 @@ The consistent finding in the attribution literature is that models which cite m
 
 We're unusually well placed to do this, because every quote is a span into text we already own. So the write endpoints **validate rather than trust**:
 
-1. **Every branch resolves to a reference.** A must-ground [node](#node-kinds) — `Claim`, `Detail`, `Question`, `Want` — either carries references of its own or inherits its nearest grounded ancestor's, and the topmost must-ground node in any branch must carry its own. Structural nodes (`Frame`, `Facet`) need none, because they assert nothing. Enforced in the schema, not just the prompt: a branch with no citation anywhere in it is the agent inventing a theme nobody raised.
+1. **Every branch resolves to a reference.** A leaf either carries references of its own or inherits its nearest cited ancestor's. A node with children needs none, because the requirement lands on what hangs below it. Enforced in the schema, not just the prompt: a branch with no citation anywhere in it is the agent inventing a theme nobody raised. This is weaker than the [typed rule it replaced](#node-kinds-tried-removed), which could demand a citation from the topmost *asserting* node rather than only from the bottom of the branch.
 2. **Every `Quote` must actually occur in that response's `Body`.** Substring match after [normalisation](#match-normalisation), and what gets stored is the span taken from `Body` rather than the string the agent sent.
 3. **Offsets are not accepted at all.** The request contract has no offset fields — the app locates the quote itself. That is stronger than validating supplied offsets and correcting them, because a wrong offset stops being something an agent can express. If a quote occurs twice in one response the first occurrence wins, which nobody has to think about. Testing later supplied a second and better reason to refuse them; see [below](#match-normalisation).
 4. **Every `ResponseId` must belong to this survey and not be soft-deleted.**
@@ -496,15 +483,16 @@ Deliberately front-loads the open question. The thing worth knowing early is whe
 4. **Decision point.** *(done)* Are these summaries better than pasting responses into a chat? If not, this is the cheapest possible place to have found that out.
 5. **Reactions.** *(done)* Agree / important / misrepresents on the summary page, `GET /summaries/{id}/reactions`, and the second-pass loop. This is the feature that makes the answer to step 4 "yes", so it lands here rather than in polish.
 6. **Admin.** *(done)* Password gate, the `AdminSession` seam, dashboard, response list, soft-delete, settings, close/reopen, and `/new`.
-7. **The node tree.** `SummaryTopic` and `SummaryTopicPoint` become `SummaryNode`; `SummaryTopicPointResponseReference` and `PointReaction` become `SummaryNodeReference` and `NodeReaction`. One migration, the `Kind` vocabulary, grounding rewritten to the branch rule, nested rendering on the summary page, and the brief updated to describe a tree. Lands before step 8 for one reason: an edit UI written against topics and points would have to be written twice.
+7. **The node tree.** *(done)* `SummaryTopic` and `SummaryTopicPoint` become `SummaryNode`; `SummaryTopicPointResponseReference` and `PointReaction` become `SummaryNodeReference` and `NodeReaction`. One migration, grounding rewritten to the branch rule, nested rendering on the summary page, and the brief updated to describe a tree. Lands before step 8 for one reason: an edit UI written against topics and points would have to be written twice.
 
-   Then re-run the summariser over the company-wide survey and the diary — the two seeded shapes that most want depth — and check the depth is carrying meaning rather than producing staircases. Same move as step 4: get the open question answered by real data at the cheapest possible moment.
+   The depth check this step exists for was run, and answered a question nobody had asked: the tree carries meaning, but the `Kind` vocabulary shipped with it was leading the agent into writing nodes to fit a box. A second migration [drops `Kind`, `Sentiment`, `Objectivity` and `Intensity`](#node-kinds-tried-removed); a node is now text, references and children.
 8. **Summary edit.** The forms page, publish/unpublish, delete, and prominent display of objections. This is where **no ordering concept** finally dies: moving a node makes insertion order wrong, so the editor brings an `Ordinal` column and a migration with it. Nothing before this step needs one, because the agent rewrites whole trees and depth-first insertion reproduces sibling order for free.
 9. **Summariser hardening.** Everything below came out of watching an agent draft a real summary end to end, which is a different exercise from designing the endpoint and turned up things the design could not have predicted. Grouped as one step because it is all the same surface and wants one migration.
    - **Normalise `Response.Body` line endings to `\n` at ingest**, with a migration renormalising existing rows and repairing the reference offsets that shift as a result. Reasoning under [Response](#response). This one first: every quote the API validates depends on it.
    - **Page `GET /responses`** — `skip`/`take` plus a total. Frozen collection, so no cursor needed.
    - **Four additions to the brief** — name people who gave a name, check quotes are substrings locally before sending, build the payload with code where possible, and start a new summary rather than continuing an old one. Reasoning under [API surface](#api-surface).
-   - **Make the worked example in the brief valid JSON.** It currently carries trailing commas. Harmless to an agent that builds the payload programmatically, a live trap for one writing it out by hand.
+   - ~~**Make the worked example in the brief valid JSON.**~~ *(done)* Landed with the step 7 rewrite of the brief.
+   - **Say what is wrong with a payload that will not bind.** A missing `text`, or any malformed JSON, fails in the reader rather than in validation, so it comes back as a bare 400 with no body outside Development — no pointer, nothing to fix. Every other mistake an agent can make gets a located 422. This wants `RouteHandlerOptions.ThrowOnBadRequest` and a handler turning the `JsonException` path into the same shape. Less pressing since [`kind` was removed](#node-kinds-tried-removed), which was the field agents actually got wrong.
    - **Normalise both sides before matching a quote**, and store the span taken from `Body` rather than the string that was sent. Measured as the largest available reduction in false rejection — 2/19 to 14/19 against corrupted-but-correct quotes — for roughly ten lines. Reasoning and numbers under [Match normalisation](#match-normalisation).
 10. **Polish.** Publicly listed home page, token regeneration, empty states, and the copy telling responders exactly what is and isn't stored.
 
@@ -531,16 +519,16 @@ Worth noting that TTTC's three levels are *fixed*. Ours are not, which is the ac
 
 ### Typed nodes
 
-Prior art for the [kind vocabulary](#node-kinds), checked after the fact rather than before. Almost none of it is ours.
+Prior art for the [kind vocabulary](#node-kinds-tried-removed), checked after the fact rather than before. Almost none of it is ours. Kept now that the vocabulary is gone, because it is the reading anyone would have to redo before trying node typing again — and because the last line of this section turns out to be the interesting one.
 
 - **[Compendium](https://www.cognexus.org/IBIS-A_Tool_for_All_Reasons.pdf)** — the close match, and the one that counts because it was used in anger. IBIS proper has Question, Idea, Pro and Con; Compendium [adds Lists and Maps as containers, plus Decisions, Notes and References](https://www.researchgate.net/figure/BIS-plus-additional-node-types-rendered-in-Compendium-Any-application-document-or_fig1_251532806). Same shape as ours and reached the same way — an argumentative core turned out to be insufficient for real capture, so non-asserting container types were added. `Frame` and `Facet` are their List and Map, `Want` is their Idea, `Question` is theirs unchanged.
 - **[Toulmin](https://academics.umw.edu/speaking/resources/handouts/toulmin-argument-model/)** — claim, grounds, warrant, backing, qualifier, rebuttal. `Claim` is his word and our references are his grounds. We deliberately have no warrant, the reasoning connecting the two: a summary reports what people said rather than arguing for it.
-- **[Rhetorical Structure Theory](https://www.sfu.ca/rst/pdfs/RST_Introduction.pdf)** — `Detail` is RST's Elaboration, and its nucleus/satellite asymmetry is our parent/child one. RST types the *edge* where Compendium types the *node*; with exactly one parent per node those are the same statement, which is what licenses `Kind` typing the edge above it.
+- **[Rhetorical Structure Theory](https://www.sfu.ca/rst/pdfs/RST_Introduction.pdf)** — `Detail` was RST's Elaboration, and its nucleus/satellite asymmetry is our parent/child one. RST types the *edge* where Compendium types the *node*; with exactly one parent per node those are the same statement, which is what licensed `Kind` typing the edge above it.
 - **[QOC](https://acawiki.org/Questions,_Options,_and_Criteria:_Elements_of_design_space_analysis)** (MacLean, 1991) — Questions, Options, Criteria. Another deliberately tiny fixed vocabulary. Options is `Want` again.
 - **[W3C Web Annotation motivations](https://www.w3.org/TR/annotation-model/)** — commenting, describing, questioning, highlighting, tagging. A standardised vocabulary attached to a span of text, which is structurally what a reference is. Notable for being a fixed core *with* an extension mechanism rather than a closed set.
 - **[Tana supertags](https://outliner.tana.inc/learn/features/supertags)** — the live commercial version: tag a node and it becomes a typed object with structure. Typed outliner nodes are current practice, not only an academic tradition.
 
-**What has no obvious precedent is keying validation off the kind.** Everything above types nodes so a human can read the map. None of it makes the type decide whether something must be cited. Borrowed vocabulary, novel enforcement — a comfortable place for a small tool to be.
+**What had no obvious precedent was keying validation off the kind.** Everything above types nodes so a human can read the map. None of it makes the type decide whether something must be cited. Borrowed vocabulary, novel enforcement — which read as a comfortable place for a small tool to be, and turned out to be the load-bearing difference. Every project above types nodes for a *human* filling them in, and none of them hands the vocabulary to a model that will try to satisfy it. The absence of precedent was the warning.
 
 `Want` has three established names: Position in IBIS, Idea in Compendium, Option in QOC. Kept as `Want` because it names the speech act more precisely, and because "idea" is one of the vaguest words in English.
 
@@ -557,7 +545,7 @@ Background for the deferred relations feature. Four traditions have attempted th
 
 Not in v1, but the model shouldn't preclude them:
 
-- **Sentiment / objectivity display.** Data is already being collected.
+- **Sentiment / objectivity display.** [Removed from the model](#node-kinds-tried-removed) rather than collected unread. Wants a display designed first, then the fields back.
 
 - **Node relations — the cross-cutting graph. The intended next stage.** Typed links between nodes: `causes`, `blocks`, `contradicts`. See [Graph-structured feedback](#graph-structured-feedback) for the traditions this draws on.
 
@@ -569,7 +557,7 @@ Not in v1, but the model shouldn't preclude them:
 
   Its own endpoint, `POST /summaries/{id}/relations`, not a field in the tree payload — see the sequencing note below.
 
-  **The tree took a bite out of this.** A node has one parent, so [`Kind`](#node-kinds) already types the edge above it — "wants" stopped being a relation and became a node kind. What relations are left for is the link a tree structurally cannot hold: the one that crosses branches. "CI is slow" belongs under Tooling *and* under Morale, and a tree makes you duplicate it or pick one. That is the honest weakness of hierarchy — the intertwingled-information complaint, and the reason faceted tagging exists alongside trees rather than instead of them. It is also the one thing a graph adds that nesting cannot fake.
+  **The tree took a bite out of this.** Containment carries most of what the relation vocabulary was for: a node under another elaborates it, and "wants" is just something a node's text can say. What relations are left for is the link a tree structurally cannot hold: the one that crosses branches. "CI is slow" belongs under Tooling *and* under Morale, and a tree makes you duplicate it or pick one. That is the honest weakness of hierarchy — the intertwingled-information complaint, and the reason faceted tagging exists alongside trees rather than instead of them. It is also the one thing a graph adds that nesting cannot fake.
 
   **Open vocabulary, not a fixed schema.** This tool has to serve sprint retros, holiday planning, takeaway votes, company-wide feedback and personal diaries. A vocabulary broad enough for all of those is too vague for any of them, so relation types are invented as needed and consolidated afterwards.
 
@@ -631,7 +619,7 @@ Not in v1, but the model shouldn't preclude them:
   A cross-survey summary is one scoped to a collection rather than a survey. One table and one nullable FK, composing with everything already designed. This is where SODA's map-merging gets genuinely interesting: shared concepts across *sprints*, showing which stressors recur and which actually got resolved.
 
   **Explicitly not accounts.** Not because of the work — users, registration, login, password reset, email, invitations — but because signup friction destroys the property that makes the tool good. "Here's a link, chuck your thoughts in" stops working the moment anyone has to create an account, and so does spinning up a survey in twenty seconds. The [`AdminSession` seam](#the-admin-seam) exists so this stays a contained change rather than a refactor.
-- **Markdown export of a summary.** Nested bullets, which is the format the tree came from in the first place. Lossy on purpose: kinds, reactions, sentiment and the reference spans don't survive, and quotes become ordinary text. That is fine in this direction and not in the other — [markdown is refused as an input format](#why-nested-json) precisely because it has no lossless container for verbatim text, and the same lossiness is harmless once the app is the thing being copied *from* rather than written *to*.
+- **Markdown export of a summary.** Nested bullets, which is the format the tree came from in the first place. Lossy on purpose: reactions and the reference spans don't survive, and quotes become ordinary text. That is fine in this direction and not in the other — [markdown is refused as an input format](#why-nested-json) precisely because it has no lossless container for verbatim text, and the same lossiness is harmless once the app is the thing being copied *from* rather than written *to*.
 
 - **Stable node keys.** An agent-supplied `key` per node, stable across submissions, so a resubmission can carry only what changed and "this is the same node, revised" becomes expressible. Two reasons, of quite different weight:
 

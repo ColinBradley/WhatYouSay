@@ -4,13 +4,13 @@ namespace WhatYouSay.Data;
 /// The group answering back. Keyed on the responder's cookie token, which is both the
 /// permission check and the dedupe key — only people who responded may react.
 /// </summary>
-public class PointReaction
+public class NodeReaction
 {
     public int Id { get; set; }
 
-    public int PointId { get; set; }
+    public int NodeId { get; set; }
 
-    public SummaryTopicPoint Point { get; set; } = null!;
+    public SummaryNode Node { get; set; } = null!;
 
     /// <summary>SHA-256 of the wys_resp cookie token for this survey.</summary>
     public required string ResponderTokenHash { get; set; }
