@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
 using WhatYouSay.Data;
+using WhatYouSay.Data.Seed;
 
 namespace WhatYouSay.Tests;
 
@@ -12,7 +12,7 @@ public class SeedDataTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        await SeedData.EnsureSeededAsync(mDb, NullLogger.Instance, this.Cancellation);
+        await SeedData.EnsureSeededAsync(mDb, this.Cancellation);
 
         var anonymous = await mDb.Surveys
             .Include(s => s.Responses)
@@ -30,7 +30,7 @@ public class SeedDataTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        await SeedData.EnsureSeededAsync(mDb, NullLogger.Instance, this.Cancellation);
+        await SeedData.EnsureSeededAsync(mDb, this.Cancellation);
 
         var retro = await mDb.Surveys
             .Include(s => s.Responses)
@@ -45,7 +45,7 @@ public class SeedDataTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        await SeedData.EnsureSeededAsync(mDb, NullLogger.Instance, this.Cancellation);
+        await SeedData.EnsureSeededAsync(mDb, this.Cancellation);
 
         var surveys = await mDb.Surveys.Include(s => s.Responses).ToListAsync(this.Cancellation);
 
@@ -63,8 +63,8 @@ public class SeedDataTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        await SeedData.EnsureSeededAsync(mDb, NullLogger.Instance, this.Cancellation);
-        await SeedData.EnsureSeededAsync(mDb, NullLogger.Instance, this.Cancellation);
+        await SeedData.EnsureSeededAsync(mDb, this.Cancellation);
+        await SeedData.EnsureSeededAsync(mDb, this.Cancellation);
 
         Assert.AreEqual(4, await mDb.Surveys.CountAsync(this.Cancellation));
     }

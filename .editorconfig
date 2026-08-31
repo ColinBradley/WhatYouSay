@@ -27,6 +27,15 @@ csharp_style_expression_bodied_lambdas = true:silent
 csharp_new_line_before_open_brace = all
 csharp_prefer_braces = true:error
 
+# CA1822: Mark members as static
+dotnet_diagnostic.CA1822.severity = silent
+
+# IDE0042: Deconstruct variable declaration
+dotnet_diagnostic.IDE0042.severity = silent
+
+# IDE0305: Simplify collection initialization
+dotnet_diagnostic.IDE0305.severity = silent
+
 [*.{razor,cshtml}]
 indent_style = space
 indent_size = 4

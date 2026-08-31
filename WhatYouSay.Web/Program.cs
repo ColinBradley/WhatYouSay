@@ -5,6 +5,7 @@ using WhatYouSay.Services;
 using WhatYouSay.Web.Auth;
 using WhatYouSay.Web.Api;
 using WhatYouSay.Web.Telemetry;
+using WhatYouSay.Data.Seed;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -40,7 +41,7 @@ using (var scope = app.Services.CreateScope())
 
     if (app.Environment.IsDevelopment())
     {
-        await SeedData.EnsureSeededAsync(db, app.Logger);
+        await SeedData.EnsureSeededAsync(db);
     }
 }
 

@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using WhatYouSay.Auth;
 using WhatYouSay.Services;
+using WhatYouSay.Telemetry;
 
-namespace WhatYouSay.Data;
+namespace WhatYouSay.Data.Seed;
 
 /// <summary>Development seed data: four surveys of deliberately different shapes.</summary>
 public static class SeedData
@@ -13,12 +13,14 @@ public static class SeedData
 
     public static async Task EnsureSeededAsync(
         WhatYouSayContext db,
-        ILogger logger,
         CancellationToken cancellationToken = default
     )
     {
+        using var activity = WhatYouSayTelemetry.Source.Start();
+
         if (await db.Surveys.AnyAsync(cancellationToken))
         {
+            activity?.SetTag("seed.skipped", true);
             return;
         }
 
@@ -28,14 +30,12 @@ public static class SeedData
         db.Surveys.AddRange(retro, Takeaway(), CompanyWide(), Diary());
         await db.SaveChangesAsync(cancellationToken);
 
-        logger.LogInformation("Seeded {Count} surveys. Admin password for all: {Password}", 4, AdminPassword);
+        var seeded = await db.Surveys.AsNoTracking().ToListAsync(cancellationToken);
 
-        foreach (var survey in await db.Surveys.AsNoTracking().ToListAsync(cancellationToken))
-        {
-            logger.LogInformation("  /surveys/{Code} — {Title}", survey.Code, survey.Title);
-        }
-
-        logger.LogInformation("Summariser tokens: {Tokens}", string.Join(", ", sSummariserTokens));
+        activity?.SetTag("seed.surveys.count", seeded.Count);
+        activity?.SetTag("seed.admin.password", AdminPassword);
+        activity?.SetTag("seed.surveys", string.Join(", ", seeded.Select(survey => $"/surveys/{survey.Code} — {survey.Title}")));
+        activity?.SetTag("seed.summariser.tokens", string.Join(", ", sSummariserTokens));
     }
 
     /// <summary>

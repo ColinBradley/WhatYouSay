@@ -28,6 +28,10 @@ Blazor Server, EF Core, SQLite. Design and build order: [PLAN.md](PLAN.md).
 - Favour immutable types wherever they fit: `record` for data, `init` over `set`, `readonly` fields, `ImmutableArray<T>` or `FrozenSet<T>` for static tables, `IReadOnlyList<T>` on anything a caller should not mutate. EF entities and Blazor `[SupplyParameterFromForm]` / `[Inject]` properties are the exceptions — both need settable properties.
 - Don't manually wrap text in md files.
 
+## Analyzers
+
+Address every analyzer diagnostic, including `Info`/suggestion-level ones that don't fail the build (`MSTESTxxxx`, `CAxxxx`, `IDExxxx`). Take the suggested fix rather than suppressing it. Note that .editorconfig isn't fully fleshed out and so if a suggestion doesn't make sense and isn't explicitly decided on, query with the user.
+
 ## UI
 
 - **Disable, don't hide.** A control someone cannot use stays on the page, disabled, with a `title` on the control itself saying why. Hiding it leaves people wondering whether the feature exists.

@@ -49,7 +49,7 @@ public class SummaryGroundingTests : DatabaseTest
 
         Assert.AreEqual("quote_not_found", rejection.Reason);
 
-        Assert.IsTrue(rejection.Message.Contains("45 minutes", StringComparison.Ordinal));
+        Assert.Contains("45 minutes", rejection.Message, StringComparison.Ordinal);
     }
 
     [TestMethod]
@@ -265,20 +265,21 @@ public class SummaryGroundingTests : DatabaseTest
         var rejection = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
             () => this.Service().SaveDraftAsync(survey, draft, "agent", null, this.Cancellation));
 
-        Assert.AreEqual(3, rejection.Failures.Count);
+        Assert.HasCount(3, rejection.Failures);
 
-        CollectionAssert.AreEquivalent(
-            new[] { "quote_not_found", "point_without_citation", "empty_topic" },
-            rejection.Failures.Select(f => f.Reason).ToArray());
+        Assert.AreSequenceEqual(
+            ["quote_not_found", "point_without_citation", "empty_topic"],
+            rejection.Failures.Select(f => f.Reason).ToArray(),
+            SequenceOrder.InAnyOrder);
 
-        CollectionAssert.AreEquivalent(
-            new[]
-            {
+        Assert.AreSequenceEqual(
+            [
                 "/topics/0/points/0/references/0/quote",
                 "/topics/0/points/1/references",
                 "/topics/1/points",
-            },
-            rejection.Failures.Select(f => f.Path).ToArray());
+            ],
+            rejection.Failures.Select(f => f.Path).ToArray(),
+            SequenceOrder.InAnyOrder);
     }
 
     [TestMethod]
@@ -300,7 +301,7 @@ public class SummaryGroundingTests : DatabaseTest
 
         // Nearest is exact response text, so it can be pasted straight back as the fix.
         Assert.AreEqual("A full run is 22 minutes and it fails often.", failure.Nearest);
-        Assert.IsTrue(rejection.Message.Contains("A full run is", StringComparison.Ordinal));
+        Assert.Contains("A full run is", rejection.Message, StringComparison.Ordinal);
     }
 
     private SummaryService Service()

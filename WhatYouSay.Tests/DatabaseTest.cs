@@ -28,7 +28,7 @@ public abstract class DatabaseTest : IDisposable
     public TestContext TestContext { get; set; } = null!;
 
     /// <summary>Lets the runner abort a test promptly.</summary>
-    protected CancellationToken Cancellation => this.TestContext.CancellationTokenSource.Token;
+    protected CancellationToken Cancellation => this.TestContext.CancellationToken;
 
     protected static Survey NewSurvey(ResponseIdentity identity)
     {

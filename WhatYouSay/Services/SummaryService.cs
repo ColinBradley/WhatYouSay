@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using WhatYouSay.Data;
 using System.Diagnostics;
+using WhatYouSay.Data;
 using WhatYouSay.Telemetry;
 
 namespace WhatYouSay.Services;
@@ -288,7 +288,7 @@ public class SummaryService(WhatYouSayContext db)
 
     private SummaryGroundingException Reject(
         Survey survey,
-        IReadOnlyList<GroundingFailure> failures
+        List<GroundingFailure> failures
     )
     {
         // The first reason is the one that gets tagged; the rest travel on the exception.
@@ -301,7 +301,7 @@ public class SummaryService(WhatYouSayContext db)
     }
 
     /// <summary>One readable message covering every failure, for callers without the list.</summary>
-    private static string Explain(IReadOnlyList<GroundingFailure> failures)
+    private static string Explain(List<GroundingFailure> failures)
     {
         if (failures.Count == 1)
         {

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Components;
 using WhatYouSay.Data;
 using WhatYouSay.Services;
@@ -84,9 +85,11 @@ public partial class CreateSurveyPage
     [SupplyParameterFromForm]
     public string? Password { get; set; }
 
+    [SuppressMessage("Usage", "BL0008", Justification = "Absent form field must bind to default.")]
     [SupplyParameterFromForm]
     public ResponseIdentity Identity { get; set; } = ResponseIdentity.Required;
 
+    [SuppressMessage("Usage", "BL0008", Justification = "Unchecked checkbox must bind to false.")]
     [SupplyParameterFromForm]
     public bool IsPubliclyListed { get; set; } = true;
 

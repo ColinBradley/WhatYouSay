@@ -16,7 +16,7 @@ public class AdminSession(IHttpContextAccessor accessor, IDataProtectionProvider
     private readonly ITimeLimitedDataProtector mProtector =
         protection.CreateProtector(Purpose).ToTimeLimitedDataProtector();
 
-    public Task<bool> CanAdministerAsync(Guid surveyId, CancellationToken cancellationToken = default)
+    public Task<bool> CanAdministerAsync(Guid surveyId)
     {
         var http = accessor.HttpContext;
 

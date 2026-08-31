@@ -130,8 +130,8 @@ public class ReactionServiceTests : DatabaseTest
 
         Assert.AreEqual(2, tally.Agree);
         Assert.AreEqual(1, tally.Important);
-        Assert.IsTrue(tally.Mine.Contains(ReactionKind.Agree));
-        Assert.IsFalse(tally.Mine.Contains(ReactionKind.Important));
+        Assert.Contains(ReactionKind.Agree, tally.Mine);
+        Assert.DoesNotContain(ReactionKind.Important, tally.Mine);
     }
 
     [TestMethod]

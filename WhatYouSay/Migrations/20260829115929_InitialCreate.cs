@@ -1,5 +1,4 @@
-﻿using System;
-using Microsoft.EntityFrameworkCore.Migrations;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -179,7 +178,7 @@ namespace WhatYouSay.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_PointReactions_PointId_ResponderTokenHash_Kind",
                 table: "PointReactions",
-                columns: new[] { "PointId", "ResponderTokenHash", "Kind" },
+                columns: ["PointId", "ResponderTokenHash", "Kind"],
                 unique: true);
 
             migrationBuilder.CreateIndex(

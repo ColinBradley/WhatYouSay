@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
 using WhatYouSay.Data;
+using WhatYouSay.Data.Seed;
 using WhatYouSay.Services;
 
 namespace WhatYouSay.Tests;
@@ -50,7 +50,7 @@ public class SummaryServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        await SeedData.EnsureSeededAsync(mDb, NullLogger.Instance, this.Cancellation);
+        await SeedData.EnsureSeededAsync(mDb, this.Cancellation);
 
         var survey = await mDb.Surveys.SingleAsync(s => s.Code == "spr47ab", this.Cancellation);
         var summary = (await this.Service().FindLatestVisibleAsync(survey.Id, this.Cancellation))!;
@@ -78,7 +78,7 @@ public class SummaryServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        await SeedData.EnsureSeededAsync(mDb, NullLogger.Instance, this.Cancellation);
+        await SeedData.EnsureSeededAsync(mDb, this.Cancellation);
 
         var survey = await mDb.Surveys.SingleAsync(s => s.Code == "spr47ab", this.Cancellation);
         var summary = (await this.Service().FindLatestVisibleAsync(survey.Id, this.Cancellation))!;
@@ -101,7 +101,7 @@ public class SummaryServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        await SeedData.EnsureSeededAsync(mDb, NullLogger.Instance, this.Cancellation);
+        await SeedData.EnsureSeededAsync(mDb, this.Cancellation);
 
         var survey = await mDb.Surveys.SingleAsync(s => s.Code == "spr47ab", this.Cancellation);
         var summary = (await this.Service().FindLatestVisibleAsync(survey.Id, this.Cancellation))!;
