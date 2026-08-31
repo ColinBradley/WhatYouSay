@@ -123,6 +123,6 @@ public class SummaryServiceTests : DatabaseTest
         IsDraft = isDraft,
         IsPublic = isPublic,
         CreatedAt = DateTimeOffset.UtcNow.AddDays(-daysAgo),
-        UpdatedAt = DateTimeOffset.UtcNow.AddDays(-daysAgo)
+        UpdatedAt = DateTimeOffset.UtcNow.AddDays(-daysAgo),
     };
 }

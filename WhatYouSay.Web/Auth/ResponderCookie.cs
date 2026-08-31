@@ -17,13 +17,13 @@ public static class ResponderCookie
             : null;
 
     public static void Write(HttpContext http, Guid surveyId, string token) =>
-        http.Response.Cookies.Append(NameFor(surveyId), token, new CookieOptions
+        http.Response.Cookies.Append(NameFor(surveyId), token, new CookieOptions()
         {
             HttpOnly = true,
             Secure = http.Request.IsHttps,
             SameSite = SameSiteMode.Lax,
             Expires = DateTimeOffset.UtcNow.AddYears(1),
-            IsEssential = true
+            IsEssential = true,
         });
 
     public static void Clear(HttpContext http, Guid surveyId) =>

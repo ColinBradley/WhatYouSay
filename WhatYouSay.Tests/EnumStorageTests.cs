@@ -28,11 +28,11 @@ public class EnumStorageTests : DatabaseTest
 
         var point = await this.SeededPointAsync();
 
-        mDb.PointReactions.Add(new PointReaction
+        mDb.PointReactions.Add(new PointReaction()
         {
             PointId = point.Id,
             ResponderTokenHash = "hash",
-            Kind = ReactionKind.Misrepresents
+            Kind = ReactionKind.Misrepresents,
         });
 
         await mDb.SaveChangesAsync(this.Cancellation);

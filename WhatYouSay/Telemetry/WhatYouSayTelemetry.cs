@@ -48,6 +48,21 @@ public static class WhatYouSayTelemetry
         unit: "{summary}",
         description: "Draft summaries accepted after passing grounding validation.");
 
+    private static readonly Counter<long> sSurveysCreated = sMeter.CreateCounter<long>(
+        "whatyousay.surveys.created",
+        unit: "{survey}",
+        description: "Surveys created.");
+
+    private static readonly Counter<long> sReactionsAdded = sMeter.CreateCounter<long>(
+        "whatyousay.reactions.added",
+        unit: "{reaction}",
+        description: "Reactions a responder added to a summary point, by kind.");
+
+    private static readonly Counter<long> sReactionsRemoved = sMeter.CreateCounter<long>(
+        "whatyousay.reactions.removed",
+        unit: "{reaction}",
+        description: "Reactions a responder took back, by kind.");
+
     /// <summary>How often an agent cited something it could not substantiate.</summary>
     private static readonly Counter<long> sSummariesRejected = sMeter.CreateCounter<long>(
         "whatyousay.summaries.rejected",
@@ -78,6 +93,23 @@ public static class WhatYouSayTelemetry
     public static void SummaryDrafted(Survey survey) =>
         sSummariesDrafted.Add(1, Tags(survey));
 
+    public static void SurveyCreated(Survey survey) =>
+        sSurveysCreated.Add(1, Tags(survey));
+
+    public static void ReactionAdded(Survey survey, ReactionKind kind) =>
+        sReactionsAdded.Add(1, WithKind(survey, kind));
+
+    public static void ReactionRemoved(Survey survey, ReactionKind kind) =>
+        sReactionsRemoved.Add(1, WithKind(survey, kind));
+
+    private static TagList WithKind(Survey survey, ReactionKind kind)
+    {
+        var tags = Tags(survey);
+        tags.Add("reaction.kind", kind.ToString());
+
+        return tags;
+    }
+
     public static void SummaryRejected(Survey survey, string reason)
     {
         var tags = Tags(survey);
@@ -91,7 +123,7 @@ public static class WhatYouSayTelemetry
         return
         [
             new("survey.code", TagFor(survey)),
-            new("survey.identity", survey.ResponseIdentity.ToString())
+            new("survey.identity", survey.ResponseIdentity.ToString()),
         ];
     }
 }

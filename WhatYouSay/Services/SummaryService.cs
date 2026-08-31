@@ -12,7 +12,8 @@ public class SummaryService(WhatYouSayContext db)
     /// </summary>
     public async Task<Summary?> FindLatestVisibleAsync(
         Guid surveyId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         using var activity = WhatYouSayTelemetry.Source.Start();
 
@@ -31,7 +32,8 @@ public class SummaryService(WhatYouSayContext db)
 
     public async Task<IReadOnlyList<Summary>> ListVisibleAsync(
         Guid surveyId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         using var activity = WhatYouSayTelemetry.Source.Start();
 
@@ -43,7 +45,8 @@ public class SummaryService(WhatYouSayContext db)
 
     public async Task<IReadOnlyList<Summary>> ListAllAsync(
         Guid surveyId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         using var activity = WhatYouSayTelemetry.Source.Start();
 
@@ -62,7 +65,8 @@ public class SummaryService(WhatYouSayContext db)
         SummaryDraft draft,
         string createdBy,
         Guid? replacing = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         using var activity = WhatYouSayTelemetry.Source.Start().SetSurvey(survey);
 
@@ -76,7 +80,7 @@ public class SummaryService(WhatYouSayContext db)
 
         if (replacing is not null && summary is null)
         {
-            throw this.Reject(survey, "unknown_summary", $"No summary {replacing} on this survey.");
+            throw this.Reject(survey, "unknown_summary", "/", $"No summary {replacing} on this survey.");
         }
 
         if (summary is not null && !summary.IsDraft)
@@ -84,6 +88,7 @@ public class SummaryService(WhatYouSayContext db)
             throw this.Reject(
                 survey,
                 "summary_published",
+                "/",
                 "That summary has been published, so it is immutable. Create a new one instead.");
         }
 
@@ -91,14 +96,14 @@ public class SummaryService(WhatYouSayContext db)
 
         if (summary is null)
         {
-            summary = new Summary
+            summary = new Summary()
             {
                 Id = Guid.CreateVersion7(),
                 SurveyId = survey.Id,
                 Body = draft.Body,
                 CreatedBy = createdBy,
                 CreatedAt = now,
-                UpdatedAt = now
+                UpdatedAt = now,
             };
 
             db.Summaries.Add(summary);
@@ -115,19 +120,19 @@ public class SummaryService(WhatYouSayContext db)
 
         foreach (var topicDraft in draft.Topics)
         {
-            var topic = new SummaryTopic
+            var topic = new SummaryTopic()
             {
                 Name = topicDraft.Name,
-                Description = topicDraft.Description
+                Description = topicDraft.Description,
             };
 
             foreach (var pointDraft in topicDraft.Points)
             {
-                var point = new SummaryTopicPoint
+                var point = new SummaryTopicPoint()
                 {
                     Description = pointDraft.Description,
                     Sentiment = pointDraft.Sentiment,
-                    Objectivity = pointDraft.Objectivity
+                    Objectivity = pointDraft.Objectivity,
                 };
 
                 foreach (var referenceDraft in pointDraft.References)
@@ -135,13 +140,13 @@ public class SummaryService(WhatYouSayContext db)
                     var response = responses[referenceDraft.ResponseId];
                     var location = QuoteLocator.Locate(response.Body, referenceDraft.Quote)!.Value;
 
-                    point.References.Add(new SummaryTopicPointResponseReference
+                    point.References.Add(new SummaryTopicPointResponseReference()
                     {
                         ResponseId = response.Id,
                         Quote = referenceDraft.Quote,
                         StartIndex = location.StartIndex,
                         EndIndex = location.EndIndex,
-                        Intensity = referenceDraft.Intensity
+                        Intensity = referenceDraft.Intensity,
                     });
                 }
 
@@ -162,80 +167,165 @@ public class SummaryService(WhatYouSayContext db)
     private async Task<Dictionary<Guid, Response>> ValidateAsync(
         Survey survey,
         SummaryDraft draft,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken
+    )
     {
         if (survey.IsAcceptingResponses)
         {
             throw this.Reject(
                 survey,
                 "survey_open",
+                "/",
                 "This survey is still accepting responses. Summarising a moving target "
                 + "produces quotes that stop matching, so close the survey first.");
         }
 
         if (draft.Topics.Count == 0)
         {
-            throw this.Reject(survey, "empty_summary", "A summary needs at least one topic.");
+            throw this.Reject(survey, "empty_summary", "/topics", "A summary needs at least one topic.");
         }
 
         var responses = await db.Responses
             .Where(r => r.SurveyId == survey.Id && !r.IsDeleted)
             .ToDictionaryAsync(r => r.Id, cancellationToken);
 
-        foreach (var topic in draft.Topics)
+        // Every problem is collected rather than thrown on, so one retry can fix the lot.
+        var failures = new List<GroundingFailure>();
+
+        for (var t = 0; t < draft.Topics.Count; t++)
         {
+            var topic = draft.Topics[t];
+
             if (topic.Points.Count == 0)
             {
-                throw this.Reject(
-                    survey,
-                    "empty_topic",
-                    $"Topic \"{topic.Name}\" has no points. Drop it or give it one.");
+                failures.Add(new GroundingFailure()
+                {
+                    Path = $"/topics/{t}/points",
+                    Reason = "empty_topic",
+                    Message = $"Topic \"{topic.Name}\" has no points. Drop it or give it one.",
+                });
+
+                continue;
             }
 
-            foreach (var point in topic.Points)
+            for (var p = 0; p < topic.Points.Count; p++)
             {
+                var point = topic.Points[p];
+
                 if (point.References.Count == 0)
                 {
-                    throw this.Reject(
-                        survey,
-                        "point_without_citation",
-                        $"Point \"{Trim(point.Description)}\" cites nothing. Every point must "
-                        + "quote at least one response.");
+                    failures.Add(new GroundingFailure()
+                    {
+                        Path = $"/topics/{t}/points/{p}/references",
+                        Reason = "point_without_citation",
+                        Message = $"Point \"{Trim(point.Description)}\" cites nothing. Every point "
+                            + "must quote at least one response.",
+                    });
+
+                    continue;
                 }
 
-                foreach (var reference in point.References)
+                for (var r = 0; r < point.References.Count; r++)
                 {
+                    var path = $"/topics/{t}/points/{p}/references/{r}";
+                    var reference = point.References[r];
+
                     if (!responses.TryGetValue(reference.ResponseId, out var response))
                     {
-                        throw this.Reject(
-                            survey,
-                            "unknown_response",
-                            $"Point \"{Trim(point.Description)}\" cites response "
-                            + $"{reference.ResponseId}, which is not a live response on this survey.");
+                        failures.Add(new GroundingFailure()
+                        {
+                            Path = $"{path}/responseId",
+                            Reason = "unknown_response",
+                            Message = $"Point \"{Trim(point.Description)}\" cites response "
+                                + $"{reference.ResponseId}, which is not a live response on this survey.",
+                        });
+
+                        continue;
                     }
 
-                    if (QuoteLocator.Locate(response.Body, reference.Quote) is null)
+                    if (QuoteLocator.Locate(response.Body, reference.Quote) is not null)
                     {
-                        throw this.Reject(
-                            survey,
-                            "quote_not_found",
-                            $"Point \"{Trim(point.Description)}\" quotes \"{Trim(reference.Quote)}\", "
-                            + $"which does not occur in response {reference.ResponseId}. Quotes must "
-                            + "be copied exactly from the response text.");
+                        continue;
                     }
+
+                    var mismatch = QuoteLocator.Diagnose(response.Body, reference.Quote);
+
+                    failures.Add(new GroundingFailure()
+                    {
+                        Path = $"{path}/quote",
+                        Reason = "quote_not_found",
+                        Message = $"Point \"{Trim(point.Description)}\" quotes "
+                            + $"\"{Trim(reference.Quote)}\", which does not occur in response "
+                            + $"{reference.ResponseId}. Quotes must be copied exactly from the "
+                            + "response text.",
+                        Nearest = mismatch.Nearest,
+                        Detail = mismatch.Detail,
+                    });
                 }
             }
+        }
+
+        if (failures.Count > 0)
+        {
+            throw this.Reject(survey, failures);
         }
 
         return responses;
     }
 
-    private SummaryGroundingException Reject(Survey survey, string reason, string message)
+    private SummaryGroundingException Reject(
+        Survey survey,
+        string reason,
+        string path,
+        string message
+    )
     {
+        return this.Reject(
+            survey,
+            [new GroundingFailure() { Path = path, Reason = reason, Message = message }]
+        );
+    }
+
+    private SummaryGroundingException Reject(
+        Survey survey,
+        IReadOnlyList<GroundingFailure> failures
+    )
+    {
+        // The first reason is the one that gets tagged; the rest travel on the exception.
+        var reason = failures[0].Reason;
+
         WhatYouSayTelemetry.SummaryRejected(survey, reason);
         Activity.Current.RecordFailure(reason);
 
-        return new SummaryGroundingException(reason, message);
+        return new SummaryGroundingException(reason, Explain(failures), failures);
+    }
+
+    /// <summary>One readable message covering every failure, for callers without the list.</summary>
+    private static string Explain(IReadOnlyList<GroundingFailure> failures)
+    {
+        if (failures.Count == 1)
+        {
+            return Describe(failures[0]);
+        }
+
+        var lines = failures.Select(f => $"- {f.Path}: {Describe(f)}");
+
+        return $"{failures.Count} problems with this draft, none of it saved:"
+            + Environment.NewLine
+            + string.Join(Environment.NewLine, lines);
+    }
+
+    private static string Describe(GroundingFailure failure)
+    {
+        if (failure.Nearest is null)
+        {
+            return failure.Detail is null
+                ? failure.Message
+                : $"{failure.Message} {failure.Detail}";
+        }
+
+        return $"{failure.Message} {failure.Detail} The response actually says: "
+            + $"\"{failure.Nearest}\"";
     }
 
     private static string Trim(string value)

@@ -1,6 +1,6 @@
-namespace WhatYouSay.Web.Mcp;
+namespace WhatYouSay.Web.Api;
 
-/// <summary>What <c>get_survey</c> tells an agent about the survey its token is scoped to.</summary>
+/// <summary>What <c>GET /api/surveys/{code}</c> tells an agent about the survey its token is scoped to.</summary>
 public record SurveyInfo
 {
     public required string Code { get; init; }

@@ -13,20 +13,20 @@ public class PointReactionTests : DatabaseTest
 
         var point = await this.SeededPointAsync();
 
-        mDb.PointReactions.Add(new PointReaction
+        mDb.PointReactions.Add(new PointReaction()
         {
             PointId = point.Id,
             ResponderTokenHash = "same-person",
-            Kind = ReactionKind.Agree
+            Kind = ReactionKind.Agree,
         });
 
         await mDb.SaveChangesAsync(this.Cancellation);
 
-        mDb.PointReactions.Add(new PointReaction
+        mDb.PointReactions.Add(new PointReaction()
         {
             PointId = point.Id,
             ResponderTokenHash = "same-person",
-            Kind = ReactionKind.Agree
+            Kind = ReactionKind.Agree,
         });
 
         await Assert.ThrowsExactlyAsync<DbUpdateException>(() => mDb.SaveChangesAsync(this.Cancellation));

@@ -7,7 +7,7 @@ Blazor Server, EF Core, SQLite. Design and build order: [PLAN.md](PLAN.md).
 | Project | Contents |
 |---|---|
 | `WhatYouSay` | Entities, `WhatYouSayContext`, migrations, `Auth`, seed data |
-| `WhatYouSay.Web` | Blazor Server front end; later the MCP endpoint |
+| `WhatYouSay.Web` | Blazor Server front end and the summariser REST API |
 | `WhatYouSay.Tests` | References `WhatYouSay` only, never the web project |
 
 ## Code style
@@ -21,8 +21,16 @@ Blazor Server, EF Core, SQLite. Design and build order: [PLAN.md](PLAN.md).
 - `const` stays PascalCase, unprefixed.
 - Expression bodies suit a single value or a single call. Anything longer — a chained LINQ query especially — gets braces. Judgement, not enforced.
 - An expression body always starts on the line after the `=>`. No exceptions.
+- A wrapped parameter list closes on its own line, at the declaration's indent.
+- Object initializers keep the constructor parentheses: `new Thing() { ... }`, never `new Thing { ... }`.
+- Trailing commas everywhere they are legal: object, collection and array initializers, collection expressions, switch expressions, enums.
 - Prefer `required` properties with `init` over constructor parameters, including on records. Positional records get miswired silently when several parameters share a type.
 - Don't manually wrap text in md files.
+
+## UI
+
+- **Disable, don't hide.** A control someone cannot use stays on the page, disabled, with a `title` on the control itself saying why. Hiding it leaves people wondering whether the feature exists.
+- Component code lives in a `.razor.cs` partial class, not an `@code` block. Only leave code inline when it is a line or two.
 
 ## Comments
 
@@ -68,3 +76,9 @@ dotnet ef migrations add <Name> --project WhatYouSay --startup-project WhatYouSa
 ## Development data
 
 Seeded on startup: four surveys, admin password `letmein`, summariser tokens `dev-retro`, `dev-lunch`, `dev-company`, `dev-diary`.
+
+The summariser API names the survey in the path and takes the token in an `Authorization: Bearer` header, so the two vary independently. Start at `/api/surveys/{code}/ai-summary-start`, which returns the whole job as plain text.
+
+```bash
+curl -H "Authorization: Bearer dev-retro" http://localhost:5286/api/surveys/spr47ab/ai-summary-start
+```

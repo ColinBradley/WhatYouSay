@@ -32,7 +32,7 @@ public abstract class DatabaseTest : IDisposable
 
     protected static Survey NewSurvey(ResponseIdentity identity)
     {
-        return new Survey
+        return new Survey()
         {
             Id = Guid.CreateVersion7(),
             Code = Guid.NewGuid().ToString("n")[..7],
@@ -41,7 +41,7 @@ public abstract class DatabaseTest : IDisposable
             AdminPasswordHash = "hash",
             SummariserTokenHash = Guid.NewGuid().ToString("n"),
             ResponseIdentity = identity,
-            CreatedAt = DateTimeOffset.UtcNow
+            CreatedAt = DateTimeOffset.UtcNow,
         };
     }
 

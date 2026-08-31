@@ -19,7 +19,8 @@ public static class ActivitySourceExtensions
         ActivityContext? parentContext = null,
         [CallerFilePath] string callerFilePath = "",
         [CallerMemberName] string callerMemberName = "",
-        [CallerLineNumber] int callerLineNumber = 0)
+        [CallerLineNumber] int callerLineNumber = 0
+    )
     {
         var typeName = Path.GetFileNameWithoutExtension(callerFilePath);
 

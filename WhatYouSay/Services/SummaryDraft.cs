@@ -45,12 +45,42 @@ public record ReferenceDraft
     public double? Intensity { get; init; }
 }
 
+/// <summary>One thing wrong with a submitted draft, located within it.</summary>
+public record GroundingFailure
+{
+    /// <summary>
+    /// JSON Pointer into the submitted draft, so a caller can point at the offending field
+    /// without matching on prose.
+    /// </summary>
+    public required string Path { get; init; }
+
+    public required string Reason { get; init; }
+
+    public required string Message { get; init; }
+
+    /// <summary>
+    /// For a quote that did not match, the response text it was probably reaching for,
+    /// copied exactly. Null for every other reason.
+    /// </summary>
+    public string? Nearest { get; init; }
+
+    /// <summary>For a quote that did not match, where it first diverges.</summary>
+    public string? Detail { get; init; }
+}
+
 /// <summary>
-/// Thrown when a draft fails grounding validation. The message names the offending point
-/// and quote; agents are expected to read it and retry.
+/// Thrown when a draft fails grounding validation. <see cref="Failures"/> holds every
+/// problem found in one pass, so a caller fixing them all needs one retry rather than one
+/// per mistake.
 /// </summary>
-public class SummaryGroundingException(string reason, string message) : Exception(message)
+public class SummaryGroundingException(
+    string reason,
+    string message,
+    IReadOnlyList<GroundingFailure> failures
+) : Exception(message)
 {
     /// <summary>Short machine-readable cause, used as a metric and span tag.</summary>
     public string Reason { get; } = reason;
+
+    public IReadOnlyList<GroundingFailure> Failures { get; } = failures;
 }

@@ -1,0 +1,101 @@
+@page "/surveys/{Code}/admin/summaries"
+
+<PageTitle>Summaries</PageTitle>
+
+<Breadcrumb Items="@mCrumbs" />
+
+@if (mSurvey is null)
+{
+    <h1>Survey not found</h1>
+    <a href="/">Back to the list</a>
+}
+else
+{
+    <h1>Summaries</h1>
+    <p class="lead">@mSurvey.Title</p>
+
+    @if (mSummaries.Count == 0)
+    {
+        <div class="alert alert-secondary">
+            No summaries yet. Close the survey, then point an agent at
+            <code>/mcp</code> with this survey's summariser token.
+        </div>
+    }
+    else
+    {
+        <form method="post" @formname="summary-action" @onsubmit="ActAsync">
+            <AntiforgeryToken />
+
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th>Created</th>
+                        <th>By</th>
+                        <th>Size</th>
+                        <th>State</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var summary in mSummaries)
+                    {
+                        <tr>
+                            <td>@summary.CreatedAt.ToLocalTime().ToString("d MMM yyyy HH:mm")</td>
+                            <td>@(summary.CreatedBy ?? "unknown")</td>
+                            <td class="small text-body-secondary">
+                                @summary.Topics.Count topics,
+                                @summary.Topics.Sum(t => t.Points.Count) points
+                            </td>
+                            <td>
+                                @if (summary.IsVisibleToPublic)
+                                {
+                                    <span class="badge text-bg-success">Published</span>
+                                }
+                                else if (summary.IsDraft)
+                                {
+                                    <span class="badge text-bg-secondary">Draft</span>
+                                }
+                                else
+                                {
+                                    <span class="badge text-bg-warning">Internal</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                <div class="d-flex gap-2 justify-content-end">
+                                    <a class="btn btn-sm btn-outline-secondary"
+                                       href="@($"/surveys/{Code}/summary/{summary.Id}")">
+                                        View
+                                    </a>
+
+                                    <button class="btn btn-sm btn-outline-primary" type="submit"
+                                            name="Action" value="@($"{summary.Id}:publish")"
+                                            disabled="@summary.IsVisibleToPublic"
+                                            title="@(summary.IsVisibleToPublic ? "Already published." : null)">
+                                        Publish
+                                    </button>
+
+                                    <button class="btn btn-sm btn-outline-secondary" type="submit"
+                                            name="Action" value="@($"{summary.Id}:unpublish")"
+                                            disabled="@(!summary.IsVisibleToPublic)"
+                                            title="@(summary.IsVisibleToPublic ? null : "Not published, so there is nothing to take back.")">
+                                        Unpublish
+                                    </button>
+
+                                    <button class="btn btn-sm btn-outline-danger" type="submit"
+                                            name="Action" value="@($"{summary.Id}:delete")">
+                                        Delete
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </form>
+
+        <p class="small text-body-secondary">
+            Publishing makes a summary visible to everyone with the link and lets responders
+            react to its points. An agent can only write drafts — publishing is yours.
+        </p>
+    }
+}

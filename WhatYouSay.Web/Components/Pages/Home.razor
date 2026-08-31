@@ -1,7 +1,4 @@
 @page "/"
-@using WhatYouSay.Services
-@inject SurveyService Surveys
-@inject NavigationManager Navigation
 
 <PageTitle>What You Say</PageTitle>
 
@@ -60,7 +57,7 @@
     <div class="col-md-5">
         <h2 class="h5">Have a code?</h2>
 
-        <form method="post" @formname="open-by-code" @onsubmit="OpenByCode" class="d-flex gap-2">
+        <form method="post" @formname="open-by-code" @onsubmit="OpenByCodeAsync" class="d-flex gap-2">
             <AntiforgeryToken />
             <input class="form-control" name="Code" value="@Code" placeholder="e.g. spr47ab"
                    aria-label="Survey code" />
@@ -75,35 +72,7 @@
         <p class="small text-body-secondary mt-2">
             Every survey has a short code at the end of its link.
         </p>
+
+        <a class="btn btn-outline-primary mt-2" href="/new">Start a new survey</a>
     </div>
 </div>
-
-@code {
-    private IReadOnlyList<SurveyListing>? mListings;
-
-    private string? mNotFound;
-
-    [SupplyParameterFromForm]
-    public string? Code { get; set; }
-
-    protected override async Task OnInitializedAsync() =>
-        mListings = await Surveys.ListPubliclyListedAsync();
-
-    private async Task OpenByCode()
-    {
-        var code = this.Code?.Trim();
-
-        if (string.IsNullOrEmpty(code))
-        {
-            return;
-        }
-
-        if (await Surveys.FindByCodeAsync(code) is null)
-        {
-            mNotFound = code;
-            return;
-        }
-
-        Navigation.NavigateTo($"/surveys/{code}");
-    }
-}

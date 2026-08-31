@@ -2,7 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using WhatYouSay.Web.Components;
 using WhatYouSay.Data;
 using WhatYouSay.Services;
-using WhatYouSay.Web.Mcp;
+using WhatYouSay.Web.Auth;
+using WhatYouSay.Web.Api;
 using WhatYouSay.Web.Telemetry;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,15 +18,18 @@ builder.Services.AddDbContext<WhatYouSayContext>(options =>
 builder.Services.AddScoped<SurveyService>();
 builder.Services.AddScoped<ResponseService>();
 builder.Services.AddScoped<SummaryService>();
+builder.Services.AddScoped<ReactionService>();
+builder.Services.AddScoped<SurveyAdminService>();
+builder.Services.AddScoped<AdminSession>();
 
 builder.Services.AddWhatYouSayTelemetry();
 
+// AdminSession reads the request cookie through this; the summariser API does not need
+// it, since the request reaches its handlers directly.
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<SummariserSession>();
 
-builder.Services.AddMcpServer()
-    .WithHttpTransport()
-    .WithToolsFromAssembly();
+builder.Services.AddScoped<SummariserSession>();
+builder.Services.AddProblemDetails();
 
 var app = builder.Build();
 
@@ -54,9 +58,7 @@ app.UseAntiforgery();
 
 app.MapStaticAssets();
 
-// MCP has a bearer token auth of its own, and no browser form posts, so it sits outside the
-// antiforgery pipeline that the Razor pages need.
-app.MapMcp("/mcp");
+app.MapSummariserApi();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

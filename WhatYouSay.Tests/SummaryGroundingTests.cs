@@ -140,10 +140,10 @@ public class SummaryGroundingTests : DatabaseTest
         var rejection = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
             () => this.Service().SaveDraftAsync(
                 survey,
-                new SummaryDraft
+                new SummaryDraft()
                 {
                     Body = "Overview",
-                    Topics = [new TopicDraft { Name = "Tooling", Points = [] }]
+                    Topics = [new TopicDraft { Name = "Tooling", Points = [] }],
                 },
                 "agent",
                 null,
@@ -160,22 +160,22 @@ public class SummaryGroundingTests : DatabaseTest
         var (survey, responses) = await this.ClosedSurveyAsync();
 
         // The good topic must not survive the bad one.
-        var draft = new SummaryDraft
+        var draft = new SummaryDraft()
         {
             Body = "Overview",
             Topics =
             [
-                new TopicDraft
+                new TopicDraft()
                 {
                     Name = "Tooling",
-                    Points = [Point("CI is slow", (responses[0], "22 minutes"))]
+                    Points = [Point("CI is slow", (responses[0], "22 minutes"))],
                 },
-                new TopicDraft
+                new TopicDraft()
                 {
                     Name = "On-call",
-                    Points = [Point("Pager noise", (responses[1], "invented text"))]
-                }
-            ]
+                    Points = [Point("Pager noise", (responses[1], "invented text"))],
+                },
+            ],
         };
 
         await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
@@ -236,6 +236,73 @@ public class SummaryGroundingTests : DatabaseTest
         Assert.AreEqual("On-call was noisy", (await mDb.SummaryTopicPoints.SingleAsync(this.Cancellation)).Description);
     }
 
+    [TestMethod]
+    public async Task Every_problem_in_a_draft_comes_back_from_one_attempt()
+    {
+        using var activity = TestTelemetry.Source.Start();
+
+        var (survey, responses) = await this.ClosedSurveyAsync();
+
+        // One retry should be able to fix the lot, so validation does not stop at the first.
+        var draft = new SummaryDraft()
+        {
+            Body = "Overview",
+            Topics =
+            [
+                new TopicDraft()
+                {
+                    Name = "Tooling",
+                    Points =
+                    [
+                        Point("Invented", (responses[0], "45 minutes")),
+                        new PointDraft { Description = "Uncited", References = [] },
+                    ],
+                },
+                new TopicDraft { Name = "Empty", Points = [] },
+            ],
+        };
+
+        var rejection = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
+            () => this.Service().SaveDraftAsync(survey, draft, "agent", null, this.Cancellation));
+
+        Assert.AreEqual(3, rejection.Failures.Count);
+
+        CollectionAssert.AreEquivalent(
+            new[] { "quote_not_found", "point_without_citation", "empty_topic" },
+            rejection.Failures.Select(f => f.Reason).ToArray());
+
+        CollectionAssert.AreEquivalent(
+            new[]
+            {
+                "/topics/0/points/0/references/0/quote",
+                "/topics/0/points/1/references",
+                "/topics/1/points",
+            },
+            rejection.Failures.Select(f => f.Path).ToArray());
+    }
+
+    [TestMethod]
+    public async Task A_near_miss_quote_comes_back_with_the_text_it_should_have_been()
+    {
+        using var activity = TestTelemetry.Source.Start();
+
+        var (survey, responses) = await this.ClosedSurveyAsync();
+
+        var rejection = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
+            () => this.Service().SaveDraftAsync(
+                survey,
+                Draft(Point("CI is slow", (responses[0], "A full run is 22 minutes and it failed often."))),
+                "agent",
+                null,
+                this.Cancellation));
+
+        var failure = rejection.Failures.Single();
+
+        // Nearest is exact response text, so it can be pasted straight back as the fix.
+        Assert.AreEqual("A full run is 22 minutes and it fails often.", failure.Nearest);
+        Assert.IsTrue(rejection.Message.Contains("A full run is", StringComparison.Ordinal));
+    }
+
     private SummaryService Service()
     {
         return new SummaryService(mDb);
@@ -243,22 +310,22 @@ public class SummaryGroundingTests : DatabaseTest
 
     private static SummaryDraft Draft(PointDraft point)
     {
-        return new SummaryDraft
+        return new SummaryDraft()
         {
             Body = "Overview",
-            Topics = [new TopicDraft { Name = "Tooling", Points = [point] }]
+            Topics = [new TopicDraft { Name = "Tooling", Points = [point] }],
         };
     }
 
     private static PointDraft Point(string description, params (Guid Response, string Quote)[] citations)
     {
-        return new PointDraft
+        return new PointDraft()
         {
             Description = description,
             References =
             [
-                .. citations.Select(c => new ReferenceDraft { ResponseId = c.Response, Quote = c.Quote })
-            ]
+                .. citations.Select(c => new ReferenceDraft { ResponseId = c.Response, Quote = c.Quote }),
+            ],
         };
     }
 
@@ -267,22 +334,22 @@ public class SummaryGroundingTests : DatabaseTest
         var survey = NewSurvey(ResponseIdentity.Required);
         survey.IsAcceptingResponses = false;
 
-        var anna = new Response
+        var anna = new Response()
         {
             Id = Guid.NewGuid(),
             Body = AnnaSaid,
             Author = "Anna",
             AuthTokenHash = "a",
-            CreatedAt = DateTimeOffset.UtcNow
+            CreatedAt = DateTimeOffset.UtcNow,
         };
 
-        var tom = new Response
+        var tom = new Response()
         {
             Id = Guid.NewGuid(),
             Body = TomSaid,
             Author = "Tom",
             AuthTokenHash = "t",
-            CreatedAt = DateTimeOffset.UtcNow
+            CreatedAt = DateTimeOffset.UtcNow,
         };
 
         survey.Responses.Add(anna);

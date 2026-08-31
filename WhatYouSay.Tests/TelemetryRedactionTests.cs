@@ -43,10 +43,25 @@ public class TelemetryRedactionTests
     }
 
     [TestMethod]
+    [DataRow("/api/surveys/allco26/ai-summary-start", "/api/surveys/{code}/ai-summary-start")]
+    [DataRow("/api/surveys/allco26/responses", "/api/surveys/{code}/responses")]
+    [DataRow("/api/surveys/allco26", "/api/surveys/{code}")]
+    public void The_survey_code_is_stripped_from_api_paths_too(string path, string expected)
+    {
+        using var activity = TestTelemetry.Source.Start();
+
+        // The summariser token travels in a header, so the path itself carries only the
+        // code; redacting it keeps anonymous surveys unidentifiable in traces.
+        Assert.AreEqual(expected, SurveyPathRedaction.Redact(path));
+    }
+
+    [TestMethod]
     [DataRow("/")]
     [DataRow("/new")]
     [DataRow("/surveys")]
     [DataRow("/surveys/")]
+    [DataRow("/api/surveys")]
+    [DataRow("/api/surveys/")]
     public void Paths_carrying_no_code_are_left_alone(string path)
     {
         using var activity = TestTelemetry.Source.Start();
@@ -64,6 +79,6 @@ public class TelemetryRedactionTests
         AdminPasswordHash = "hash",
         SummariserTokenHash = "hash",
         ResponseIdentity = identity,
-        CreatedAt = DateTimeOffset.UtcNow
+        CreatedAt = DateTimeOffset.UtcNow,
     };
 }

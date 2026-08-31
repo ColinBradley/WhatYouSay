@@ -1,0 +1,95 @@
+@page "/new"
+@using WhatYouSay.Data
+
+<PageTitle>New survey</PageTitle>
+
+<Breadcrumb Items="@mCrumbs" />
+
+@if (mCreated is not null)
+{
+    <h1>Survey created</h1>
+
+    <p class="lead">@mCreated.Survey.Title</p>
+
+    <h2 class="h5 mt-4">Share this link</h2>
+    <p><code>@mShareLink</code></p>
+
+    <h2 class="h5 mt-4">Summariser token</h2>
+    <div class="alert alert-warning">
+        <div class="fw-semibold">Copy this now — it is not shown again.</div>
+        <code>@mCreated.SummariserToken</code>
+        <div class="small mt-2">
+            Give it to an agent along with the survey code to let it draft summaries. It
+            cannot read your admin password, edit responses, or publish anything.
+        </div>
+    </div>
+
+    <a class="btn btn-primary" href="@($"/surveys/{mCreated.Survey.Code}/admin")">Go to admin</a>
+}
+else
+{
+    <h1>New survey</h1>
+
+    <p class="lead">One open question. Everything else is a setting.</p>
+
+    <form method="post" @formname="create-survey" @onsubmit="CreateAsync" style="max-width: 40rem">
+        <AntiforgeryToken />
+
+        <div class="mb-3">
+            <label class="form-label" for="title">Title</label>
+            <input class="form-control" id="title" name="Title" value="@Title"
+                   placeholder="Sprint 48 retro" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label" for="prompt">The question</label>
+            <textarea class="form-control" id="prompt" name="Prompt" rows="3"
+                      placeholder="What went well, what didn't, and what should we change?">@Prompt</textarea>
+            <div class="form-text">Title and question together are the whole survey.</div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label" for="password">Admin password</label>
+            <input class="form-control" id="password" name="Password" type="password" value="@Password" />
+            <div class="form-text">Only its hash is stored, so it cannot be recovered.</div>
+        </div>
+
+        <fieldset class="mb-3">
+            <legend class="form-label">Who has to say who they are?</legend>
+
+            @foreach (var identity in Enum.GetValues<ResponseIdentity>())
+            {
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="Identity"
+                           id="@($"identity-{identity}")" value="@identity"
+                           checked="@(Identity == identity)" />
+                    <label class="form-check-label" for="@($"identity-{identity}")">
+                        <span class="fw-semibold">@identity</span>
+                        <span class="text-body-secondary small"> — @Explain(identity)</span>
+                    </label>
+                </div>
+            }
+
+            <div class="form-text">Fixed once the survey exists, so choose carefully.</div>
+        </fieldset>
+
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="listed"
+                   name="IsPubliclyListed" value="true" checked="@IsPubliclyListed" />
+            <label class="form-check-label" for="listed">Show on the home page</label>
+        </div>
+
+        <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="responsesPublic"
+                   name="AreResponsesPublic" value="true" checked="@AreResponsesPublic" />
+            <label class="form-check-label" for="responsesPublic">Let anyone read the raw responses</label>
+        </div>
+
+        @if (mError is not null)
+        {
+            <p class="text-danger">@mError</p>
+        }
+
+        <button class="btn btn-primary" type="submit">Create survey</button>
+    </form>
+}

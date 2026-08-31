@@ -1,4 +1,4 @@
-namespace WhatYouSay.Web.Mcp;
+namespace WhatYouSay.Web.Api;
 
 public record SummaryInfo
 {

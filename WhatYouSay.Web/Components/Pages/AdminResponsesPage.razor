@@ -1,0 +1,68 @@
+@page "/surveys/{Code}/admin/responses"
+
+<PageTitle>Responses</PageTitle>
+
+<Breadcrumb Items="@mCrumbs" />
+
+@if (mSurvey is null)
+{
+    <h1>Survey not found</h1>
+    <a href="/">Back to the list</a>
+}
+else
+{
+    <h1>Responses</h1>
+    <p class="lead">@mSurvey.Title</p>
+
+    @if (mSurvey.IsAnonymous)
+    {
+        <p class="small text-body-secondary">
+            This survey is anonymous, so no names or times were recorded and the order below
+            is meaningless by design.
+        </p>
+    }
+
+    @if (mResponses.Count == 0)
+    {
+        <div class="alert alert-secondary">Nobody has answered yet.</div>
+    }
+    else
+    {
+        <form method="post" @formname="delete-response" @onsubmit="DeleteAsync">
+            <AntiforgeryToken />
+
+            @foreach (var response in mResponses)
+            {
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <p style="white-space: pre-wrap" class="mb-2">@response.Body</p>
+
+                        <div class="d-flex gap-3 align-items-center small text-body-secondary">
+                            <span>@(response.Author ?? "anonymous")</span>
+
+                            @if (response.CreatedAt is { } created)
+                            {
+                                <span>@created.ToLocalTime().ToString("d MMM yyyy HH:mm")</span>
+                            }
+
+                            @if (response.UpdatedAt is not null)
+                            {
+                                <span>edited</span>
+                            }
+
+                            <button class="btn btn-sm btn-outline-danger ms-auto" type="submit"
+                                    name="ResponseId" value="@response.Id">
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </form>
+
+        <p class="small text-body-secondary">
+            Deleting hides a response and drops it from any summary that quotes it. You cannot
+            edit what someone wrote — that is the one power an admin does not get.
+        </p>
+    }
+}

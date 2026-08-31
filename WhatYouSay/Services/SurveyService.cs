@@ -23,18 +23,19 @@ public class SurveyService(WhatYouSayContext db)
     }
 
     public async Task<IReadOnlyList<SurveyListing>> ListPubliclyListedAsync(
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         using var activity = WhatYouSayTelemetry.Source.Start();
 
         return await db.Surveys
             .Where(s => s.IsPubliclyListed)
             .OrderByDescending(s => s.CreatedAt)
-            .Select(s => new SurveyListing
+            .Select(s => new SurveyListing()
             {
                 Survey = s,
                 ResponseCount = s.Responses.Count(r => !r.IsDeleted),
-                HasVisibleSummary = s.Summaries.Any(x => !x.IsDraft && x.IsPublic)
+                HasVisibleSummary = s.Summaries.Any(x => !x.IsDraft && x.IsPublic),
             })
             .ToListAsync(cancellationToken);
     }

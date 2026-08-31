@@ -1,7 +1,6 @@
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
-using WhatYouSay.Telemetry;
 
 namespace WhatYouSay.Web.Telemetry;
 
@@ -24,7 +23,7 @@ public static class TelemetryRegistration
                 .AddProcessor<SurveyCodeRedactingProcessor>()
                 .AddOtlpExporter())
             .WithMetrics(metrics => metrics
-                .AddMeter(WhatYouSayTelemetry.MeterName)
+                .AddMeter("*")
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()
                 .AddRuntimeInstrumentation()

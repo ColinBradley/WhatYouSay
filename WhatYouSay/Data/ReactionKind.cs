@@ -9,5 +9,5 @@ public enum ReactionKind
     Important,
 
     /// <summary>"This does not represent what I said." The fidelity loop closing.</summary>
-    Misrepresents
+    Misrepresents,
 }

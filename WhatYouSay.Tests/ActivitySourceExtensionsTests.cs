@@ -84,7 +84,7 @@ public class ActivitySourceExtensionsTests
 
     private static Survey Survey(ResponseIdentity identity, string code)
     {
-        return new Survey
+        return new Survey()
         {
             Id = Guid.CreateVersion7(),
             Code = code,
@@ -93,7 +93,7 @@ public class ActivitySourceExtensionsTests
             AdminPasswordHash = "hash",
             SummariserTokenHash = "hash",
             ResponseIdentity = identity,
-            CreatedAt = DateTimeOffset.UtcNow
+            CreatedAt = DateTimeOffset.UtcNow,
         };
     }
 }

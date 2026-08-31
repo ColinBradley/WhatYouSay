@@ -15,5 +15,5 @@ public enum ResponseIdentity
     Optional,
 
     /// <summary>No author field at all, and no timestamps recorded anywhere.</summary>
-    Anonymous
+    Anonymous,
 }

@@ -15,7 +15,8 @@ public class ResponseService(WhatYouSayContext db)
         Survey survey,
         string body,
         string? author,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         using var activity = WhatYouSayTelemetry.Source.Start().SetSurvey(survey);
 
@@ -28,7 +29,7 @@ public class ResponseService(WhatYouSayContext db)
 
         var token = Secrets.NewToken();
 
-        db.Responses.Add(new Response
+        db.Responses.Add(new Response()
         {
             // Deliberately v4 and not CreateVersion7. A v7 Guid embeds a Unix timestamp,
             // so it would both restore submission order and leak roughly when someone
@@ -38,7 +39,7 @@ public class ResponseService(WhatYouSayContext db)
             Body = body.Trim(),
             Author = survey.IsAnonymous ? null : NullIfBlank(author),
             AuthTokenHash = Secrets.HashToken(token),
-            CreatedAt = survey.IsAnonymous ? null : DateTimeOffset.UtcNow
+            CreatedAt = survey.IsAnonymous ? null : DateTimeOffset.UtcNow,
         });
 
         await db.SaveChangesAsync(cancellationToken);
@@ -51,7 +52,8 @@ public class ResponseService(WhatYouSayContext db)
     public async Task<Response?> FindOwnAsync(
         Guid surveyId,
         string token,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         using var activity = WhatYouSayTelemetry.Source.Start();
 
@@ -68,7 +70,8 @@ public class ResponseService(WhatYouSayContext db)
         Response response,
         string body,
         string? author,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         using var activity = WhatYouSayTelemetry.Source.Start().SetSurvey(survey);
 
@@ -91,7 +94,8 @@ public class ResponseService(WhatYouSayContext db)
     public async Task WithdrawAsync(
         Survey survey,
         Response response,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         using var activity = WhatYouSayTelemetry.Source.Start().SetSurvey(survey);
 
@@ -111,7 +115,8 @@ public class ResponseService(WhatYouSayContext db)
 
     public async Task<IReadOnlyList<Response>> ListAsync(
         Survey survey,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         using var activity = WhatYouSayTelemetry.Source.Start().SetSurvey(survey);
 

@@ -14,7 +14,8 @@ public static class SeedData
     public static async Task EnsureSeededAsync(
         WhatYouSayContext db,
         ILogger logger,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         if (await db.Surveys.AnyAsync(cancellationToken))
         {
@@ -51,12 +52,13 @@ public static class SeedData
         string description,
         ResponseIdentity identity,
         bool acceptingResponses,
-        (string? Author, string Body)[] responses)
+        (string? Author, string Body)[] responses
+    )
     {
         var anonymous = identity == ResponseIdentity.Anonymous;
         var createdAt = new DateTimeOffset(2026, 8, 17, 9, 0, 0, TimeSpan.Zero);
 
-        var survey = new Survey
+        var survey = new Survey()
         {
             Id = Guid.CreateVersion7(),
             Code = code,
@@ -68,14 +70,14 @@ public static class SeedData
             IsAcceptingResponses = acceptingResponses,
             AreResponsesPublic = false,
             ResponseIdentity = identity,
-            CreatedAt = createdAt
+            CreatedAt = createdAt,
         };
 
         for (var i = 0; i < responses.Length; i++)
         {
             var (author, body) = responses[i];
 
-            survey.Responses.Add(new Response
+            survey.Responses.Add(new Response()
             {
                 // v4, not v7: a time-ordered Guid would leak submission order and time in
                 // anonymous surveys. See ResponseService.SubmitAsync.
@@ -84,7 +86,7 @@ public static class SeedData
                 Author = anonymous ? null : author,
                 AuthTokenHash = Secrets.HashToken(Secrets.NewToken()),
                 // Staggered so ordering is realistic where it is recorded at all.
-                CreatedAt = anonymous ? null : createdAt.AddHours(i * 1.7)
+                CreatedAt = anonymous ? null : createdAt.AddHours(i * 1.7),
             });
         }
 
@@ -111,7 +113,7 @@ public static class SeedData
                 ("Ade", "Decent sprint from my side, got the search indexing done with no major blockers. The one thing I'd change is putting a time box on spike tickets, they always balloon."),
                 ("Nils", "Too much work in progress. We had eleven tickets in flight across six people at one point. Everything was 90% done and nothing actually shipped until the Thursday."),
                 ("Rae", "Staging was down for most of Tuesday and nobody knew who to ask. There's no clear ownership and it's turning into a running joke, except it costs us a day every time."),
-                ("Kit", "More pairing please. Also can we stop pulling extra work into the sprint on day four, it makes the estimate meaningless and everyone knows it.")
+                ("Kit", "More pairing please. Also can we stop pulling extra work into the sprint on day four, it makes the estimate meaningless and everyone knows it."),
             ]);
 
     /// <summary>The small case: five responses, one of them a single word.</summary>
@@ -127,7 +129,7 @@ public static class SeedData
                 (null, "Anything but pizza, we've had pizza three Fridays running."),
                 ("Priya", "I'm veggie so as long as there's more than one option that isn't a side salad I'm happy."),
                 ("Tom", "Curry"),
-                (null, "Genuinely don't mind, happy with whatever the majority wants. Mild preference for something we can eat at desks because I've got a 1pm.")
+                (null, "Genuinely don't mind, happy with whatever the majority wants. Mild preference for something we can eat at desks because I've got a 1pm."),
             ]);
 
     /// <summary>
@@ -197,7 +199,7 @@ public static class SeedData
                 (null, "Everything above about meetings, twice."),
                 (null, "The incident review process is genuinely blameless and that's rare. Please don't lose it."),
                 (null, "Give teams a real budget instead of making them beg for every tool."),
-                (null, "More async written updates, fewer status meetings.")
+                (null, "More async written updates, fewer status meetings."),
             ]);
 
     /// <summary>Single-author case. Author is a date rather than a person.</summary>
@@ -218,7 +220,7 @@ public static class SeedData
                 ("Sun 9 Aug", "Bit restless. Spent too long on the laptop for something that wasn't urgent. Slept early though."),
                 ("Mon 10 Aug", "Back to it. Noticing the pattern that Mondays are always the worst sleep and I think it's Sunday evening dread rather than anything physical."),
                 ("Tue 11 Aug", "Really good stretch of focus in the morning, two clear hours. That's the whole game, I think. Everything else is admin around the edges."),
-                ("Wed 12 Aug", "Flat. Nothing wrong exactly, just no energy for any of it. Went for a walk at lunch which is usually the fix but it didn't really land today.")
+                ("Wed 12 Aug", "Flat. Nothing wrong exactly, just no energy for any of it. Went for a walk at lunch which is usually the fix but it didn't really land today."),
             ]);
 
     /// <summary>A hand-written summary, so the summary page has structure to render without an agent.</summary>
@@ -226,7 +228,7 @@ public static class SeedData
     {
         var writtenAt = new DateTimeOffset(2026, 8, 21, 16, 30, 0, TimeSpan.Zero);
 
-        var summary = new Summary
+        var summary = new Summary()
         {
             Id = Guid.CreateVersion7(),
             Body = """
@@ -249,7 +251,7 @@ public static class SeedData
             IsPublic = true,
             CreatedBy = "human",
             CreatedAt = writtenAt,
-            UpdatedAt = writtenAt
+            UpdatedAt = writtenAt,
         };
 
         summary.Topics.Add(Topic(
@@ -312,13 +314,14 @@ public static class SeedData
         string description,
         double sentiment,
         double objectivity,
-        (int ResponseIndex, string Quote)[] citations)
+        (int ResponseIndex, string Quote)[] citations
+    )
     {
-        var point = new SummaryTopicPoint
+        var point = new SummaryTopicPoint()
         {
             Description = description,
             Sentiment = sentiment,
-            Objectivity = objectivity
+            Objectivity = objectivity,
         };
 
         foreach (var (responseIndex, quote) in citations)
@@ -330,12 +333,12 @@ public static class SeedData
                 ?? throw new InvalidOperationException(
                     $"Seed quote not found in response {responseIndex}: \"{quote}\"");
 
-            point.References.Add(new SummaryTopicPointResponseReference
+            point.References.Add(new SummaryTopicPointResponseReference()
             {
                 Response = response,
                 Quote = quote,
                 StartIndex = location.StartIndex,
-                EndIndex = location.EndIndex
+                EndIndex = location.EndIndex,
             });
         }
 

@@ -1,0 +1,169 @@
+@page "/surveys/{Code}/admin"
+@using WhatYouSay.Data
+
+<PageTitle>@(mSurvey is null ? "Admin" : $"Admin — {mSurvey.Title}")</PageTitle>
+
+<Breadcrumb Items="@mCrumbs" />
+
+@if (mSurvey is null)
+{
+    <h1>Survey not found</h1>
+    <p class="text-body-secondary">No survey has the code &ldquo;@Code&rdquo;.</p>
+    <a href="/">Back to the list</a>
+}
+else if (!mIsAdmin)
+{
+    <h1>Admin</h1>
+    <p class="lead">@mSurvey.Title</p>
+
+    <form method="post" @formname="admin-signin" @onsubmit="SignInAsync" class="mt-3" style="max-width: 24rem">
+        <AntiforgeryToken />
+
+        <div class="mb-3">
+            <label class="form-label" for="password">Admin password</label>
+            <input class="form-control" id="password" name="Password" type="password" autofocus />
+        </div>
+
+        @if (mError is not null)
+        {
+            <p class="text-danger">@mError</p>
+        }
+
+        <button class="btn btn-primary" type="submit">Sign in</button>
+    </form>
+}
+else
+{
+    <h1>Admin</h1>
+    <p class="lead">@mSurvey.Title</p>
+
+    <div class="row g-4">
+        <div class="col-md-7">
+            <h2 class="h5">This survey</h2>
+
+            <dl class="row mb-3">
+                <dt class="col-sm-4">Share link</dt>
+                <dd class="col-sm-8"><code>@mShareLink</code></dd>
+
+                <dt class="col-sm-4">Responses</dt>
+                <dd class="col-sm-8">@mResponseCount</dd>
+
+                <dt class="col-sm-4">Summaries</dt>
+                <dd class="col-sm-8">@mSummaryCount</dd>
+
+                <dt class="col-sm-4">Identity</dt>
+                <dd class="col-sm-8">@mSurvey.ResponseIdentity</dd>
+            </dl>
+
+            <div class="d-flex gap-2 mb-4">
+                <a class="btn btn-outline-secondary" href="@($"/surveys/{Code}/admin/responses")">Responses</a>
+                <a class="btn btn-outline-secondary" href="@($"/surveys/{Code}/admin/summaries")">Summaries</a>
+                <a class="btn btn-outline-secondary" href="@($"/surveys/{Code}")">View as responder</a>
+            </div>
+
+            <h2 class="h5">Collecting</h2>
+
+            @if (mSurvey.IsAcceptingResponses)
+            {
+                <p class="small text-body-secondary">
+                    Closing freezes every response so the quotes in a summary stay accurate.
+                    You can reopen until a summary exists, then it is closed for good.
+                </p>
+
+                <form method="post" @formname="admin-close" @onsubmit="CloseAsync">
+                    <AntiforgeryToken />
+                    <button class="btn btn-primary" type="submit">Close and summarise</button>
+                </form>
+            }
+            else
+            {
+                <p class="small text-body-secondary">This survey is closed.</p>
+
+                <form method="post" @formname="admin-reopen" @onsubmit="ReopenAsync">
+                    <AntiforgeryToken />
+                    <button class="btn btn-outline-primary" type="submit"
+                            disabled="@(!mSurvey.CanReopen)" title="@mReopenReason">
+                        Reopen
+                    </button>
+                </form>
+            }
+        </div>
+
+        <div class="col-md-5">
+            <h2 class="h5">Settings</h2>
+
+            <form method="post" @formname="admin-settings" @onsubmit="SaveSettingsAsync">
+                <AntiforgeryToken />
+
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="listed"
+                           name="IsPubliclyListed" value="true" checked="@mSurvey.IsPubliclyListed" />
+                    <label class="form-check-label" for="listed">Show on the home page</label>
+                </div>
+
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="responsesPublic"
+                           name="AreResponsesPublic" value="true" checked="@mSurvey.AreResponsesPublic" />
+                    <label class="form-check-label" for="responsesPublic">Let anyone read the raw responses</label>
+                </div>
+
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="identity" disabled
+                           checked="@mSurvey.IsAnonymous"
+                           title="Response identity is fixed when a survey is created. Changing it later cannot unrecord what was already collected, and would change the deal people already answered under." />
+                    <label class="form-check-label text-body-secondary" for="identity">
+                        Anonymous
+                    </label>
+                </div>
+
+                <button class="btn btn-primary btn-sm mt-3" type="submit">Save settings</button>
+            </form>
+
+            <h2 class="h5 mt-4">Summariser token</h2>
+
+            @if (mNewToken is not null)
+            {
+                <div class="alert alert-warning small">
+                    <div class="fw-semibold">Copy this now — it is not shown again.</div>
+                    <code class="user-select-all">@mNewToken</code>
+                </div>
+            }
+            else
+            {
+                <p class="small text-body-secondary">
+                    Only its hash is stored, so it cannot be shown again. Regenerating gives you
+                    a fresh token and a ready-made prompt, and stops the old token working
+                    immediately.
+                </p>
+            }
+
+            <form method="post" @formname="admin-token" @onsubmit="RegenerateTokenAsync">
+                <AntiforgeryToken />
+                <button class="btn btn-outline-secondary btn-sm" type="submit">Regenerate token</button>
+            </form>
+
+            <form method="post" @formname="admin-signout" @onsubmit="SignOut" class="mt-4">
+                <AntiforgeryToken />
+                <button class="btn btn-link text-body-secondary p-0" type="submit">Sign out of admin</button>
+            </form>
+        </div>
+    </div>
+
+    @if (mPrompt is not null)
+    {
+        <h2 class="h5 mt-4">Prompt to hand to an assistant</h2>
+
+        <p class="small text-body-secondary">
+            Points at a URL that explains the whole job, and carries the token. Paste it into
+            any chat whose assistant can make an HTTP request. Treat it like the token itself.
+        </p>
+
+        <textarea class="form-control font-monospace small" id="summariser-prompt"
+                  rows="9" readonly>@mPrompt</textarea>
+
+        <button class="btn btn-outline-secondary btn-sm mt-2" type="button"
+                onclick="whatYouSayCopy(document.getElementById('summariser-prompt'), this)">
+            Copy prompt
+        </button>
+    }
+}
