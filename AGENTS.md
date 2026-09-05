@@ -82,10 +82,10 @@ dotnet ef migrations add <Name> --project WhatYouSay --startup-project WhatYouSa
 
 ## Development data
 
-Seeded on startup: four surveys, admin password `letmein`, summariser tokens `dev-retro`, `dev-lunch`, `dev-company`, `dev-diary`. The retro carries a published summary with reactions on it, including two objections, so the admin editor has something to show.
+Seeded on startup: four topics, admin password `letmein`, summariser tokens `dev-retro`, `dev-lunch`, `dev-company`, `dev-diary`. The retro carries a published summary with reactions on it, including two objections, so the admin editor has something to show.
 
-The summariser API names the survey in the path and takes the token in an `Authorization: Bearer` header, so the two vary independently. Start at `/api/surveys/{code}/ai-summary-start`, which returns the whole job as plain text.
+The summariser API names the topic in the path and takes the token in an `Authorization: Bearer` header, so the two vary independently. Start at `/api/topics/{code}/ai-summary-start`, which returns the whole job as plain text.
 
 ```bash
-curl -H "Authorization: Bearer dev-retro" http://localhost:5286/api/surveys/spr47ab/ai-summary-start
+curl -H "Authorization: Bearer dev-retro" http://localhost:5286/api/topics/spr47ab/ai-summary-start
 ```

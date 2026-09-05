@@ -1,20 +1,20 @@
-@page "/surveys/{Code}/admin"
+@page "/topics/{Code}/admin"
 @using WhatYouSay.Data
 
-<PageTitle>@(mSurvey is null ? "Admin" : $"Admin — {mSurvey.Title}")</PageTitle>
+<PageTitle>@(mTopic is null ? "Admin" : $"Admin — {mTopic.Title}")</PageTitle>
 
 <Breadcrumb Items="@mCrumbs" />
 
-@if (mSurvey is null)
+@if (mTopic is null)
 {
-    <h1>Survey not found</h1>
-    <p class="text-body-secondary">No survey has the code &ldquo;@Code&rdquo;.</p>
+    <h1>Topic not found</h1>
+    <p class="text-body-secondary">No topic has the code &ldquo;@Code&rdquo;.</p>
     <a href="/">Back to the list</a>
 }
 else if (!mIsAdmin)
 {
     <h1>Admin</h1>
-    <p class="lead">@mSurvey.Title</p>
+    <p class="lead">@mTopic.Title</p>
 
     <form method="post" @formname="admin-signin" @onsubmit="SignInAsync" class="mt-3" style="max-width: 24rem">
         <AntiforgeryToken />
@@ -35,11 +35,11 @@ else if (!mIsAdmin)
 else
 {
     <h1>Admin</h1>
-    <p class="lead">@mSurvey.Title</p>
+    <p class="lead">@mTopic.Title</p>
 
     <div class="row g-4">
         <div class="col-md-7">
-            <h2 class="h5">This survey</h2>
+            <h2 class="h5">This topic</h2>
 
             <dl class="row mb-3">
                 <dt class="col-sm-4">Share link</dt>
@@ -52,18 +52,18 @@ else
                 <dd class="col-sm-8">@mSummaryCount</dd>
 
                 <dt class="col-sm-4">Identity</dt>
-                <dd class="col-sm-8">@mSurvey.ResponseIdentity</dd>
+                <dd class="col-sm-8">@mTopic.ResponseIdentity</dd>
             </dl>
 
             <div class="d-flex gap-2 mb-4">
-                <a class="btn btn-outline-secondary" href="@($"/surveys/{Code}/admin/responses")">Responses</a>
-                <a class="btn btn-outline-secondary" href="@($"/surveys/{Code}/admin/summaries")">Summaries</a>
-                <a class="btn btn-outline-secondary" href="@($"/surveys/{Code}")">View as responder</a>
+                <a class="btn btn-outline-secondary" href="@($"/topics/{Code}/admin/responses")">Responses</a>
+                <a class="btn btn-outline-secondary" href="@($"/topics/{Code}/admin/summaries")">Summaries</a>
+                <a class="btn btn-outline-secondary" href="@($"/topics/{Code}")">View as responder</a>
             </div>
 
             <h2 class="h5">Collecting</h2>
 
-            @if (mSurvey.IsAcceptingResponses)
+            @if (mTopic.IsAcceptingResponses)
             {
                 <p class="small text-body-secondary">
                     Closing freezes every response so the quotes in a summary stay accurate.
@@ -77,12 +77,12 @@ else
             }
             else
             {
-                <p class="small text-body-secondary">This survey is closed.</p>
+                <p class="small text-body-secondary">This topic is closed.</p>
 
                 <form method="post" @formname="admin-reopen" @onsubmit="ReopenAsync">
                     <AntiforgeryToken />
                     <button class="btn btn-outline-primary" type="submit"
-                            disabled="@(!mSurvey.CanReopen)" title="@mReopenReason">
+                            disabled="@(!mTopic.CanReopen)" title="@mReopenReason">
                         Reopen
                     </button>
                 </form>
@@ -97,20 +97,20 @@ else
 
                 <div class="form-check">
                     <input class="form-check-input" type="checkbox" id="listed"
-                           name="IsPubliclyListed" value="true" checked="@mSurvey.IsPubliclyListed" />
+                           name="IsPubliclyListed" value="true" checked="@mTopic.IsPubliclyListed" />
                     <label class="form-check-label" for="listed">Show on the home page</label>
                 </div>
 
                 <div class="form-check">
                     <input class="form-check-input" type="checkbox" id="responsesPublic"
-                           name="AreResponsesPublic" value="true" checked="@mSurvey.AreResponsesPublic" />
+                           name="AreResponsesPublic" value="true" checked="@mTopic.AreResponsesPublic" />
                     <label class="form-check-label" for="responsesPublic">Let anyone read the raw responses</label>
                 </div>
 
                 <div class="form-check">
                     <input class="form-check-input" type="checkbox" id="identity" disabled
-                           checked="@mSurvey.IsAnonymous"
-                           title="Response identity is fixed when a survey is created. Changing it later cannot unrecord what was already collected, and would change the deal people already answered under." />
+                           checked="@mTopic.IsAnonymous"
+                           title="Response identity is fixed when a topic is created. Changing it later cannot unrecord what was already collected, and would change the deal people already answered under." />
                     <label class="form-check-label text-body-secondary" for="identity">
                         Anonymous
                     </label>

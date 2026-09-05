@@ -6,13 +6,13 @@ namespace WhatYouSay.Telemetry;
 public static class ActivityExtensions
 {
     /// <summary>
-    /// The only way a survey should reach a span; applies the anonymity rule via
+    /// The only way a topic should reach a span; applies the anonymity rule via
     /// <see cref="WhatYouSayTelemetry.TagFor"/>.
     /// </summary>
-    public static Activity? SetSurvey(this Activity? activity, Survey survey)
+    public static Activity? SetTopic(this Activity? activity, Topic topic)
     {
-        activity?.SetTag("survey.code", WhatYouSayTelemetry.TagFor(survey));
-        activity?.SetTag("survey.identity", survey.ResponseIdentity.ToString());
+        activity?.SetTag("topic.code", WhatYouSayTelemetry.TagFor(topic));
+        activity?.SetTag("topic.identity", topic.ResponseIdentity.ToString());
 
         return activity;
     }

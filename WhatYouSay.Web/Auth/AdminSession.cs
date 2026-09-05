@@ -4,7 +4,7 @@ namespace WhatYouSay.Web.Auth;
 
 /// <summary>
 /// The seam every admin check goes through, so no page reads an admin cookie itself. Backed by
-/// a survey password cookie today; a collection password or real accounts change this class and
+/// a topic password cookie today; a collection password or real accounts change this class and
 /// nothing else.
 /// </summary>
 public class AdminSession(IHttpContextAccessor accessor, IDataProtectionProvider protection)
@@ -16,11 +16,11 @@ public class AdminSession(IHttpContextAccessor accessor, IDataProtectionProvider
     private readonly ITimeLimitedDataProtector mProtector =
         protection.CreateProtector(Purpose).ToTimeLimitedDataProtector();
 
-    public Task<bool> CanAdministerAsync(Guid surveyId)
+    public Task<bool> CanAdministerAsync(Guid topicId)
     {
         var http = accessor.HttpContext;
 
-        if (http is null || !http.Request.Cookies.TryGetValue(NameFor(surveyId), out var cookie))
+        if (http is null || !http.Request.Cookies.TryGetValue(NameFor(topicId), out var cookie))
         {
             return Task.FromResult(false);
         }
@@ -28,7 +28,7 @@ public class AdminSession(IHttpContextAccessor accessor, IDataProtectionProvider
         try
         {
             // Throws when tampered with or past its lifetime.
-            return Task.FromResult(mProtector.Unprotect(cookie) == surveyId.ToString("n"));
+            return Task.FromResult(mProtector.Unprotect(cookie) == topicId.ToString("n"));
         }
         catch (Exception)
         {
@@ -36,7 +36,7 @@ public class AdminSession(IHttpContextAccessor accessor, IDataProtectionProvider
         }
     }
 
-    public void Grant(Guid surveyId)
+    public void Grant(Guid topicId)
     {
         var http = accessor.HttpContext;
 
@@ -45,9 +45,9 @@ public class AdminSession(IHttpContextAccessor accessor, IDataProtectionProvider
             return;
         }
 
-        var value = mProtector.Protect(surveyId.ToString("n"), sLifetime);
+        var value = mProtector.Protect(topicId.ToString("n"), sLifetime);
 
-        http.Response.Cookies.Append(NameFor(surveyId), value, new CookieOptions()
+        http.Response.Cookies.Append(NameFor(topicId), value, new CookieOptions()
         {
             HttpOnly = true,
             Secure = http.Request.IsHttps,
@@ -57,13 +57,13 @@ public class AdminSession(IHttpContextAccessor accessor, IDataProtectionProvider
         });
     }
 
-    public void Revoke(Guid surveyId)
+    public void Revoke(Guid topicId)
     {
-        accessor.HttpContext?.Response.Cookies.Delete(NameFor(surveyId));
+        accessor.HttpContext?.Response.Cookies.Delete(NameFor(topicId));
     }
 
-    private static string NameFor(Guid surveyId)
+    private static string NameFor(Guid topicId)
     {
-        return $"wys_admin_{surveyId:n}";
+        return $"wys_admin_{topicId:n}";
     }
 }

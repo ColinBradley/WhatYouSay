@@ -59,15 +59,15 @@ public class ActivitySourceExtensionsTests
     }
 
     [TestMethod]
-    public void Setting_a_survey_applies_the_anonymity_rule()
+    public void Setting_a_topic_applies_the_anonymity_rule()
     {
         using var activity = TestTelemetry.Source.Start();
 
-        using var anonymous = TestTelemetry.Source.Start().SetSurvey(Survey(ResponseIdentity.Anonymous, "allco26"));
-        using var named = TestTelemetry.Source.Start().SetSurvey(Survey(ResponseIdentity.Required, "spr47ab"));
+        using var anonymous = TestTelemetry.Source.Start().SetTopic(Topic(ResponseIdentity.Anonymous, "allco26"));
+        using var named = TestTelemetry.Source.Start().SetTopic(Topic(ResponseIdentity.Required, "spr47ab"));
 
-        Assert.AreEqual(WhatYouSayTelemetry.RedactedSurvey, anonymous!.GetTagItem("survey.code"));
-        Assert.AreEqual("spr47ab", named!.GetTagItem("survey.code"));
+        Assert.AreEqual(WhatYouSayTelemetry.RedactedTopic, anonymous!.GetTagItem("topic.code"));
+        Assert.AreEqual("spr47ab", named!.GetTagItem("topic.code"));
     }
 
     [TestMethod]
@@ -75,16 +75,16 @@ public class ActivitySourceExtensionsTests
     {
         using var activity = TestTelemetry.Source.Start();
 
-        using var failed = TestTelemetry.Source.Start().RecordFailure("survey_closed");
+        using var failed = TestTelemetry.Source.Start().RecordFailure("topic_closed");
 
         Assert.IsNotNull(failed);
         Assert.AreEqual(ActivityStatusCode.Error, failed.Status);
-        Assert.AreEqual("survey_closed", failed.GetTagItem("error.type"));
+        Assert.AreEqual("topic_closed", failed.GetTagItem("error.type"));
     }
 
-    private static Survey Survey(ResponseIdentity identity, string code)
+    private static Topic Topic(ResponseIdentity identity, string code)
     {
-        return new Survey()
+        return new Topic()
         {
             Id = Guid.CreateVersion7(),
             Code = code,

@@ -11,11 +11,11 @@ public class SummaryEditServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, summary) = await this.SeededAsync();
+        var (topic, summary) = await this.SeededAsync();
 
-        await this.Service().AddNodeAsync(survey, summary.Id, null, "Third", this.Cancellation);
+        await this.Service().AddNodeAsync(topic, summary.Id, null, "Third", this.Cancellation);
 
-        var reloaded = await this.Service().LoadAsync(survey, summary.Id, this.Cancellation);
+        var reloaded = await this.Service().LoadAsync(topic, summary.Id, this.Cancellation);
 
         Assert.AreEqual(
             "Meetings, Tooling, Third",
@@ -28,12 +28,12 @@ public class SummaryEditServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, summary) = await this.SeededAsync();
+        var (topic, summary) = await this.SeededAsync();
         var first = summary.Roots.First();
 
-        await this.Service().MoveAsync(survey, summary.Id, first.Id, NodeMove.Down, this.Cancellation);
+        await this.Service().MoveAsync(topic, summary.Id, first.Id, NodeMove.Down, this.Cancellation);
 
-        var reloaded = await this.Service().LoadAsync(survey, summary.Id, this.Cancellation);
+        var reloaded = await this.Service().LoadAsync(topic, summary.Id, this.Cancellation);
 
         Assert.AreEqual(
             "Tooling, Meetings",
@@ -46,13 +46,13 @@ public class SummaryEditServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, summary) = await this.SeededAsync();
+        var (topic, summary) = await this.SeededAsync();
         var first = summary.Roots.First();
 
-        await this.Service().MoveAsync(survey, summary.Id, first.Id, NodeMove.Down, this.Cancellation);
+        await this.Service().MoveAsync(topic, summary.Id, first.Id, NodeMove.Down, this.Cancellation);
 
         // The whole point of Ordinal: a fresh context must not reorder by Id and undo it.
-        var ordinals = await this.Service().LoadAsync(survey, summary.Id, this.Cancellation);
+        var ordinals = await this.Service().LoadAsync(topic, summary.Id, this.Cancellation);
         var moved = ordinals!.Nodes.First(node => node.Id == first.Id);
 
         Assert.AreEqual(1, moved.Ordinal);
@@ -63,13 +63,13 @@ public class SummaryEditServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, summary) = await this.SeededAsync();
+        var (topic, summary) = await this.SeededAsync();
         var first = summary.Roots.First();
 
-        await this.Service().MoveAsync(survey, summary.Id, first.Id, NodeMove.Up, this.Cancellation);
-        await this.Service().MoveAsync(survey, summary.Id, first.Id, NodeMove.Outdent, this.Cancellation);
+        await this.Service().MoveAsync(topic, summary.Id, first.Id, NodeMove.Up, this.Cancellation);
+        await this.Service().MoveAsync(topic, summary.Id, first.Id, NodeMove.Outdent, this.Cancellation);
 
-        var reloaded = await this.Service().LoadAsync(survey, summary.Id, this.Cancellation);
+        var reloaded = await this.Service().LoadAsync(topic, summary.Id, this.Cancellation);
 
         Assert.AreEqual(
             "Meetings, Tooling",
@@ -82,12 +82,12 @@ public class SummaryEditServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, summary) = await this.SeededAsync();
+        var (topic, summary) = await this.SeededAsync();
         var second = summary.Roots.Last();
 
-        await this.Service().MoveAsync(survey, summary.Id, second.Id, NodeMove.Indent, this.Cancellation);
+        await this.Service().MoveAsync(topic, summary.Id, second.Id, NodeMove.Indent, this.Cancellation);
 
-        var reloaded = await this.Service().LoadAsync(survey, summary.Id, this.Cancellation);
+        var reloaded = await this.Service().LoadAsync(topic, summary.Id, this.Cancellation);
         var root = reloaded!.Roots.Single();
 
         Assert.AreEqual("Meetings", root.Text);
@@ -99,12 +99,12 @@ public class SummaryEditServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, summary) = await this.SeededAsync();
+        var (topic, summary) = await this.SeededAsync();
         var child = summary.Roots.First().Children.Single();
 
-        await this.Service().MoveAsync(survey, summary.Id, child.Id, NodeMove.Outdent, this.Cancellation);
+        await this.Service().MoveAsync(topic, summary.Id, child.Id, NodeMove.Outdent, this.Cancellation);
 
-        var reloaded = await this.Service().LoadAsync(survey, summary.Id, this.Cancellation);
+        var reloaded = await this.Service().LoadAsync(topic, summary.Id, this.Cancellation);
 
         Assert.AreEqual(
             "Meetings, Too many of them, Tooling",
@@ -117,12 +117,12 @@ public class SummaryEditServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, summary) = await this.SeededAsync();
+        var (topic, summary) = await this.SeededAsync();
         var first = summary.Roots.First();
 
-        await this.Service().DeleteNodeAsync(survey, summary.Id, first.Id, this.Cancellation);
+        await this.Service().DeleteNodeAsync(topic, summary.Id, first.Id, this.Cancellation);
 
-        var reloaded = await this.Service().LoadAsync(survey, summary.Id, this.Cancellation);
+        var reloaded = await this.Service().LoadAsync(topic, summary.Id, this.Cancellation);
 
         Assert.HasCount(1, reloaded!.Nodes);
         Assert.AreEqual("Tooling", reloaded.Roots.Single().Text);
@@ -133,13 +133,13 @@ public class SummaryEditServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, summary) = await this.SeededAsync();
+        var (topic, summary) = await this.SeededAsync();
 
-        await this.Service().AddNodeAsync(survey, summary.Id, null, "Third", this.Cancellation);
+        await this.Service().AddNodeAsync(topic, summary.Id, null, "Third", this.Cancellation);
         await this.Service().DeleteNodeAsync(
-            survey, summary.Id, summary.Roots.First().Id, this.Cancellation);
+            topic, summary.Id, summary.Roots.First().Id, this.Cancellation);
 
-        var reloaded = await this.Service().LoadAsync(survey, summary.Id, this.Cancellation);
+        var reloaded = await this.Service().LoadAsync(topic, summary.Id, this.Cancellation);
 
         Assert.AreSequenceEqual([0, 1], reloaded!.Roots.Select(node => node.Ordinal).ToArray());
     }
@@ -149,14 +149,14 @@ public class SummaryEditServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, summary) = await this.SeededAsync();
+        var (topic, summary) = await this.SeededAsync();
         var response = mDb.Responses.First();
         var leaf = summary.Roots.First().Children.Single();
 
         await this.Service().AddReferenceAsync(
-            survey, summary.Id, leaf.Id, response.Id, "nineteen hours", this.Cancellation);
+            topic, summary.Id, leaf.Id, response.Id, "nineteen hours", this.Cancellation);
 
-        var reloaded = await this.Service().LoadAsync(survey, summary.Id, this.Cancellation);
+        var reloaded = await this.Service().LoadAsync(topic, summary.Id, this.Cancellation);
         var reference = reloaded!.Nodes.Single(node => node.Id == leaf.Id).References.Single();
 
         Assert.AreEqual("nineteen hours", response.Body[reference.StartIndex..reference.EndIndex]);
@@ -167,13 +167,13 @@ public class SummaryEditServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, summary) = await this.SeededAsync();
+        var (topic, summary) = await this.SeededAsync();
         var response = mDb.Responses.First();
         var leaf = summary.Roots.First().Children.Single();
 
         var failure = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
             () => this.Service().AddReferenceAsync(
-                survey, summary.Id, leaf.Id, response.Id, "nineteen hours’ worth", this.Cancellation
+                topic, summary.Id, leaf.Id, response.Id, "nineteen hours’ worth", this.Cancellation
             )
         );
 
@@ -186,14 +186,14 @@ public class SummaryEditServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, summary) = await this.SeededAsync();
+        var (topic, summary) = await this.SeededAsync();
 
         summary.IsDraft = false;
         summary.IsPublic = true;
         await mDb.SaveChangesAsync(this.Cancellation);
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            () => this.Service().SetBodyAsync(survey, summary.Id, "rewritten", this.Cancellation)
+            () => this.Service().SetBodyAsync(topic, summary.Id, "rewritten", this.Cancellation)
         );
     }
 
@@ -202,11 +202,11 @@ public class SummaryEditServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, summary) = await this.SeededAsync();
+        var (topic, summary) = await this.SeededAsync();
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
             () => this.Service().SetTextAsync(
-                survey, summary.Id, summary.Roots.First().Id, "   ", this.Cancellation
+                topic, summary.Id, summary.Roots.First().Id, "   ", this.Cancellation
             )
         );
     }
@@ -216,36 +216,36 @@ public class SummaryEditServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, summary) = await this.SeededAsync();
+        var (topic, summary) = await this.SeededAsync();
 
         Assert.AreEqual("agent", summary.CreatedBy);
 
-        await this.Service().SetBodyAsync(survey, summary.Id, "rewritten", this.Cancellation);
+        await this.Service().SetBodyAsync(topic, summary.Id, "rewritten", this.Cancellation);
 
-        var reloaded = await this.Service().LoadAsync(survey, summary.Id, this.Cancellation);
+        var reloaded = await this.Service().LoadAsync(topic, summary.Id, this.Cancellation);
 
         Assert.AreEqual("human", reloaded!.CreatedBy);
     }
 
     [TestMethod]
-    public async Task A_summary_from_another_survey_is_not_reachable()
+    public async Task A_summary_from_another_topic_is_not_reachable()
     {
         using var activity = TestTelemetry.Source.Start();
 
         var (_, summary) = await this.SeededAsync();
-        var other = NewSurvey(ResponseIdentity.Required);
+        var other = NewTopic(ResponseIdentity.Required);
 
-        mDb.Surveys.Add(other);
+        mDb.Topics.Add(other);
         await mDb.SaveChangesAsync(this.Cancellation);
 
         Assert.IsNull(await this.Service().LoadAsync(other, summary.Id, this.Cancellation));
     }
 
     /// <summary>Two roots, one of which has a child, plus a response to quote.</summary>
-    private async Task<(Survey Survey, Summary Summary)> SeededAsync()
+    private async Task<(Topic Topic, Summary Summary)> SeededAsync()
     {
-        var survey = NewSurvey(ResponseIdentity.Required);
-        survey.IsAcceptingResponses = false;
+        var topic = NewTopic(ResponseIdentity.Required);
+        topic.IsAcceptingResponses = false;
 
         var response = new Response()
         {
@@ -269,15 +269,15 @@ public class SummaryEditServiceTests : DatabaseTest
         summary.Nodes.Add(detail);
         summary.Nodes.Add(tooling);
 
-        survey.Responses.Add(response);
-        survey.Summaries.Add(summary);
+        topic.Responses.Add(response);
+        topic.Summaries.Add(summary);
 
-        mDb.Surveys.Add(survey);
+        mDb.Topics.Add(topic);
         await mDb.SaveChangesAsync(this.Cancellation);
 
         SummaryTree.Assemble(summary);
 
-        return (survey, summary);
+        return (topic, summary);
     }
 
     private SummaryEditService Service()

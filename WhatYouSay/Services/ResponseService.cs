@@ -12,19 +12,19 @@ public class ResponseService(WhatYouSayContext db)
     /// the hash is kept, so this is the one moment the token is knowable.
     /// </summary>
     public async Task<string> SubmitAsync(
-        Survey survey,
+        Topic topic,
         string body,
         string? author,
         CancellationToken cancellationToken = default
     )
     {
-        using var activity = WhatYouSayTelemetry.Source.Start().SetSurvey(survey);
+        using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
 
-        if (!survey.IsAcceptingResponses)
+        if (!topic.IsAcceptingResponses)
         {
-            activity.RecordFailure("survey_closed");
+            activity.RecordFailure("topic_closed");
 
-            throw new InvalidOperationException("This survey is no longer accepting responses.");
+            throw new InvalidOperationException("This topic is no longer accepting responses.");
         }
 
         var token = Secrets.NewToken();
@@ -35,22 +35,22 @@ public class ResponseService(WhatYouSayContext db)
             // so it would both restore submission order and leak roughly when someone
             // answered — undoing the whole point of not recording CreatedAt.
             Id = Guid.NewGuid(),
-            SurveyId = survey.Id,
+            TopicId = topic.Id,
             Body = body.Trim(),
-            Author = survey.IsAnonymous ? null : NullIfBlank(author),
+            Author = topic.IsAnonymous ? null : NullIfBlank(author),
             AuthTokenHash = Secrets.HashToken(token),
-            CreatedAt = survey.IsAnonymous ? null : DateTimeOffset.UtcNow,
+            CreatedAt = topic.IsAnonymous ? null : DateTimeOffset.UtcNow,
         });
 
         await db.SaveChangesAsync(cancellationToken);
 
-        WhatYouSayTelemetry.ResponseSubmitted(survey);
+        WhatYouSayTelemetry.ResponseSubmitted(topic);
 
         return token;
     }
 
     public async Task<Response?> FindOwnAsync(
-        Guid surveyId,
+        Guid topicId,
         string token,
         CancellationToken cancellationToken = default
     )
@@ -60,71 +60,71 @@ public class ResponseService(WhatYouSayContext db)
         var hash = Secrets.HashToken(token);
 
         return await db.Responses.FirstOrDefaultAsync(
-            r => r.SurveyId == surveyId && r.AuthTokenHash == hash && !r.IsDeleted,
+            r => r.TopicId == topicId && r.AuthTokenHash == hash && !r.IsDeleted,
             cancellationToken);
     }
 
-    /// <summary>Editable only while the survey is open, so summary quotes cannot rot.</summary>
+    /// <summary>Editable only while the topic is open, so summary quotes cannot rot.</summary>
     public async Task EditAsync(
-        Survey survey,
+        Topic topic,
         Response response,
         string body,
         string? author,
         CancellationToken cancellationToken = default
     )
     {
-        using var activity = WhatYouSayTelemetry.Source.Start().SetSurvey(survey);
+        using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
 
-        if (!survey.IsAcceptingResponses)
+        if (!topic.IsAcceptingResponses)
         {
-            activity.RecordFailure("survey_closed");
+            activity.RecordFailure("topic_closed");
 
-            throw new InvalidOperationException("This survey is closed, so responses are frozen.");
+            throw new InvalidOperationException("This topic is closed, so responses are frozen.");
         }
 
         response.Body = body.Trim();
-        response.Author = survey.IsAnonymous ? null : NullIfBlank(author);
-        response.UpdatedAt = survey.IsAnonymous ? null : DateTimeOffset.UtcNow;
+        response.Author = topic.IsAnonymous ? null : NullIfBlank(author);
+        response.UpdatedAt = topic.IsAnonymous ? null : DateTimeOffset.UtcNow;
 
         await db.SaveChangesAsync(cancellationToken);
 
-        WhatYouSayTelemetry.ResponseEdited(survey);
+        WhatYouSayTelemetry.ResponseEdited(topic);
     }
 
     public async Task WithdrawAsync(
-        Survey survey,
+        Topic topic,
         Response response,
         CancellationToken cancellationToken = default
     )
     {
-        using var activity = WhatYouSayTelemetry.Source.Start().SetSurvey(survey);
+        using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
 
-        if (!survey.IsAcceptingResponses)
+        if (!topic.IsAcceptingResponses)
         {
-            activity.RecordFailure("survey_closed");
+            activity.RecordFailure("topic_closed");
 
-            throw new InvalidOperationException("This survey is closed, so responses are frozen.");
+            throw new InvalidOperationException("This topic is closed, so responses are frozen.");
         }
 
         response.IsDeleted = true;
 
         await db.SaveChangesAsync(cancellationToken);
 
-        WhatYouSayTelemetry.ResponseWithdrawn(survey);
+        WhatYouSayTelemetry.ResponseWithdrawn(topic);
     }
 
     public async Task<IReadOnlyList<Response>> ListAsync(
-        Survey survey,
+        Topic topic,
         CancellationToken cancellationToken = default
     )
     {
-        using var activity = WhatYouSayTelemetry.Source.Start().SetSurvey(survey);
+        using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
 
-        var query = db.Responses.Where(r => r.SurveyId == survey.Id && !r.IsDeleted);
+        var query = db.Responses.Where(r => r.TopicId == topic.Id && !r.IsDeleted);
 
-        // Anonymous surveys have no timestamps to order by, so they fall back to the
+        // Anonymous topics have no timestamps to order by, so they fall back to the
         // random Guid. Insertion order would otherwise leak through the SQLite rowid.
-        query = survey.IsAnonymous
+        query = topic.IsAnonymous
             ? query.OrderBy(r => r.Id)
             : query.OrderBy(r => r.CreatedAt);
 

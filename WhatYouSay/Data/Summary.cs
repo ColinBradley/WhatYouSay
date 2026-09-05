@@ -10,9 +10,9 @@ public class Summary
 {
     public Guid Id { get; set; }
 
-    public Guid SurveyId { get; set; }
+    public Guid TopicId { get; set; }
 
-    public Survey Survey { get; set; } = null!;
+    public Topic Topic { get; set; } = null!;
 
     /// <summary>
     /// Narrative overview in markdown, two or three paragraphs. Deliberately NOT a prose

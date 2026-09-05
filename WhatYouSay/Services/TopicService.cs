@@ -4,48 +4,48 @@ using WhatYouSay.Telemetry;
 
 namespace WhatYouSay.Services;
 
-public record SurveyListing
+public record TopicListing
 {
-    public required Survey Survey { get; init; }
+    public required Topic Topic { get; init; }
 
     public required int ResponseCount { get; init; }
 
     public required bool HasVisibleSummary { get; init; }
 }
 
-public class SurveyService(WhatYouSayContext db)
+public class TopicService(WhatYouSayContext db)
 {
-    public async Task<Survey?> FindByCodeAsync(string code, CancellationToken cancellationToken = default)
+    public async Task<Topic?> FindByCodeAsync(string code, CancellationToken cancellationToken = default)
     {
         using var activity = WhatYouSayTelemetry.Source.Start();
 
-        return await db.Surveys.FirstOrDefaultAsync(s => s.Code == code, cancellationToken);
+        return await db.Topics.FirstOrDefaultAsync(s => s.Code == code, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<SurveyListing>> ListPubliclyListedAsync(
+    public async Task<IReadOnlyList<TopicListing>> ListPubliclyListedAsync(
         CancellationToken cancellationToken = default
     )
     {
         using var activity = WhatYouSayTelemetry.Source.Start();
 
-        return await db.Surveys
+        return await db.Topics
             .Where(s => s.IsPubliclyListed)
             .OrderByDescending(s => s.CreatedAt)
-            .Select(s => new SurveyListing()
+            .Select(s => new TopicListing()
             {
-                Survey = s,
+                Topic = s,
                 ResponseCount = s.Responses.Count(r => !r.IsDeleted),
                 HasVisibleSummary = s.Summaries.Any(x => !x.IsDraft && x.IsPublic),
             })
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<int> CountResponsesAsync(Guid surveyId, CancellationToken cancellationToken = default)
+    public async Task<int> CountResponsesAsync(Guid topicId, CancellationToken cancellationToken = default)
     {
         using var activity = WhatYouSayTelemetry.Source.Start();
 
         return await db.Responses.CountAsync(
-            r => r.SurveyId == surveyId && !r.IsDeleted,
+            r => r.TopicId == topicId && !r.IsDeleted,
             cancellationToken);
     }
 }

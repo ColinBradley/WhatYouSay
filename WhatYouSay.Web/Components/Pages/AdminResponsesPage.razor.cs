@@ -8,20 +8,20 @@ namespace WhatYouSay.Web.Components.Pages;
 
 public partial class AdminResponsesPage
 {
-    private Survey? mSurvey;
+    private Topic? mTopic;
 
     private IReadOnlyList<Response> mResponses = [];
 
     private IReadOnlyList<Crumb> mCrumbs = [];
 
     [Inject]
-    private SurveyService Surveys { get; set; } = default!;
+    private TopicService Topics { get; set; } = default!;
 
     [Inject]
     private ResponseService Responses { get; set; } = default!;
 
     [Inject]
-    private SurveyAdminService Admin { get; set; } = default!;
+    private TopicAdminService Admin { get; set; } = default!;
 
     [Inject]
     private AdminSession Session { get; set; } = default!;
@@ -37,18 +37,18 @@ public partial class AdminResponsesPage
 
     protected override async Task OnInitializedAsync()
     {
-        mSurvey = await this.Surveys.FindByCodeAsync(this.Code);
+        mTopic = await this.Topics.FindByCodeAsync(this.Code);
 
-        if (mSurvey is null)
+        if (mTopic is null)
         {
             mCrumbs = [Breadcrumb.Home(), new Crumb { Text = "Not found" }];
 
             return;
         }
 
-        if (!await this.Session.CanAdministerAsync(mSurvey.Id))
+        if (!await this.Session.CanAdministerAsync(mTopic.Id))
         {
-            this.Navigation.NavigateTo($"/surveys/{this.Code}/admin");
+            this.Navigation.NavigateTo($"/topics/{this.Code}/admin");
 
             return;
         }
@@ -56,25 +56,25 @@ public partial class AdminResponsesPage
         mCrumbs =
         [
             Breadcrumb.Home(),
-            Breadcrumb.Survey(mSurvey.Code, mSurvey.Title),
-            new Crumb { Text = "Admin", Href = $"/surveys/{mSurvey.Code}/admin" },
+            Breadcrumb.Topic(mTopic.Code, mTopic.Title),
+            new Crumb { Text = "Admin", Href = $"/topics/{mTopic.Code}/admin" },
             new Crumb { Text = "Responses" },
         ];
 
-        mResponses = await this.Responses.ListAsync(mSurvey);
+        mResponses = await this.Responses.ListAsync(mTopic);
     }
 
     private async Task DeleteAsync()
     {
-        if (mSurvey is null
+        if (mTopic is null
             || this.ResponseId is not { } id
-            || !await this.Session.CanAdministerAsync(mSurvey.Id))
+            || !await this.Session.CanAdministerAsync(mTopic.Id))
         {
             return;
         }
 
-        await this.Admin.DeleteResponseAsync(mSurvey, id);
+        await this.Admin.DeleteResponseAsync(mTopic, id);
 
-        this.Navigation.NavigateTo($"/surveys/{this.Code}/admin/responses");
+        this.Navigation.NavigateTo($"/topics/{this.Code}/admin/responses");
     }
 }

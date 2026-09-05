@@ -16,12 +16,12 @@ builder.Services.AddRazorComponents()
 builder.Services.AddDbContext<WhatYouSayContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("WhatYouSay")));
 
-builder.Services.AddScoped<SurveyService>();
+builder.Services.AddScoped<TopicService>();
 builder.Services.AddScoped<ResponseService>();
 builder.Services.AddScoped<SummaryService>();
 builder.Services.AddScoped<SummaryEditService>();
 builder.Services.AddScoped<ReactionService>();
-builder.Services.AddScoped<SurveyAdminService>();
+builder.Services.AddScoped<TopicAdminService>();
 builder.Services.AddScoped<AdminSession>();
 
 builder.Services.AddWhatYouSayTelemetry();

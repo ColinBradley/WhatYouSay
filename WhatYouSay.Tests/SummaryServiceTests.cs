@@ -13,16 +13,16 @@ public class SummaryServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var survey = NewSurvey(ResponseIdentity.Required);
+        var topic = NewTopic(ResponseIdentity.Required);
 
-        survey.Summaries.Add(Summary("draft", isDraft: true, isPublic: true));
-        survey.Summaries.Add(Summary("internal", isDraft: false, isPublic: false));
+        topic.Summaries.Add(Summary("draft", isDraft: true, isPublic: true));
+        topic.Summaries.Add(Summary("internal", isDraft: false, isPublic: false));
 
-        mDb.Surveys.Add(survey);
+        mDb.Topics.Add(topic);
         await mDb.SaveChangesAsync(this.Cancellation);
 
-        Assert.IsNull(await this.Service().FindLatestVisibleAsync(survey.Id, this.Cancellation));
-        Assert.IsEmpty(await this.Service().ListVisibleAsync(survey.Id, this.Cancellation));
+        Assert.IsNull(await this.Service().FindLatestVisibleAsync(topic.Id, this.Cancellation));
+        Assert.IsEmpty(await this.Service().ListVisibleAsync(topic.Id, this.Cancellation));
     }
 
     [TestMethod]
@@ -30,18 +30,18 @@ public class SummaryServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var survey = NewSurvey(ResponseIdentity.Required);
+        var topic = NewTopic(ResponseIdentity.Required);
         var draft = Summary("draft", isDraft: true, isPublic: false);
 
-        survey.Summaries.Add(draft);
+        topic.Summaries.Add(draft);
 
-        mDb.Surveys.Add(survey);
+        mDb.Topics.Add(topic);
         await mDb.SaveChangesAsync(this.Cancellation);
 
         // Visibility is the caller's decision, not the loader's: the summary page can then
         // show a draft to an admin without a second way of loading one.
         Assert.IsNotNull(await this.Service().FindAsync(draft.Id, this.Cancellation));
-        Assert.HasCount(1, await this.Service().ListAllAsync(survey.Id, this.Cancellation));
+        Assert.HasCount(1, await this.Service().ListAllAsync(topic.Id, this.Cancellation));
     }
 
     [TestMethod]
@@ -49,19 +49,19 @@ public class SummaryServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var survey = NewSurvey(ResponseIdentity.Required);
+        var topic = NewTopic(ResponseIdentity.Required);
 
-        survey.Summaries.Add(Summary("older", isDraft: false, isPublic: true, daysAgo: 5));
-        survey.Summaries.Add(Summary("newer", isDraft: false, isPublic: true, daysAgo: 1));
+        topic.Summaries.Add(Summary("older", isDraft: false, isPublic: true, daysAgo: 5));
+        topic.Summaries.Add(Summary("newer", isDraft: false, isPublic: true, daysAgo: 1));
 
-        mDb.Surveys.Add(survey);
+        mDb.Topics.Add(topic);
         await mDb.SaveChangesAsync(this.Cancellation);
 
-        var latest = await this.Service().FindLatestVisibleAsync(survey.Id, this.Cancellation);
+        var latest = await this.Service().FindLatestVisibleAsync(topic.Id, this.Cancellation);
 
         Assert.IsNotNull(latest);
         Assert.AreEqual("newer", latest.Body);
-        Assert.HasCount(2, await this.Service().ListVisibleAsync(survey.Id, this.Cancellation));
+        Assert.HasCount(2, await this.Service().ListVisibleAsync(topic.Id, this.Cancellation));
     }
 
     [TestMethod]
@@ -71,8 +71,8 @@ public class SummaryServiceTests : DatabaseTest
 
         await SeedData.EnsureSeededAsync(mDb, this.Cancellation);
 
-        var survey = await mDb.Surveys.SingleAsync(s => s.Code == "spr47ab", this.Cancellation);
-        var summary = (await this.Service().FindLatestVisibleAsync(survey.Id, this.Cancellation))!;
+        var topic = await mDb.Topics.SingleAsync(s => s.Code == "spr47ab", this.Cancellation);
+        var summary = (await this.Service().FindLatestVisibleAsync(topic.Id, this.Cancellation))!;
 
         var node = summary.Nodes.First(n => n.References.Count > 0);
         var citedResponseId = node.References[0].ResponseId;
@@ -85,7 +85,7 @@ public class SummaryServiceTests : DatabaseTest
 
         mDb.ChangeTracker.Clear();
 
-        var reloaded = (await this.Service().FindLatestVisibleAsync(survey.Id, this.Cancellation))!;
+        var reloaded = (await this.Service().FindLatestVisibleAsync(topic.Id, this.Cancellation))!;
         var reloadedNode = reloaded.Nodes.Single(n => n.Id == nodeId);
 
         Assert.HasCount(before - 1, reloadedNode.References);
@@ -99,8 +99,8 @@ public class SummaryServiceTests : DatabaseTest
 
         await SeedData.EnsureSeededAsync(mDb, this.Cancellation);
 
-        var survey = await mDb.Surveys.SingleAsync(s => s.Code == "spr47ab", this.Cancellation);
-        var summary = (await this.Service().FindLatestVisibleAsync(survey.Id, this.Cancellation))!;
+        var topic = await mDb.Topics.SingleAsync(s => s.Code == "spr47ab", this.Cancellation);
+        var summary = (await this.Service().FindLatestVisibleAsync(topic.Id, this.Cancellation))!;
 
         var references = summary.Nodes.SelectMany(n => n.References).ToList();
 
@@ -122,8 +122,8 @@ public class SummaryServiceTests : DatabaseTest
 
         await SeedData.EnsureSeededAsync(mDb, this.Cancellation);
 
-        var survey = await mDb.Surveys.SingleAsync(s => s.Code == "spr47ab", this.Cancellation);
-        var summary = (await this.Service().FindLatestVisibleAsync(survey.Id, this.Cancellation))!;
+        var topic = await mDb.Topics.SingleAsync(s => s.Code == "spr47ab", this.Cancellation);
+        var summary = (await this.Service().FindLatestVisibleAsync(topic.Id, this.Cancellation))!;
 
         Assert.IsNotEmpty(summary.Nodes);
 
@@ -157,8 +157,8 @@ public class SummaryServiceTests : DatabaseTest
 
         await SeedData.EnsureSeededAsync(mDb, this.Cancellation);
 
-        var survey = await mDb.Surveys.SingleAsync(s => s.Code == "spr47ab", this.Cancellation);
-        var summary = (await this.Service().FindLatestVisibleAsync(survey.Id, this.Cancellation))!;
+        var topic = await mDb.Topics.SingleAsync(s => s.Code == "spr47ab", this.Cancellation);
+        var summary = (await this.Service().FindLatestVisibleAsync(topic.Id, this.Cancellation))!;
 
         // Two levels is the topic-and-point shape the tree replaced, so the seed has to
         // exercise something the old model could not express.

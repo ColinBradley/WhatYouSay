@@ -5,26 +5,26 @@ namespace WhatYouSay.Web.Api;
 
 /// <summary>
 /// The whole job, in plain text, at one URL. Read by a model rather than parsed, so it is
-/// prose with literal URLs rather than a schema document. It carries the survey's current
+/// prose with literal URLs rather than a schema document. It carries the topic's current
 /// state inline so the obvious first call is already answered.
 /// </summary>
 public static class SummariserBriefing
 {
     public static string For(
-        Survey survey,
+        Topic topic,
         string baseUrl,
         int responseCount,
         int summaryCount
     )
     {
-        var api = $"{baseUrl}/api/surveys/{survey.Code}";
-        var status = survey.IsAcceptingResponses ? "still open" : "closed to new responses";
+        var api = $"{baseUrl}/api/topics/{topic.Code}";
+        var status = topic.IsAcceptingResponses ? "still open" : "closed to new responses";
 
         // Doubled braces open an interpolation here, which leaves the single braces of the
         // JSON example and the {id} placeholders as literal text.
         var text = new StringBuilder(
             $$"""
-            You are drafting a summary of a WhatYouSay survey. Everything you need is below.
+            You are drafting a summary of a WhatYouSay topic. Everything you need is below.
 
             HOW TO WORK
 
@@ -32,14 +32,14 @@ public static class SummariserBriefing
             post. Posting is not final - a draft can be replaced with PUT as many times
             as you like, so re-submit freely rather than trying to land it in one shot.
 
-            THE SURVEY
+            THE TOPIC
 
-              Title      {{survey.Title}}
-              Question   {{survey.Description}}
+              Title      {{topic.Title}}
+              Question   {{topic.Description}}
               Responses  {{responseCount}}
               Summaries  {{summaryCount}} so far
               Status     {{status}}
-              Identity   {{IdentityLine(survey.ResponseIdentity)}}
+              Identity   {{IdentityLine(topic.ResponseIdentity)}}
 
             AUTHENTICATION
 
@@ -48,7 +48,7 @@ public static class SummariserBriefing
               Authorization: Bearer <your token>
 
             The token is the credential. Keep it out of anywhere public. It is scoped to this
-            one survey and cannot reach another.
+            one topic and cannot reach another.
 
             WHAT TO CALL
 
@@ -213,7 +213,7 @@ public static class SummariserBriefing
             """
         );
 
-        if (survey.IsAcceptingResponses)
+        if (topic.IsAcceptingResponses)
         {
             text.Append(
                 $$"""
@@ -221,9 +221,9 @@ public static class SummariserBriefing
 
                 BEFORE YOU START
 
-                This survey is still accepting responses, so POST {{api}}/summaries will
+                This topic is still accepting responses, so POST {{api}}/summaries will
                 refuse. Summarising a moving target produces quotes that stop matching. Ask
-                whoever gave you this token to close the survey first.
+                whoever gave you this token to close the topic first.
                 """
             );
         }

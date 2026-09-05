@@ -38,30 +38,30 @@ public static class WebTelemetry
         description: "Summariser API requests that reached a handler, by endpoint."
     );
 
-    public static void BriefingServed(Survey survey) =>
-        sBriefingsServed.Add(1, Tags(survey));
+    public static void BriefingServed(Topic topic) =>
+        sBriefingsServed.Add(1, Tags(topic));
 
     /// <summary>
-    /// Carries no survey code: a refusal has no authenticated survey, and the code a bad
+    /// Carries no topic code: a refusal has no authenticated topic, and the code a bad
     /// token happens to name is not ours to record against an anonymous one.
     /// </summary>
     public static void RequestRefused(string reason) =>
         sRequestsRefused.Add(1, new KeyValuePair<string, object?>("refusal.reason", reason));
 
-    public static void RequestServed(Survey survey, string endpoint)
+    public static void RequestServed(Topic topic, string endpoint)
     {
-        var tags = Tags(survey);
+        var tags = Tags(topic);
         tags.Add("api.endpoint", endpoint);
 
         sRequestsServed.Add(1, tags);
     }
 
-    private static TagList Tags(Survey survey)
+    private static TagList Tags(Topic topic)
     {
         return
         [
-            new("survey.code", WhatYouSayTelemetry.TagFor(survey)),
-            new("survey.identity", survey.ResponseIdentity.ToString()),
+            new("topic.code", WhatYouSayTelemetry.TagFor(topic)),
+            new("topic.identity", topic.ResponseIdentity.ToString()),
         ];
     }
 }

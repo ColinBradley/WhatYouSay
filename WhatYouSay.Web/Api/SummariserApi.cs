@@ -9,27 +9,27 @@ using WhatYouSay.Web.Telemetry;
 namespace WhatYouSay.Web.Api;
 
 /// <summary>
-/// The summariser API. Survey in the path, token in the header, JSON everywhere except the
+/// The summariser API. Topic in the path, token in the header, JSON everywhere except the
 /// briefing, which is prose because a model reads it.
 /// </summary>
 public static class SummariserApi
 {
     public static IEndpointRouteBuilder MapSummariserApi(this IEndpointRouteBuilder endpoints)
     {
-        var surveys = endpoints.MapGroup("/api/surveys/{code}")
+        var topics = endpoints.MapGroup("/api/topics/{code}")
             // No browser form posts here and the token is not a cookie, so there is nothing
             // for antiforgery to protect.
             .DisableAntiforgery()
             .AddEndpointFilter(AuthenticateAsync);
 
-        surveys.MapGet("/ai-summary-start", GetBriefingAsync);
-        surveys.MapGet("/", GetSurveyAsync);
-        surveys.MapGet("/responses", GetResponsesAsync);
-        surveys.MapGet("/summaries", GetSummariesAsync);
-        surveys.MapGet("/summaries/{summaryId:guid}", GetSummaryAsync);
-        surveys.MapGet("/summaries/{summaryId:guid}/reactions", GetReactionsAsync);
-        surveys.MapPost("/summaries", CreateSummaryAsync);
-        surveys.MapPut("/summaries/{summaryId:guid}", UpdateSummaryAsync);
+        topics.MapGet("/ai-summary-start", GetBriefingAsync);
+        topics.MapGet("/", GetTopicAsync);
+        topics.MapGet("/responses", GetResponsesAsync);
+        topics.MapGet("/summaries", GetSummariesAsync);
+        topics.MapGet("/summaries/{summaryId:guid}", GetSummaryAsync);
+        topics.MapGet("/summaries/{summaryId:guid}/reactions", GetReactionsAsync);
+        topics.MapPost("/summaries", CreateSummaryAsync);
+        topics.MapPut("/summaries/{summaryId:guid}", UpdateSummaryAsync);
 
         return endpoints;
     }
@@ -57,7 +57,7 @@ public static class SummariserApi
 
         if (refusal == SummariserRefusal.None)
         {
-            activity.SetSurvey(session.Survey);
+            activity.SetTopic(session.Topic);
 
             return await next(context);
         }
@@ -75,7 +75,7 @@ public static class SummariserApi
         {
             SummariserRefusal.MissingToken => "missing_token",
             SummariserRefusal.UnknownToken => "unknown_token",
-            _ => "wrong_survey",
+            _ => "wrong_topic",
         };
 
     private static ProblemHttpResult Refuse(SummariserRefusal refusal, string code, string? scopedCode) =>
@@ -83,18 +83,18 @@ public static class SummariserApi
         {
             SummariserRefusal.MissingToken => TypedResults.Problem(
                 title: "No summariser token",
-                detail: "Send the survey's summariser token as an Authorization header, "
+                detail: "Send the topic's summariser token as an Authorization header, "
                     + "in the form: Bearer <token>",
                 statusCode: StatusCodes.Status401Unauthorized
             ),
             SummariserRefusal.UnknownToken => TypedResults.Problem(
                 title: "Unknown summariser token",
-                detail: "That token does not match any survey. It may have been regenerated.",
+                detail: "That token does not match any topic. It may have been regenerated.",
                 statusCode: StatusCodes.Status401Unauthorized
             ),
             _ => TypedResults.Problem(
-                title: "Token is for a different survey",
-                detail: $"This token is scoped to survey {scopedCode}, not {code}.",
+                title: "Token is for a different topic",
+                detail: $"This token is scoped to topic {scopedCode}, not {code}.",
                 statusCode: StatusCodes.Status403Forbidden
             ),
         };
@@ -106,42 +106,42 @@ public static class SummariserApi
         CancellationToken cancellationToken
     )
     {
-        var survey = session.Survey;
+        var topic = session.Topic;
 
-        using var activity = WebTelemetry.Source.Start().SetSurvey(survey);
+        using var activity = WebTelemetry.Source.Start().SetTopic(topic);
 
-        var counts = await CountAsync(db, survey.Id, cancellationToken);
+        var counts = await CountAsync(db, topic.Id, cancellationToken);
         var baseUrl = $"{http.Request.Scheme}://{http.Request.Host}";
 
-        WebTelemetry.BriefingServed(survey);
+        WebTelemetry.BriefingServed(topic);
 
         return TypedResults.Text(
-            SummariserBriefing.For(survey, baseUrl, counts.Responses, counts.Summaries)
+            SummariserBriefing.For(topic, baseUrl, counts.Responses, counts.Summaries)
         );
     }
 
-    private static async Task<Ok<SurveyInfo>> GetSurveyAsync(
+    private static async Task<Ok<TopicInfo>> GetTopicAsync(
         SummariserSession session,
         WhatYouSayContext db,
         CancellationToken cancellationToken
     )
     {
-        var survey = session.Survey;
+        var topic = session.Topic;
 
-        using var activity = WebTelemetry.Source.Start().SetSurvey(survey);
+        using var activity = WebTelemetry.Source.Start().SetTopic(topic);
 
-        var counts = await CountAsync(db, survey.Id, cancellationToken);
+        var counts = await CountAsync(db, topic.Id, cancellationToken);
 
-        WebTelemetry.RequestServed(survey, "get_survey");
+        WebTelemetry.RequestServed(topic, "get_topic");
 
-        return TypedResults.Ok(new SurveyInfo()
+        return TypedResults.Ok(new TopicInfo()
         {
-            Code = survey.Code,
-            Title = survey.Title,
-            Prompt = survey.Description,
-            ResponseIdentity = survey.ResponseIdentity.ToString(),
-            IsAcceptingResponses = survey.IsAcceptingResponses,
-            AreResponsesPublic = survey.AreResponsesPublic,
+            Code = topic.Code,
+            Title = topic.Title,
+            Prompt = topic.Description,
+            ResponseIdentity = topic.ResponseIdentity.ToString(),
+            IsAcceptingResponses = topic.IsAcceptingResponses,
+            AreResponsesPublic = topic.AreResponsesPublic,
             ResponseCount = counts.Responses,
             SummaryCount = counts.Summaries,
         });
@@ -153,11 +153,11 @@ public static class SummariserApi
         CancellationToken cancellationToken
     )
     {
-        var survey = session.Survey;
+        var topic = session.Topic;
 
-        using var activity = WebTelemetry.Source.Start().SetSurvey(survey);
+        using var activity = WebTelemetry.Source.Start().SetTopic(topic);
 
-        var live = await responses.ListAsync(survey, cancellationToken);
+        var live = await responses.ListAsync(topic, cancellationToken);
 
         IReadOnlyList<ResponseInfo> result =
         [
@@ -171,7 +171,7 @@ public static class SummariserApi
         ];
 
         activity?.SetTag("response.count", result.Count);
-        WebTelemetry.RequestServed(survey, "list_responses");
+        WebTelemetry.RequestServed(topic, "list_responses");
 
         return TypedResults.Ok(result);
     }
@@ -182,11 +182,11 @@ public static class SummariserApi
         CancellationToken cancellationToken
     )
     {
-        var survey = session.Survey;
+        var topic = session.Topic;
 
-        using var activity = WebTelemetry.Source.Start().SetSurvey(survey);
+        using var activity = WebTelemetry.Source.Start().SetTopic(topic);
 
-        var all = await summaries.ListAllAsync(survey.Id, cancellationToken);
+        var all = await summaries.ListAllAsync(topic.Id, cancellationToken);
         var result = new List<SummaryInfo>();
 
         foreach (var summary in all)
@@ -196,7 +196,7 @@ public static class SummariserApi
             result.Add(Describe(detailed!));
         }
 
-        WebTelemetry.RequestServed(survey, "list_summaries");
+        WebTelemetry.RequestServed(topic, "list_summaries");
 
         return TypedResults.Ok<IReadOnlyList<SummaryInfo>>(result);
     }
@@ -208,9 +208,9 @@ public static class SummariserApi
         CancellationToken cancellationToken
     )
     {
-        var survey = session.Survey;
+        var topic = session.Topic;
 
-        using var activity = WebTelemetry.Source.Start().SetSurvey(survey);
+        using var activity = WebTelemetry.Source.Start().SetTopic(topic);
 
         var summary = await FindAsync(session, summaries, summaryId, cancellationToken);
 
@@ -221,7 +221,7 @@ public static class SummariserApi
             return NoSuchSummary(summaryId);
         }
 
-        WebTelemetry.RequestServed(survey, "get_summary");
+        WebTelemetry.RequestServed(topic, "get_summary");
 
         return TypedResults.Ok(new SummaryDetail()
         {
@@ -261,9 +261,9 @@ public static class SummariserApi
         CancellationToken cancellationToken
     )
     {
-        var survey = session.Survey;
+        var topic = session.Topic;
 
-        using var activity = WebTelemetry.Source.Start().SetSurvey(survey);
+        using var activity = WebTelemetry.Source.Start().SetTopic(topic);
 
         var summary = await FindAsync(session, summaries, summaryId, cancellationToken);
 
@@ -307,7 +307,7 @@ public static class SummariserApi
         ];
 
         activity?.SetTag("objection.count", result.Sum(r => r.Objections.Count));
-        WebTelemetry.RequestServed(survey, "list_reactions");
+        WebTelemetry.RequestServed(topic, "list_reactions");
 
         return TypedResults.Ok(result);
     }
@@ -319,25 +319,25 @@ public static class SummariserApi
         CancellationToken cancellationToken
     )
     {
-        var survey = session.Survey;
+        var topic = session.Topic;
 
-        using var activity = WebTelemetry.Source.Start().SetSurvey(survey);
+        using var activity = WebTelemetry.Source.Start().SetTopic(topic);
 
         try
         {
             var saved = await summaries.SaveDraftAsync(
-                survey,
+                topic,
                 summary,
                 "agent",
                 null,
                 cancellationToken
             );
 
-            WebTelemetry.RequestServed(survey, "create_summary");
+            WebTelemetry.RequestServed(topic, "create_summary");
 
             return TypedResults.Created(
-                $"/api/surveys/{survey.Code}/summaries/{saved.Id}",
-                Result(survey, saved)
+                $"/api/topics/{topic.Code}/summaries/{saved.Id}",
+                Result(topic, saved)
             );
         }
         catch (SummaryGroundingException rejection)
@@ -355,9 +355,9 @@ public static class SummariserApi
         CancellationToken cancellationToken
     )
     {
-        var survey = session.Survey;
+        var topic = session.Topic;
 
-        using var activity = WebTelemetry.Source.Start().SetSurvey(survey);
+        using var activity = WebTelemetry.Source.Start().SetTopic(topic);
 
         if (await FindAsync(session, summaries, summaryId, cancellationToken) is null)
         {
@@ -369,16 +369,16 @@ public static class SummariserApi
         try
         {
             var saved = await summaries.SaveDraftAsync(
-                survey,
+                topic,
                 summary,
                 "agent",
                 summaryId,
                 cancellationToken
             );
 
-            WebTelemetry.RequestServed(survey, "update_summary");
+            WebTelemetry.RequestServed(topic, "update_summary");
 
-            return TypedResults.Ok(Result(survey, saved));
+            return TypedResults.Ok(Result(topic, saved));
         }
         catch (SummaryGroundingException rejection)
         {
@@ -394,7 +394,7 @@ public static class SummariserApi
     {
         var status = rejection.Reason switch
         {
-            "survey_open" or "summary_published" => StatusCodes.Status409Conflict,
+            "topic_open" or "summary_published" => StatusCodes.Status409Conflict,
             _ => StatusCodes.Status422UnprocessableEntity,
         };
 
@@ -413,7 +413,7 @@ public static class SummariserApi
     private static ProblemHttpResult NoSuchSummary(Guid summaryId) =>
         TypedResults.Problem(
             title: "No such summary",
-            detail: $"No summary {summaryId} on this survey.",
+            detail: $"No summary {summaryId} on this topic.",
             statusCode: StatusCodes.Status404NotFound
         );
 
@@ -426,34 +426,34 @@ public static class SummariserApi
     {
         var summary = await summaries.FindAsync(summaryId, cancellationToken);
 
-        return summary is null || summary.SurveyId != session.Survey.Id ? null : summary;
+        return summary is null || summary.TopicId != session.Topic.Id ? null : summary;
     }
 
     private static async Task<(int Responses, int Summaries)> CountAsync(
         WhatYouSayContext db,
-        Guid surveyId,
+        Guid topicId,
         CancellationToken cancellationToken
     )
     {
         var responses = await db.Responses.CountAsync(
-            r => r.SurveyId == surveyId && !r.IsDeleted,
+            r => r.TopicId == topicId && !r.IsDeleted,
             cancellationToken
         );
 
         var summaries = await db.Summaries.CountAsync(
-            s => s.SurveyId == surveyId,
+            s => s.TopicId == topicId,
             cancellationToken
         );
 
         return (responses, summaries);
     }
 
-    private static DraftResult Result(Survey survey, Summary summary)
+    private static DraftResult Result(Topic topic, Summary summary)
     {
         return new DraftResult()
         {
             SummaryId = summary.Id,
-            EditUrl = $"/surveys/{survey.Code}/admin/summaries/{summary.Id}",
+            EditUrl = $"/topics/{topic.Code}/admin/summaries/{summary.Id}",
             NodeCount = summary.Nodes.Count,
             MaxDepth = SummaryTree.Depth(summary.Roots),
             ReferenceCount = summary.Nodes.Sum(n => n.References.Count),

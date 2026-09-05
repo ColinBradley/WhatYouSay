@@ -10,7 +10,7 @@ namespace WhatYouSay.Web.Components.Pages;
 
 public partial class SummaryPage
 {
-    private Survey? mSurvey;
+    private Topic? mTopic;
 
     private Summary? mSummary;
 
@@ -36,7 +36,7 @@ public partial class SummaryPage
     private IReadOnlyList<Crumb> mCrumbs = [];
 
     [Inject]
-    private SurveyService Surveys { get; set; } = default!;
+    private TopicService Topics { get; set; } = default!;
 
     [Inject]
     private SummaryService Summaries { get; set; } = default!;
@@ -64,31 +64,31 @@ public partial class SummaryPage
 
     protected override async Task OnInitializedAsync()
     {
-        mSurvey = await this.Surveys.FindByCodeAsync(this.Code);
+        mTopic = await this.Topics.FindByCodeAsync(this.Code);
 
-        if (mSurvey is null)
+        if (mTopic is null)
         {
             mCrumbs = [Breadcrumb.Home(), new Crumb { Text = "Not found" }];
 
             return;
         }
 
-        using var activity = WebTelemetry.Source.Start().SetSurvey(mSurvey);
+        using var activity = WebTelemetry.Source.Start().SetTopic(mTopic);
 
         mCrumbs =
         [
             Breadcrumb.Home(),
-            Breadcrumb.Survey(mSurvey.Code, mSurvey.Title),
+            Breadcrumb.Topic(mTopic.Code, mTopic.Title),
             new Crumb { Text = "Summary" },
         ];
 
-        mIsAdmin = await this.Session.CanAdministerAsync(mSurvey.Id);
+        mIsAdmin = await this.Session.CanAdministerAsync(mTopic.Id);
 
         mVersions =
         [
             .. mIsAdmin
-                ? await this.Summaries.ListAllAsync(mSurvey.Id)
-                : await this.Summaries.ListVisibleAsync(mSurvey.Id),
+                ? await this.Summaries.ListAllAsync(mTopic.Id)
+                : await this.Summaries.ListVisibleAsync(mTopic.Id),
         ];
 
         mUnpublished = mVersions.Count(v => !v.IsVisibleToPublic);
@@ -99,10 +99,10 @@ public partial class SummaryPage
         // list links to.
         mSummary = this.SummaryId is { } id
             ? await this.Summaries.FindAsync(id)
-            : await this.Summaries.FindLatestVisibleAsync(mSurvey.Id);
+            : await this.Summaries.FindLatestVisibleAsync(mTopic.Id);
 
         if (mSummary is not null
-            && (mSummary.SurveyId != mSurvey.Id || !(mSummary.IsVisibleToPublic || mIsAdmin)))
+            && (mSummary.TopicId != mTopic.Id || !(mSummary.IsVisibleToPublic || mIsAdmin)))
         {
             mSummary = null;
         }
@@ -113,27 +113,27 @@ public partial class SummaryPage
         }
 
         mRoots = [.. mSummary.Roots];
-        mResponderToken = ResponderCookie.Read(this.HttpContext, mSurvey.Id);
+        mResponderToken = ResponderCookie.Read(this.HttpContext, mTopic.Id);
 
         // Reacting is what publishing turns on, so an unpublished version an admin is
         // previewing takes no reactions — they would attach to nodes the next draft replaces.
         var canReact = mSummary.IsVisibleToPublic
-            && await this.Reactions.CanReactAsync(mSurvey.Id, mResponderToken);
+            && await this.Reactions.CanReactAsync(mTopic.Id, mResponderToken);
 
         mReading = new SummaryReading()
         {
-            ResponsesArePublic = mSurvey.AreResponsesPublic,
+            ResponsesArePublic = mTopic.AreResponsesPublic,
             CanReact = canReact,
             ReactReason = this.ReactReason(canReact),
             Tallies = await this.Reactions.TallyAsync(mSummary.Id, mResponderToken),
         };
 
-        WhatYouSayTelemetry.SummaryViewed(mSurvey);
+        WhatYouSayTelemetry.SummaryViewed(mTopic);
     }
 
     private async Task ReactAsync()
     {
-        if (mSurvey is null
+        if (mTopic is null
             || mSummary is null
             || !mReading.CanReact
             || mResponderToken is null
@@ -154,16 +154,16 @@ public partial class SummaryPage
         switch (parts[2])
         {
             case "toggle":
-                await this.Reactions.ToggleAsync(mSurvey, nodeId, mResponderToken, kind);
+                await this.Reactions.ToggleAsync(mTopic, nodeId, mResponderToken, kind);
                 break;
 
             case "set":
                 var note = this.HttpContext.Request.Form[SummaryReading.NoteField(nodeId)].ToString();
-                await this.Reactions.SetObjectionAsync(mSurvey, nodeId, mResponderToken, note);
+                await this.Reactions.SetObjectionAsync(mTopic, nodeId, mResponderToken, note);
                 break;
 
             case "withdraw":
-                await this.Reactions.WithdrawAsync(mSurvey, nodeId, mResponderToken, kind);
+                await this.Reactions.WithdrawAsync(mTopic, nodeId, mResponderToken, kind);
                 break;
         }
 
@@ -179,7 +179,7 @@ public partial class SummaryPage
         }
 
         return mSummary!.IsVisibleToPublic
-            ? "Only people who answered this survey can react to it."
+            ? "Only people who answered this topic can react to it."
             : "This version has not been published yet.";
     }
 

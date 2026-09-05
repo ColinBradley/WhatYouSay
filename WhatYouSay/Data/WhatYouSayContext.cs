@@ -4,7 +4,7 @@ namespace WhatYouSay.Data;
 
 public class WhatYouSayContext(DbContextOptions<WhatYouSayContext> options) : DbContext(options)
 {
-    public DbSet<Survey> Surveys => this.Set<Survey>();
+    public DbSet<Topic> Topics => this.Set<Topic>();
 
     public DbSet<Response> Responses => this.Set<Response>();
 
@@ -24,31 +24,31 @@ public class WhatYouSayContext(DbContextOptions<WhatYouSayContext> options) : Db
 
     protected override void OnModelCreating(ModelBuilder model)
     {
-        model.Entity<Survey>(survey =>
+        model.Entity<Topic>(topic =>
         {
-            survey.HasIndex(s => s.Code).IsUnique();
-            survey.HasIndex(s => s.SummariserTokenHash);
+            topic.HasIndex(s => s.Code).IsUnique();
+            topic.HasIndex(s => s.SummariserTokenHash);
 
             // Enums as strings throughout: a sqlite3 session should show "Anonymous", not
             // "2", and reordering members must never reinterpret existing rows.
-            survey.Property(s => s.ResponseIdentity).HasConversion<string>();
+            topic.Property(s => s.ResponseIdentity).HasConversion<string>();
         });
 
         model.Entity<Response>(response =>
         {
             response.HasIndex(r => r.AuthTokenHash);
 
-            response.HasOne(r => r.Survey)
+            response.HasOne(r => r.Topic)
                 .WithMany(s => s.Responses)
-                .HasForeignKey(r => r.SurveyId)
+                .HasForeignKey(r => r.TopicId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
         model.Entity<Summary>(summary =>
         {
-            summary.HasOne(s => s.Survey)
+            summary.HasOne(s => s.Topic)
                 .WithMany(s => s.Summaries)
-                .HasForeignKey(s => s.SurveyId)
+                .HasForeignKey(s => s.TopicId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

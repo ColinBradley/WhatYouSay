@@ -8,7 +8,7 @@ namespace WhatYouSay.Web.Components.Pages;
 
 public partial class AdminSummariesPage
 {
-    private Survey? mSurvey;
+    private Topic? mTopic;
 
     private List<Summary> mSummaries = [];
 
@@ -17,13 +17,13 @@ public partial class AdminSummariesPage
     private string? mError;
 
     [Inject]
-    private SurveyService Surveys { get; set; } = default!;
+    private TopicService Topics { get; set; } = default!;
 
     [Inject]
     private SummaryService Summaries { get; set; } = default!;
 
     [Inject]
-    private SurveyAdminService Admin { get; set; } = default!;
+    private TopicAdminService Admin { get; set; } = default!;
 
     [Inject]
     private AdminSession Session { get; set; } = default!;
@@ -39,18 +39,18 @@ public partial class AdminSummariesPage
 
     protected override async Task OnInitializedAsync()
     {
-        mSurvey = await this.Surveys.FindByCodeAsync(this.Code);
+        mTopic = await this.Topics.FindByCodeAsync(this.Code);
 
-        if (mSurvey is null)
+        if (mTopic is null)
         {
             mCrumbs = [Breadcrumb.Home(), new Crumb { Text = "Not found" }];
 
             return;
         }
 
-        if (!await this.Session.CanAdministerAsync(mSurvey.Id))
+        if (!await this.Session.CanAdministerAsync(mTopic.Id))
         {
-            this.Navigation.NavigateTo($"/surveys/{this.Code}/admin");
+            this.Navigation.NavigateTo($"/topics/{this.Code}/admin");
 
             return;
         }
@@ -58,8 +58,8 @@ public partial class AdminSummariesPage
         mCrumbs =
         [
             Breadcrumb.Home(),
-            Breadcrumb.Survey(mSurvey.Code, mSurvey.Title),
-            new Crumb { Text = "Admin", Href = $"/surveys/{mSurvey.Code}/admin" },
+            Breadcrumb.Topic(mTopic.Code, mTopic.Title),
+            new Crumb { Text = "Admin", Href = $"/topics/{mTopic.Code}/admin" },
             new Crumb { Text = "Summaries" },
         ];
 
@@ -68,7 +68,7 @@ public partial class AdminSummariesPage
 
     private async Task LoadAsync()
     {
-        var versions = await this.Summaries.ListAllAsync(mSurvey!.Id);
+        var versions = await this.Summaries.ListAllAsync(mTopic!.Id);
         mSummaries = [];
 
         foreach (var version in versions)
@@ -79,9 +79,9 @@ public partial class AdminSummariesPage
 
     private async Task ActAsync()
     {
-        if (mSurvey is null
+        if (mTopic is null
             || this.Action is null
-            || !await this.Session.CanAdministerAsync(mSurvey.Id))
+            || !await this.Session.CanAdministerAsync(mTopic.Id))
         {
             return;
         }
@@ -98,15 +98,15 @@ public partial class AdminSummariesPage
             switch (parts[1])
             {
                 case "publish":
-                    await this.Admin.SetSummaryVisibilityAsync(mSurvey, summaryId, true);
+                    await this.Admin.SetSummaryVisibilityAsync(mTopic, summaryId, true);
                     break;
 
                 case "unpublish":
-                    await this.Admin.SetSummaryVisibilityAsync(mSurvey, summaryId, false);
+                    await this.Admin.SetSummaryVisibilityAsync(mTopic, summaryId, false);
                     break;
 
                 case "delete":
-                    await this.Admin.DeleteSummaryAsync(mSurvey, summaryId);
+                    await this.Admin.DeleteSummaryAsync(mTopic, summaryId);
                     break;
             }
         }
@@ -120,6 +120,6 @@ public partial class AdminSummariesPage
             return;
         }
 
-        this.Navigation.NavigateTo($"/surveys/{this.Code}/admin/summaries");
+        this.Navigation.NavigateTo($"/topics/{this.Code}/admin/summaries");
     }
 }

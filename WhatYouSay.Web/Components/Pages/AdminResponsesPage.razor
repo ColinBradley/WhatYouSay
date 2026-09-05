@@ -1,23 +1,23 @@
-@page "/surveys/{Code}/admin/responses"
+@page "/topics/{Code}/admin/responses"
 
 <PageTitle>Responses</PageTitle>
 
 <Breadcrumb Items="@mCrumbs" />
 
-@if (mSurvey is null)
+@if (mTopic is null)
 {
-    <h1>Survey not found</h1>
+    <h1>Topic not found</h1>
     <a href="/">Back to the list</a>
 }
 else
 {
     <h1>Responses</h1>
-    <p class="lead">@mSurvey.Title</p>
+    <p class="lead">@mTopic.Title</p>
 
-    @if (mSurvey.IsAnonymous)
+    @if (mTopic.IsAnonymous)
     {
         <p class="small text-body-secondary">
-            This survey is anonymous, so no names or times were recorded and the order below
+            This topic is anonymous, so no names or times were recorded and the order below
             is meaningless by design.
         </p>
     }

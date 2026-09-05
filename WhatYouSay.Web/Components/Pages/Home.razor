@@ -8,12 +8,12 @@
 
 <div class="row g-4 mt-1">
     <div class="col-md-7">
-        <h2 class="h5">Listed surveys</h2>
+        <h2 class="h5">Listed topics</h2>
 
         @if (mListings is { Count: 0 })
         {
             <p class="text-body-secondary">
-                Nothing listed publicly yet. Surveys shared by link don't appear here.
+                Nothing listed publicly yet. Topics shared by link don't appear here.
             </p>
         }
         else if (mListings is not null)
@@ -22,11 +22,11 @@
                 @foreach (var listing in mListings)
                 {
                     <a class="list-group-item list-group-item-action"
-                       href="@($"/surveys/{listing.Survey.Code}")">
+                       href="@($"/topics/{listing.Topic.Code}")">
                         <div class="d-flex justify-content-between align-items-start gap-3">
                             <div>
-                                <div class="fw-semibold">@listing.Survey.Title</div>
-                                <div class="small text-body-secondary">@listing.Survey.Description</div>
+                                <div class="fw-semibold">@listing.Topic.Title</div>
+                                <div class="small text-body-secondary">@listing.Topic.Description</div>
                             </div>
                             <span class="badge text-bg-light flex-shrink-0">
                                 @listing.ResponseCount responses
@@ -34,8 +34,8 @@
                         </div>
 
                         <div class="mt-2 d-flex gap-2">
-                            <span class="badge @(listing.Survey.IsAcceptingResponses ? "text-bg-success" : "text-bg-secondary")">
-                                @(listing.Survey.IsAcceptingResponses ? "Open" : "Closed")
+                            <span class="badge @(listing.Topic.IsAcceptingResponses ? "text-bg-success" : "text-bg-secondary")">
+                                @(listing.Topic.IsAcceptingResponses ? "Open" : "Closed")
                             </span>
 
                             @if (listing.HasVisibleSummary)
@@ -43,7 +43,7 @@
                                 <span class="badge text-bg-info">Summary published</span>
                             }
 
-                            @if (listing.Survey.IsAnonymous)
+                            @if (listing.Topic.IsAnonymous)
                             {
                                 <span class="badge text-bg-light border">Anonymous</span>
                             }
@@ -60,19 +60,19 @@
         <form method="post" @formname="open-by-code" @onsubmit="OpenByCodeAsync" class="d-flex gap-2">
             <AntiforgeryToken />
             <input class="form-control" name="Code" value="@Code" placeholder="e.g. 7fk2p9a"
-                   aria-label="Survey code" />
+                   aria-label="Topic code" />
             <button class="btn btn-primary" type="submit">Open</button>
         </form>
 
         @if (mNotFound is not null)
         {
-            <p class="text-danger small mt-2">No survey with the code &ldquo;@mNotFound&rdquo;.</p>
+            <p class="text-danger small mt-2">No topic with the code &ldquo;@mNotFound&rdquo;.</p>
         }
 
         <p class="small text-body-secondary mt-2">
-            Every survey has a short code at the end of its link.
+            Every topic has a short code at the end of its link.
         </p>
 
-        <a class="btn btn-outline-primary mt-2" href="/new">Start a new survey</a>
+        <a class="btn btn-outline-primary mt-2" href="/new">Start a new topic</a>
     </div>
 </div>

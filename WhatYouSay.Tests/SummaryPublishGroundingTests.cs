@@ -15,9 +15,9 @@ public class SummaryPublishGroundingTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, summary) = await this.SeededAsync(citeTheLeaf: true);
+        var (topic, summary) = await this.SeededAsync(citeTheLeaf: true);
 
-        await this.Admin().SetSummaryVisibilityAsync(survey, summary.Id, true, this.Cancellation);
+        await this.Admin().SetSummaryVisibilityAsync(topic, summary.Id, true, this.Cancellation);
 
         Assert.IsTrue(summary.IsVisibleToPublic);
     }
@@ -27,11 +27,11 @@ public class SummaryPublishGroundingTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, summary) = await this.SeededAsync(citeTheLeaf: false);
+        var (topic, summary) = await this.SeededAsync(citeTheLeaf: false);
 
         var failure = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
             () => this.Admin().SetSummaryVisibilityAsync(
-                survey, summary.Id, true, this.Cancellation
+                topic, summary.Id, true, this.Cancellation
             )
         );
 
@@ -44,9 +44,9 @@ public class SummaryPublishGroundingTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, summary) = await this.SeededAsync(citeTheLeaf: false, citeTheHeading: true);
+        var (topic, summary) = await this.SeededAsync(citeTheLeaf: false, citeTheHeading: true);
 
-        await this.Admin().SetSummaryVisibilityAsync(survey, summary.Id, true, this.Cancellation);
+        await this.Admin().SetSummaryVisibilityAsync(topic, summary.Id, true, this.Cancellation);
 
         Assert.IsTrue(summary.IsVisibleToPublic);
     }
@@ -56,7 +56,7 @@ public class SummaryPublishGroundingTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, summary) = await this.SeededAsync(citeTheLeaf: true);
+        var (topic, summary) = await this.SeededAsync(citeTheLeaf: true);
 
         // References to a withdrawn response are filtered out of every read, so the node
         // they supported has to stop counting as supported too.
@@ -64,10 +64,10 @@ public class SummaryPublishGroundingTests : DatabaseTest
         await mDb.SaveChangesAsync(this.Cancellation);
 
         await using var fresh = this.NewContext();
-        var reloaded = fresh.Surveys.Single(s => s.Id == survey.Id);
+        var reloaded = fresh.Topics.Single(s => s.Id == topic.Id);
 
         await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
-            () => new SurveyAdminService(fresh).SetSummaryVisibilityAsync(
+            () => new TopicAdminService(fresh).SetSummaryVisibilityAsync(
                 reloaded, summary.Id, true, this.Cancellation
             )
         );
@@ -78,25 +78,25 @@ public class SummaryPublishGroundingTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, summary) = await this.SeededAsync(citeTheLeaf: false);
+        var (topic, summary) = await this.SeededAsync(citeTheLeaf: false);
 
         summary.IsDraft = false;
         summary.IsPublic = true;
         await mDb.SaveChangesAsync(this.Cancellation);
 
         // Taking something back must never be blocked by what is wrong with it.
-        await this.Admin().SetSummaryVisibilityAsync(survey, summary.Id, false, this.Cancellation);
+        await this.Admin().SetSummaryVisibilityAsync(topic, summary.Id, false, this.Cancellation);
 
         Assert.IsFalse(summary.IsVisibleToPublic);
     }
 
-    private async Task<(Survey Survey, Summary Summary)> SeededAsync(
+    private async Task<(Topic Topic, Summary Summary)> SeededAsync(
         bool citeTheLeaf,
         bool citeTheHeading = false
     )
     {
-        var survey = NewSurvey(ResponseIdentity.Required);
-        survey.IsAcceptingResponses = false;
+        var topic = NewTopic(ResponseIdentity.Required);
+        topic.IsAcceptingResponses = false;
 
         var response = new Response()
         {
@@ -122,13 +122,13 @@ public class SummaryPublishGroundingTests : DatabaseTest
         summary.Nodes.Add(heading);
         summary.Nodes.Add(leaf);
 
-        survey.Responses.Add(response);
-        survey.Summaries.Add(summary);
+        topic.Responses.Add(response);
+        topic.Summaries.Add(summary);
 
-        mDb.Surveys.Add(survey);
+        mDb.Topics.Add(topic);
         await mDb.SaveChangesAsync(this.Cancellation);
 
-        return (survey, summary);
+        return (topic, summary);
     }
 
     private static SummaryNodeReference Cite(Response response, string quote)
@@ -144,8 +144,8 @@ public class SummaryPublishGroundingTests : DatabaseTest
         };
     }
 
-    private SurveyAdminService Admin()
+    private TopicAdminService Admin()
     {
-        return new SurveyAdminService(mDb);
+        return new TopicAdminService(mDb);
     }
 }

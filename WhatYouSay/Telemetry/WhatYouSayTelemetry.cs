@@ -11,12 +11,12 @@ public static class WhatYouSayTelemetry
     public const string MeterName = ServiceName;
 
     /// <summary>
-    /// Stands in for the code of an anonymous survey. Spans and metrics carry timestamps,
-    /// so tagging one with the code would turn the trace store into the per-survey
+    /// Stands in for the code of an anonymous topic. Spans and metrics carry timestamps,
+    /// so tagging one with the code would turn the trace store into the per-topic
     /// submission log that anonymous mode gives up <see cref="Response.CreatedAt"/> to
-    /// avoid. Does not hide a lone anonymous survey's request timing.
+    /// avoid. Does not hide a lone anonymous topic's request timing.
     /// </summary>
-    public const string RedactedSurvey = "(anonymous)";
+    public const string RedactedTopic = "(anonymous)";
 
     /// <summary>One source per assembly, named after it.</summary>
     public static ActivitySource Source { get; } = new(ServiceName);
@@ -26,12 +26,12 @@ public static class WhatYouSayTelemetry
     private static readonly Counter<long> sResponsesSubmitted = sMeter.CreateCounter<long>(
         "whatyousay.responses.submitted",
         unit: "{response}",
-        description: "Responses submitted to a survey.");
+        description: "Responses submitted to a topic.");
 
     private static readonly Counter<long> sResponsesEdited = sMeter.CreateCounter<long>(
         "whatyousay.responses.edited",
         unit: "{response}",
-        description: "Edits made by responders to their own response while a survey is open.");
+        description: "Edits made by responders to their own response while a topic is open.");
 
     private static readonly Counter<long> sResponsesWithdrawn = sMeter.CreateCounter<long>(
         "whatyousay.responses.withdrawn",
@@ -53,10 +53,10 @@ public static class WhatYouSayTelemetry
         unit: "{edit}",
         description: "Edits a human made to a draft summary, by kind.");
 
-    private static readonly Counter<long> sSurveysCreated = sMeter.CreateCounter<long>(
-        "whatyousay.surveys.created",
-        unit: "{survey}",
-        description: "Surveys created.");
+    private static readonly Counter<long> sTopicsCreated = sMeter.CreateCounter<long>(
+        "whatyousay.topics.created",
+        unit: "{topic}",
+        description: "Topics created.");
 
     private static readonly Counter<long> sReactionsAdded = sMeter.CreateCounter<long>(
         "whatyousay.reactions.added",
@@ -75,68 +75,68 @@ public static class WhatYouSayTelemetry
         description: "Draft summaries rejected by grounding validation, by reason.");
 
     /// <summary>
-    /// The code, unless the survey is anonymous. Never tag with a raw code; use this or
-    /// <see cref="ActivityExtensions.SetSurvey"/>.
+    /// The code, unless the topic is anonymous. Never tag with a raw code; use this or
+    /// <see cref="ActivityExtensions.SetTopic"/>.
     /// </summary>
-    public static string TagFor(Survey survey) =>
-        survey.IsAnonymous 
-            ? RedactedSurvey 
-            : survey.Code;
+    public static string TagFor(Topic topic) =>
+        topic.IsAnonymous 
+            ? RedactedTopic 
+            : topic.Code;
 
-    public static void ResponseSubmitted(Survey survey) =>
-        sResponsesSubmitted.Add(1, Tags(survey));
+    public static void ResponseSubmitted(Topic topic) =>
+        sResponsesSubmitted.Add(1, Tags(topic));
 
-    public static void ResponseEdited(Survey survey) =>
-        sResponsesEdited.Add(1, Tags(survey));
+    public static void ResponseEdited(Topic topic) =>
+        sResponsesEdited.Add(1, Tags(topic));
 
-    public static void ResponseWithdrawn(Survey survey) =>
-        sResponsesWithdrawn.Add(1, Tags(survey));
+    public static void ResponseWithdrawn(Topic topic) =>
+        sResponsesWithdrawn.Add(1, Tags(topic));
 
-    public static void SummaryViewed(Survey survey) =>
-        sSummariesViewed.Add(1, Tags(survey));
+    public static void SummaryViewed(Topic topic) =>
+        sSummariesViewed.Add(1, Tags(topic));
 
-    public static void SummaryDrafted(Survey survey) =>
-        sSummariesDrafted.Add(1, Tags(survey));
+    public static void SummaryDrafted(Topic topic) =>
+        sSummariesDrafted.Add(1, Tags(topic));
 
-    public static void SurveyCreated(Survey survey) =>
-        sSurveysCreated.Add(1, Tags(survey));
+    public static void TopicCreated(Topic topic) =>
+        sTopicsCreated.Add(1, Tags(topic));
 
-    public static void SummaryEdited(Survey survey, string kind)
+    public static void SummaryEdited(Topic topic, string kind)
     {
-        var tags = Tags(survey);
+        var tags = Tags(topic);
         tags.Add("edit.kind", kind);
 
         sSummariesEdited.Add(1, tags);
     }
 
-    public static void ReactionAdded(Survey survey, ReactionKind kind) =>
-        sReactionsAdded.Add(1, WithKind(survey, kind));
+    public static void ReactionAdded(Topic topic, ReactionKind kind) =>
+        sReactionsAdded.Add(1, WithKind(topic, kind));
 
-    public static void ReactionRemoved(Survey survey, ReactionKind kind) =>
-        sReactionsRemoved.Add(1, WithKind(survey, kind));
+    public static void ReactionRemoved(Topic topic, ReactionKind kind) =>
+        sReactionsRemoved.Add(1, WithKind(topic, kind));
 
-    private static TagList WithKind(Survey survey, ReactionKind kind)
+    private static TagList WithKind(Topic topic, ReactionKind kind)
     {
-        var tags = Tags(survey);
+        var tags = Tags(topic);
         tags.Add("reaction.kind", kind.ToString());
 
         return tags;
     }
 
-    public static void SummaryRejected(Survey survey, string reason)
+    public static void SummaryRejected(Topic topic, string reason)
     {
-        var tags = Tags(survey);
+        var tags = Tags(topic);
         tags.Add("rejection.reason", reason);
 
         sSummariesRejected.Add(1, tags);
     }
 
-    private static TagList Tags(Survey survey)
+    private static TagList Tags(Topic topic)
     {
         return
         [
-            new("survey.code", TagFor(survey)),
-            new("survey.identity", survey.ResponseIdentity.ToString()),
+            new("topic.code", TagFor(topic)),
+            new("topic.identity", topic.ResponseIdentity.ToString()),
         ];
     }
 }

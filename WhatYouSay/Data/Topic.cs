@@ -1,10 +1,10 @@
 namespace WhatYouSay.Data;
 
-public class Survey
+public class Topic
 {
     public Guid Id { get; set; }
 
-    /// <summary>Short url-safe code; the public URL segment in /surveys/{code}.</summary>
+    /// <summary>Short url-safe code; the public URL segment in /topics/{code}.</summary>
     public required string Code { get; set; }
 
     public required string Title { get; set; }
@@ -36,7 +36,7 @@ public class Survey
 
     /// <summary>
     /// Reopening is allowed only while nothing references the responses. Once a summary
-    /// exists the survey stays closed for good; run a new survey instead.
+    /// exists the topic stays closed for good; run a new topic instead.
     /// </summary>
     public bool CanReopen => !this.IsAcceptingResponses && this.Summaries.Count == 0;
 }

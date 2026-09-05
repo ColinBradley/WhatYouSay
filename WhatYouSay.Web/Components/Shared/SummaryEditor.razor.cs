@@ -11,7 +11,7 @@ namespace WhatYouSay.Web.Components.Shared;
 /// </summary>
 public partial class SummaryEditor
 {
-    private Survey? mSurvey;
+    private Topic? mTopic;
 
     private Summary? mSummary;
 
@@ -45,7 +45,7 @@ public partial class SummaryEditor
 
     [Parameter]
     [EditorRequired]
-    public Guid SurveyId { get; set; }
+    public Guid TopicId { get; set; }
 
     [Parameter]
     [EditorRequired]
@@ -105,7 +105,7 @@ public partial class SummaryEditor
     /// long as the circuit, accumulating tracked entities across an editing session and
     /// answering later reads from the first one.
     /// </summary>
-    private async Task RunAsync(Func<IServiceProvider, Survey, Task> action)
+    private async Task RunAsync(Func<IServiceProvider, Topic, Task> action)
     {
         mError = null;
         mNotice = null;
@@ -113,9 +113,9 @@ public partial class SummaryEditor
         try
         {
             await using var scope = this.Scopes.CreateAsyncScope();
-            var survey = await this.RequireSurveyAsync(scope.ServiceProvider);
+            var topic = await this.RequireTopicAsync(scope.ServiceProvider);
 
-            await action(scope.ServiceProvider, survey);
+            await action(scope.ServiceProvider, topic);
         }
         catch (SummaryGroundingException failure)
         {
@@ -133,11 +133,11 @@ public partial class SummaryEditor
     {
         await using (var scope = this.Scopes.CreateAsyncScope())
         {
-            var survey = await this.RequireSurveyAsync(scope.ServiceProvider);
+            var topic = await this.RequireTopicAsync(scope.ServiceProvider);
             var edits = scope.ServiceProvider.GetRequiredService<SummaryEditService>();
 
-            mSurvey = survey;
-            mSummary = await edits.LoadAsync(survey, this.SummaryId);
+            mTopic = topic;
+            mSummary = await edits.LoadAsync(topic, this.SummaryId);
 
             if (mSummary is not null)
             {
@@ -149,11 +149,11 @@ public partial class SummaryEditor
 
                 mResponses = await scope.ServiceProvider
                     .GetRequiredService<ResponseService>()
-                    .ListAsync(survey);
+                    .ListAsync(topic);
 
                 mObjections = await scope.ServiceProvider
                     .GetRequiredService<ReactionService>()
-                    .ListObjectionsAsync(survey, this.SummaryId);
+                    .ListObjectionsAsync(topic, this.SummaryId);
 
                 if (mCiteResponseId == Guid.Empty && mResponses.Count > 0)
                 {
@@ -165,38 +165,38 @@ public partial class SummaryEditor
         this.StateHasChanged();
     }
 
-    private async Task<Survey> RequireSurveyAsync(IServiceProvider services)
+    private async Task<Topic> RequireTopicAsync(IServiceProvider services)
     {
-        return await services.GetRequiredService<SurveyService>().FindByCodeAsync(this.Code)
-            ?? throw new InvalidOperationException($"Survey {this.Code} no longer exists.");
+        return await services.GetRequiredService<TopicService>().FindByCodeAsync(this.Code)
+            ?? throw new InvalidOperationException($"Topic {this.Code} no longer exists.");
     }
 
     private Task SaveBodyAsync()
     {
-        return this.RunAsync((services, survey) =>
+        return this.RunAsync((services, topic) =>
             services.GetRequiredService<SummaryEditService>()
-                .SetBodyAsync(survey, this.SummaryId, mBody));
+                .SetBodyAsync(topic, this.SummaryId, mBody));
     }
 
     internal Task SetTextAsync(int nodeId, string text)
     {
-        return this.RunAsync((services, survey) =>
+        return this.RunAsync((services, topic) =>
             services.GetRequiredService<SummaryEditService>()
-                .SetTextAsync(survey, this.SummaryId, nodeId, text));
+                .SetTextAsync(topic, this.SummaryId, nodeId, text));
     }
 
     internal Task AddNodeAsync(int? parentId)
     {
-        return this.RunAsync((services, survey) =>
+        return this.RunAsync((services, topic) =>
             services.GetRequiredService<SummaryEditService>()
-                .AddNodeAsync(survey, this.SummaryId, parentId, "New node"));
+                .AddNodeAsync(topic, this.SummaryId, parentId, "New node"));
     }
 
     internal Task MoveAsync(int nodeId, NodeMove move)
     {
-        return this.RunAsync((services, survey) =>
+        return this.RunAsync((services, topic) =>
             services.GetRequiredService<SummaryEditService>()
-                .MoveAsync(survey, this.SummaryId, nodeId, move));
+                .MoveAsync(topic, this.SummaryId, nodeId, move));
     }
 
     internal async Task DeleteNodeAsync(int nodeId)
@@ -211,18 +211,18 @@ public partial class SummaryEditor
 
         mConfirmingDelete = null;
 
-        await this.RunAsync((services, survey) =>
+        await this.RunAsync((services, topic) =>
             services.GetRequiredService<SummaryEditService>()
-                .DeleteNodeAsync(survey, this.SummaryId, nodeId));
+                .DeleteNodeAsync(topic, this.SummaryId, nodeId));
     }
 
     internal async Task AddReferenceAsync(int nodeId)
     {
         var quote = mCiteQuote;
 
-        await this.RunAsync((services, survey) =>
+        await this.RunAsync((services, topic) =>
             services.GetRequiredService<SummaryEditService>()
-                .AddReferenceAsync(survey, this.SummaryId, nodeId, mCiteResponseId, quote));
+                .AddReferenceAsync(topic, this.SummaryId, nodeId, mCiteResponseId, quote));
 
         if (mError is null)
         {
@@ -235,16 +235,16 @@ public partial class SummaryEditor
 
     internal Task DeleteReferenceAsync(int referenceId)
     {
-        return this.RunAsync((services, survey) =>
+        return this.RunAsync((services, topic) =>
             services.GetRequiredService<SummaryEditService>()
-                .DeleteReferenceAsync(survey, this.SummaryId, referenceId));
+                .DeleteReferenceAsync(topic, this.SummaryId, referenceId));
     }
 
     private async Task SetPublishedAsync(bool published)
     {
-        await this.RunAsync((services, survey) =>
-            services.GetRequiredService<SurveyAdminService>()
-                .SetSummaryVisibilityAsync(survey, this.SummaryId, published));
+        await this.RunAsync((services, topic) =>
+            services.GetRequiredService<TopicAdminService>()
+                .SetSummaryVisibilityAsync(topic, this.SummaryId, published));
 
         if (mError is null)
         {
@@ -258,13 +258,13 @@ public partial class SummaryEditor
 
     private async Task DeleteSummaryAsync()
     {
-        await this.RunAsync((services, survey) =>
-            services.GetRequiredService<SurveyAdminService>()
-                .DeleteSummaryAsync(survey, this.SummaryId));
+        await this.RunAsync((services, topic) =>
+            services.GetRequiredService<TopicAdminService>()
+                .DeleteSummaryAsync(topic, this.SummaryId));
 
         if (mError is null)
         {
-            this.Navigation.NavigateTo($"/surveys/{this.Code}/admin/summaries");
+            this.Navigation.NavigateTo($"/topics/{this.Code}/admin/summaries");
         }
     }
 

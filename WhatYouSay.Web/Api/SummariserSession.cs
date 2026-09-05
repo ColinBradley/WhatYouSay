@@ -6,17 +6,17 @@ using WhatYouSay.Web.Telemetry;
 
 namespace WhatYouSay.Web.Api;
 
-/// <summary>Why a request could not be tied to a survey, and what to tell the caller.</summary>
+/// <summary>Why a request could not be tied to a topic, and what to tell the caller.</summary>
 public enum SummariserRefusal
 {
     None,
     MissingToken,
     UnknownToken,
-    WrongSurvey,
+    WrongTopic,
 }
 
 /// <summary>
-/// Resolves the one survey a caller may touch. The survey is named in the path and the
+/// Resolves the one topic a caller may touch. The topic is named in the path and the
 /// token in the header, so the two vary independently: a longer-lived or differently
 /// scoped credential later on does not change any URL.
 /// </summary>
@@ -24,13 +24,13 @@ public class SummariserSession(WhatYouSayContext db)
 {
     private const string BearerPrefix = "Bearer ";
 
-    private Survey? mSurvey;
+    private Topic? mTopic;
 
     /// <summary>Set once <see cref="AuthenticateAsync"/> has succeeded.</summary>
-    public Survey Survey =>
-        mSurvey ?? throw new InvalidOperationException("The request has not been authenticated.");
+    public Topic Topic =>
+        mTopic ?? throw new InvalidOperationException("The request has not been authenticated.");
 
-    /// <summary>The survey code the resolved token is actually scoped to.</summary>
+    /// <summary>The topic code the resolved token is actually scoped to.</summary>
     public string? ScopedCode { get; private set; }
 
     public async Task<SummariserRefusal> AuthenticateAsync(
@@ -50,25 +50,25 @@ public class SummariserSession(WhatYouSayContext db)
 
         var hash = Secrets.HashToken(token);
 
-        var survey = await db.Surveys.FirstOrDefaultAsync(
+        var topic = await db.Topics.FirstOrDefaultAsync(
             s => s.SummariserTokenHash == hash,
             cancellationToken
         );
 
-        if (survey is null)
+        if (topic is null)
         {
             return SummariserRefusal.UnknownToken;
         }
 
-        this.ScopedCode = survey.Code;
-        activity.SetSurvey(survey);
+        this.ScopedCode = topic.Code;
+        activity.SetTopic(topic);
 
-        if (!string.Equals(survey.Code, code, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(topic.Code, code, StringComparison.OrdinalIgnoreCase))
         {
-            return SummariserRefusal.WrongSurvey;
+            return SummariserRefusal.WrongTopic;
         }
 
-        mSurvey = survey;
+        mTopic = topic;
 
         return SummariserRefusal.None;
     }

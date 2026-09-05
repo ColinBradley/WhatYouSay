@@ -12,7 +12,7 @@ public class NodeReaction
 
     public SummaryNode Node { get; set; } = null!;
 
-    /// <summary>SHA-256 of the wys_resp cookie token for this survey.</summary>
+    /// <summary>SHA-256 of the wys_resp cookie token for this topic.</summary>
     public required string ResponderTokenHash { get; set; }
 
     public ReactionKind Kind { get; set; }
@@ -20,6 +20,6 @@ public class NodeReaction
     /// <summary>Mainly for Misrepresents, where the detail is the whole point.</summary>
     public string? Note { get; set; }
 
-    /// <summary>Null when the survey is Anonymous, following the same rule as responses.</summary>
+    /// <summary>Null when the topic is Anonymous, following the same rule as responses.</summary>
     public DateTimeOffset? CreatedAt { get; set; }
 }

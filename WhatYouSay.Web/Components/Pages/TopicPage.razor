@@ -1,40 +1,40 @@
-@page "/surveys/{Code}"
+@page "/topics/{Code}"
 
-<PageTitle>@(mSurvey?.Title ?? "Survey")</PageTitle>
+<PageTitle>@(mTopic?.Title ?? "Topic")</PageTitle>
 
 <Breadcrumb Items="@mCrumbs" />
 
-@if (mSurvey is null)
+@if (mTopic is null)
 {
-    <h1>Survey not found</h1>
+    <h1>Topic not found</h1>
     <p class="text-body-secondary">
-        No survey has the code &ldquo;@Code&rdquo;. Codes are case-sensitive.
+        No topic has the code &ldquo;@Code&rdquo;. Codes are case-sensitive.
     </p>
     <a href="/">Back to the list</a>
 }
 else
 {
-    <h1>@mSurvey.Title</h1>
-    <p class="lead">@mSurvey.Description</p>
+    <h1>@mTopic.Title</h1>
+    <p class="lead">@mTopic.Description</p>
 
     <div class="d-flex gap-2 mb-4 align-items-center">
-        <span class="badge @(mSurvey.IsAcceptingResponses ? "text-bg-success" : "text-bg-secondary")">
-            @(mSurvey.IsAcceptingResponses ? "Open for responses" : "Closed")
+        <span class="badge @(mTopic.IsAcceptingResponses ? "text-bg-success" : "text-bg-secondary")">
+            @(mTopic.IsAcceptingResponses ? "Open for responses" : "Closed")
         </span>
 
         @if (mHasVisibleSummary)
         {
-            <a class="btn btn-sm btn-outline-info" href="@($"/surveys/{Code}/summary")">Read the summary</a>
+            <a class="btn btn-sm btn-outline-info" href="@($"/topics/{Code}/summary")">Read the summary</a>
         }
         else
         {
             <button class="btn btn-sm btn-outline-info" disabled
-                    title="No summary has been published for this survey yet.">
+                    title="No summary has been published for this topic yet.">
                 Read the summary
             </button>
         }
 
-        <a class="btn btn-sm btn-outline-secondary ms-auto" href="@($"/surveys/{Code}/admin")">Admin</a>
+        <a class="btn btn-sm btn-outline-secondary ms-auto" href="@($"/topics/{Code}/admin")">Admin</a>
     </div>
 
     <form method="post" @formname="respond" @onsubmit="SubmitAsync">
@@ -47,7 +47,7 @@ else
             </p>
         }
 
-        @if (!mSurvey.IsAnonymous)
+        @if (!mTopic.IsAnonymous)
         {
             <div class="mb-3">
                 <label class="form-label" for="author">@this.NameLabel()</label>
@@ -75,7 +75,7 @@ else
 
             <button class="btn btn-outline-danger" type="submit" name="Intent" value="withdraw"
                     disabled="@(mFrozen || mOwnResponse is null)"
-                    title="@(mOwnResponse is null ? "You have not answered this survey yet." : this.FrozenReason())">
+                    title="@(mOwnResponse is null ? "You have not answered this topic yet." : this.FrozenReason())">
                 Withdraw my response
             </button>
         </div>

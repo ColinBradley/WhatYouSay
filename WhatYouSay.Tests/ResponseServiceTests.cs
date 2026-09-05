@@ -13,9 +13,9 @@ public class ResponseServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var survey = await this.OpenSurveyAsync(ResponseIdentity.Optional);
+        var topic = await this.OpenTopicAsync(ResponseIdentity.Optional);
 
-        var token = await this.Service().SubmitAsync(survey, "Thai please", "Anna", this.Cancellation);
+        var token = await this.Service().SubmitAsync(topic, "Thai please", "Anna", this.Cancellation);
 
         var stored = await mDb.Responses.SingleAsync(this.Cancellation);
 
@@ -28,26 +28,26 @@ public class ResponseServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var survey = await this.OpenSurveyAsync(ResponseIdentity.Optional);
+        var topic = await this.OpenTopicAsync(ResponseIdentity.Optional);
         var service = this.Service();
 
-        var token = await service.SubmitAsync(survey, "Thai please", "Anna", this.Cancellation);
+        var token = await service.SubmitAsync(topic, "Thai please", "Anna", this.Cancellation);
 
-        var found = await service.FindOwnAsync(survey.Id, token, this.Cancellation);
+        var found = await service.FindOwnAsync(topic.Id, token, this.Cancellation);
 
         Assert.IsNotNull(found);
         Assert.AreEqual("Thai please", found.Body);
-        Assert.IsNull(await service.FindOwnAsync(survey.Id, Secrets.NewToken(), this.Cancellation));
+        Assert.IsNull(await service.FindOwnAsync(topic.Id, Secrets.NewToken(), this.Cancellation));
     }
 
     [TestMethod]
-    public async Task Anonymous_surveys_discard_the_author_even_when_one_is_supplied()
+    public async Task Anonymous_topics_discard_the_author_even_when_one_is_supplied()
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var survey = await this.OpenSurveyAsync(ResponseIdentity.Anonymous);
+        var topic = await this.OpenTopicAsync(ResponseIdentity.Anonymous);
 
-        await this.Service().SubmitAsync(survey, "Meetings, mostly", "Colin", this.Cancellation);
+        await this.Service().SubmitAsync(topic, "Meetings, mostly", "Colin", this.Cancellation);
 
         var stored = await mDb.Responses.SingleAsync(this.Cancellation);
 
@@ -57,13 +57,13 @@ public class ResponseServiceTests : DatabaseTest
     }
 
     [TestMethod]
-    public async Task Named_surveys_record_the_author_and_the_time()
+    public async Task Named_topics_record_the_author_and_the_time()
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var survey = await this.OpenSurveyAsync(ResponseIdentity.Required);
+        var topic = await this.OpenTopicAsync(ResponseIdentity.Required);
 
-        await this.Service().SubmitAsync(survey, "CI is slow", "Anna", this.Cancellation);
+        await this.Service().SubmitAsync(topic, "CI is slow", "Anna", this.Cancellation);
 
         var stored = await mDb.Responses.SingleAsync(this.Cancellation);
 
@@ -72,38 +72,38 @@ public class ResponseServiceTests : DatabaseTest
     }
 
     [TestMethod]
-    public async Task A_closed_survey_refuses_new_responses()
+    public async Task A_closed_topic_refuses_new_responses()
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var survey = await this.OpenSurveyAsync(ResponseIdentity.Optional);
-        survey.IsAcceptingResponses = false;
+        var topic = await this.OpenTopicAsync(ResponseIdentity.Optional);
+        topic.IsAcceptingResponses = false;
         await mDb.SaveChangesAsync(this.Cancellation);
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            () => this.Service().SubmitAsync(survey, "too late", null, this.Cancellation));
+            () => this.Service().SubmitAsync(topic, "too late", null, this.Cancellation));
     }
 
     [TestMethod]
-    public async Task Closing_a_survey_freezes_existing_responses()
+    public async Task Closing_a_topic_freezes_existing_responses()
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var survey = await this.OpenSurveyAsync(ResponseIdentity.Optional);
+        var topic = await this.OpenTopicAsync(ResponseIdentity.Optional);
         var service = this.Service();
 
-        var token = await service.SubmitAsync(survey, "original", "Anna", this.Cancellation);
-        var response = (await service.FindOwnAsync(survey.Id, token, this.Cancellation))!;
+        var token = await service.SubmitAsync(topic, "original", "Anna", this.Cancellation);
+        var response = (await service.FindOwnAsync(topic.Id, token, this.Cancellation))!;
 
-        survey.IsAcceptingResponses = false;
+        topic.IsAcceptingResponses = false;
         await mDb.SaveChangesAsync(this.Cancellation);
 
         // This is what keeps summary quote offsets from rotting.
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            () => service.EditAsync(survey, response, "changed", "Anna", this.Cancellation));
+            () => service.EditAsync(topic, response, "changed", "Anna", this.Cancellation));
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            () => service.WithdrawAsync(survey, response, this.Cancellation));
+            () => service.WithdrawAsync(topic, response, this.Cancellation));
     }
 
     [TestMethod]
@@ -111,13 +111,13 @@ public class ResponseServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var survey = await this.OpenSurveyAsync(ResponseIdentity.Optional);
+        var topic = await this.OpenTopicAsync(ResponseIdentity.Optional);
         var service = this.Service();
 
-        var token = await service.SubmitAsync(survey, "original", "Anna", this.Cancellation);
-        var response = (await service.FindOwnAsync(survey.Id, token, this.Cancellation))!;
+        var token = await service.SubmitAsync(topic, "original", "Anna", this.Cancellation);
+        var response = (await service.FindOwnAsync(topic.Id, token, this.Cancellation))!;
 
-        await service.EditAsync(survey, response, "  changed  ", "Anna", this.Cancellation);
+        await service.EditAsync(topic, response, "  changed  ", "Anna", this.Cancellation);
 
         Assert.AreEqual("changed", response.Body);
         Assert.IsNotNull(response.UpdatedAt);
@@ -128,17 +128,17 @@ public class ResponseServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var survey = await this.OpenSurveyAsync(ResponseIdentity.Optional);
+        var topic = await this.OpenTopicAsync(ResponseIdentity.Optional);
         var service = this.Service();
 
-        var token = await service.SubmitAsync(survey, "never mind", null, this.Cancellation);
-        var response = (await service.FindOwnAsync(survey.Id, token, this.Cancellation))!;
+        var token = await service.SubmitAsync(topic, "never mind", null, this.Cancellation);
+        var response = (await service.FindOwnAsync(topic.Id, token, this.Cancellation))!;
 
-        await service.WithdrawAsync(survey, response, this.Cancellation);
+        await service.WithdrawAsync(topic, response, this.Cancellation);
 
         Assert.AreEqual(1, await mDb.Responses.CountAsync(this.Cancellation));
-        Assert.IsEmpty(await service.ListAsync(survey, this.Cancellation));
-        Assert.IsNull(await service.FindOwnAsync(survey.Id, token, this.Cancellation));
+        Assert.IsEmpty(await service.ListAsync(topic, this.Cancellation));
+        Assert.IsNull(await service.FindOwnAsync(topic.Id, token, this.Cancellation));
     }
 
     [TestMethod]
@@ -146,9 +146,9 @@ public class ResponseServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var survey = await this.OpenSurveyAsync(ResponseIdentity.Anonymous);
+        var topic = await this.OpenTopicAsync(ResponseIdentity.Anonymous);
 
-        await this.Service().SubmitAsync(survey, "Meetings, mostly", null, this.Cancellation);
+        await this.Service().SubmitAsync(topic, "Meetings, mostly", null, this.Cancellation);
 
         var stored = await mDb.Responses.SingleAsync(this.Cancellation);
 
@@ -158,21 +158,21 @@ public class ResponseServiceTests : DatabaseTest
     }
 
     [TestMethod]
-    public async Task Anonymous_surveys_do_not_list_responses_in_submission_order()
+    public async Task Anonymous_topics_do_not_list_responses_in_submission_order()
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var survey = await this.OpenSurveyAsync(ResponseIdentity.Anonymous);
+        var topic = await this.OpenTopicAsync(ResponseIdentity.Anonymous);
         var service = this.Service();
 
         const int Count = 25;
 
         for (var i = 0; i < Count; i++)
         {
-            await service.SubmitAsync(survey, i.ToString(), null, this.Cancellation);
+            await service.SubmitAsync(topic, i.ToString(), null, this.Cancellation);
         }
 
-        var listed = await service.ListAsync(survey, this.Cancellation);
+        var listed = await service.ListAsync(topic, this.Cancellation);
         var submissionOrder = Enumerable.Range(0, Count).ToList();
 
         Assert.HasCount(Count, listed);
@@ -186,13 +186,13 @@ public class ResponseServiceTests : DatabaseTest
     private ResponseService Service() =>
         new(mDb);
 
-    private async Task<Survey> OpenSurveyAsync(ResponseIdentity identity)
+    private async Task<Topic> OpenTopicAsync(ResponseIdentity identity)
     {
-        var survey = NewSurvey(identity);
+        var topic = NewTopic(identity);
 
-        mDb.Surveys.Add(survey);
+        mDb.Topics.Add(topic);
         await mDb.SaveChangesAsync(this.Cancellation);
 
-        return survey;
+        return topic;
     }
 }

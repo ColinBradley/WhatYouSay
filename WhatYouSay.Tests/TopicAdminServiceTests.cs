@@ -6,10 +6,10 @@ using WhatYouSay.Services;
 namespace WhatYouSay.Tests;
 
 [TestClass]
-public class SurveyAdminServiceTests : DatabaseTest
+public class TopicAdminServiceTests : DatabaseTest
 {
     [TestMethod]
-    public async Task Creating_a_survey_returns_the_summariser_token_once_and_stores_only_its_hash()
+    public async Task Creating_a_topic_returns_the_summariser_token_once_and_stores_only_its_hash()
     {
         using var activity = TestTelemetry.Source.Start();
 
@@ -17,7 +17,7 @@ public class SurveyAdminServiceTests : DatabaseTest
             "Sprint 48 retro", "How did it go?", "hunter2",
             ResponseIdentity.Required, true, false, this.Cancellation);
 
-        var stored = await mDb.Surveys.SingleAsync(this.Cancellation);
+        var stored = await mDb.Topics.SingleAsync(this.Cancellation);
 
         Assert.AreEqual(Secrets.HashToken(created.SummariserToken), stored.SummariserTokenHash);
         Assert.AreNotEqual(created.SummariserToken, stored.SummariserTokenHash);
@@ -34,13 +34,13 @@ public class SurveyAdminServiceTests : DatabaseTest
             "Retro", "How did it go?", "hunter2",
             ResponseIdentity.Required, false, false, this.Cancellation);
 
-        Assert.IsFalse(created.Survey.AdminPasswordHash.Contains("hunter2", StringComparison.Ordinal));
-        Assert.IsTrue(service.CheckPassword(created.Survey, "hunter2"));
-        Assert.IsFalse(service.CheckPassword(created.Survey, "Hunter2"));
+        Assert.IsFalse(created.Topic.AdminPasswordHash.Contains("hunter2", StringComparison.Ordinal));
+        Assert.IsTrue(service.CheckPassword(created.Topic, "hunter2"));
+        Assert.IsFalse(service.CheckPassword(created.Topic, "Hunter2"));
     }
 
     [TestMethod]
-    public async Task Survey_codes_are_unique()
+    public async Task Topic_codes_are_unique()
     {
         using var activity = TestTelemetry.Source.Start();
 
@@ -50,11 +50,11 @@ public class SurveyAdminServiceTests : DatabaseTest
         for (var i = 0; i < 20; i++)
         {
             var created = await service.CreateAsync(
-                $"Survey {i}", "Prompt", "pw",
+                $"Topic {i}", "Prompt", "pw",
                 ResponseIdentity.Optional, false, false, this.Cancellation
             );
 
-            Assert.IsTrue(codes.Add(created.Survey.Code));
+            Assert.IsTrue(codes.Add(created.Topic.Code));
         }
     }
 
@@ -67,14 +67,14 @@ public class SurveyAdminServiceTests : DatabaseTest
         var created = await service.CreateAsync(
             "Retro", "Prompt", "pw", ResponseIdentity.Required, false, false, this.Cancellation);
 
-        var replacement = await service.RegenerateSummariserTokenAsync(created.Survey, this.Cancellation);
+        var replacement = await service.RegenerateSummariserTokenAsync(created.Topic, this.Cancellation);
 
         Assert.AreNotEqual(created.SummariserToken, replacement);
-        Assert.AreEqual(Secrets.HashToken(replacement), created.Survey.SummariserTokenHash);
+        Assert.AreEqual(Secrets.HashToken(replacement), created.Topic.SummariserTokenHash);
     }
 
     [TestMethod]
-    public async Task A_survey_can_be_closed_and_reopened_until_a_summary_exists()
+    public async Task A_topic_can_be_closed_and_reopened_until_a_summary_exists()
     {
         using var activity = TestTelemetry.Source.Start();
 
@@ -82,20 +82,20 @@ public class SurveyAdminServiceTests : DatabaseTest
         var created = await service.CreateAsync(
             "Retro", "Prompt", "pw", ResponseIdentity.Required, false, false, this.Cancellation);
 
-        var survey = created.Survey;
+        var topic = created.Topic;
 
-        await service.SetAcceptingResponsesAsync(survey, false, this.Cancellation);
-        Assert.IsFalse(survey.IsAcceptingResponses);
+        await service.SetAcceptingResponsesAsync(topic, false, this.Cancellation);
+        Assert.IsFalse(topic.IsAcceptingResponses);
 
-        await service.SetAcceptingResponsesAsync(survey, true, this.Cancellation);
-        Assert.IsTrue(survey.IsAcceptingResponses);
+        await service.SetAcceptingResponsesAsync(topic, true, this.Cancellation);
+        Assert.IsTrue(topic.IsAcceptingResponses);
 
-        await service.SetAcceptingResponsesAsync(survey, false, this.Cancellation);
-        survey.Summaries.Add(new Summary { Body = "Overview" });
+        await service.SetAcceptingResponsesAsync(topic, false, this.Cancellation);
+        topic.Summaries.Add(new Summary { Body = "Overview" });
         await mDb.SaveChangesAsync(this.Cancellation);
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            () => service.SetAcceptingResponsesAsync(survey, true, this.Cancellation)
+            () => service.SetAcceptingResponsesAsync(topic, true, this.Cancellation)
         );
     }
 
@@ -112,7 +112,7 @@ public class SurveyAdminServiceTests : DatabaseTest
         var response = new Response()
         {
             Id = Guid.NewGuid(),
-            SurveyId = created.Survey.Id,
+            TopicId = created.Topic.Id,
             Body = "Something",
             AuthTokenHash = "hash",
         };
@@ -120,14 +120,14 @@ public class SurveyAdminServiceTests : DatabaseTest
         mDb.Responses.Add(response);
         await mDb.SaveChangesAsync(this.Cancellation);
 
-        await service.DeleteResponseAsync(created.Survey, response.Id, this.Cancellation);
+        await service.DeleteResponseAsync(created.Topic, response.Id, this.Cancellation);
 
         Assert.AreEqual(1, await mDb.Responses.CountAsync(this.Cancellation));
         Assert.IsTrue((await mDb.Responses.SingleAsync(this.Cancellation)).IsDeleted);
     }
 
     [TestMethod]
-    public async Task A_response_on_another_survey_cannot_be_deleted()
+    public async Task A_response_on_another_topic_cannot_be_deleted()
     {
         using var activity = TestTelemetry.Source.Start();
 
@@ -142,7 +142,7 @@ public class SurveyAdminServiceTests : DatabaseTest
         var response = new Response()
         {
             Id = Guid.NewGuid(),
-            SurveyId = theirs.Survey.Id,
+            TopicId = theirs.Topic.Id,
             Body = "Something",
             AuthTokenHash = "hash",
         };
@@ -150,7 +150,7 @@ public class SurveyAdminServiceTests : DatabaseTest
         mDb.Responses.Add(response);
         await mDb.SaveChangesAsync(this.Cancellation);
 
-        await service.DeleteResponseAsync(mine.Survey, response.Id, this.Cancellation);
+        await service.DeleteResponseAsync(mine.Topic, response.Id, this.Cancellation);
 
         Assert.IsFalse((await mDb.Responses.SingleAsync(this.Cancellation)).IsDeleted);
     }
@@ -165,20 +165,20 @@ public class SurveyAdminServiceTests : DatabaseTest
             "Retro", "Prompt", "pw", ResponseIdentity.Required, false, false, this.Cancellation);
 
         var summary = new Summary { Body = "Overview" };
-        created.Survey.Summaries.Add(summary);
+        created.Topic.Summaries.Add(summary);
         await mDb.SaveChangesAsync(this.Cancellation);
 
         Assert.IsFalse(summary.IsVisibleToPublic);
 
         await service.SetSummaryVisibilityAsync(
-            created.Survey, summary.Id, published: true, this.Cancellation
+            created.Topic, summary.Id, published: true, this.Cancellation
         );
 
         Assert.IsTrue(summary.IsVisibleToPublic);
     }
 
-    private SurveyAdminService Service()
+    private TopicAdminService Service()
     {
-        return new SurveyAdminService(mDb);
+        return new TopicAdminService(mDb);
     }
 }

@@ -11,10 +11,10 @@ public class EnumStorageTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        mDb.Surveys.Add(NewSurvey(ResponseIdentity.Anonymous));
+        mDb.Topics.Add(NewTopic(ResponseIdentity.Anonymous));
         await mDb.SaveChangesAsync(this.Cancellation);
 
-        var stored = await this.ScalarAsync("SELECT ResponseIdentity FROM Surveys");
+        var stored = await this.ScalarAsync("SELECT ResponseIdentity FROM Topics");
 
         // A sqlite3 session should show "Anonymous", not "2", and reordering the enum
         // members must never silently reinterpret existing rows.

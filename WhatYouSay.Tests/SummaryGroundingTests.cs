@@ -16,10 +16,10 @@ public class SummaryGroundingTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, responses) = await this.ClosedSurveyAsync();
+        var (topic, responses) = await this.ClosedTopicAsync();
 
         var summary = await this.Service().SaveDraftAsync(
-            survey,
+            topic,
             Draft(Cites("CI is slow enough to change behaviour", (responses[0], "22 minutes"))),
             "agent",
             null,
@@ -37,7 +37,7 @@ public class SummaryGroundingTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, responses) = await this.ClosedSurveyAsync();
+        var (topic, responses) = await this.ClosedTopicAsync();
 
         var cited = Cites("CI is slow", (responses[0], "22 minutes")) with
         {
@@ -45,7 +45,7 @@ public class SummaryGroundingTests : DatabaseTest
         };
 
         var saved = await this.Service().SaveDraftAsync(
-            survey,
+            topic,
             Draft(cited),
             "agent",
             null,
@@ -68,7 +68,7 @@ public class SummaryGroundingTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, responses) = await this.ClosedSurveyAsync();
+        var (topic, responses) = await this.ClosedTopicAsync();
 
         // The leaf cites nothing of its own, which is legal because the node above it does.
         // Making it re-cite would only copy one quote twice.
@@ -78,7 +78,7 @@ public class SummaryGroundingTests : DatabaseTest
         };
 
         var summary = await this.Service().SaveDraftAsync(
-            survey,
+            topic,
             Draft(cited),
             "agent",
             null,
@@ -92,11 +92,11 @@ public class SummaryGroundingTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, _) = await this.ClosedSurveyAsync();
+        var (topic, _) = await this.ClosedTopicAsync();
 
         var rejection = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
             () => this.Service().SaveDraftAsync(
-                survey,
+                topic,
                 Draft(Node("Morale is low")),
                 "agent",
                 null,
@@ -111,12 +111,12 @@ public class SummaryGroundingTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, responses) = await this.ClosedSurveyAsync();
+        var (topic, responses) = await this.ClosedTopicAsync();
 
         // Nothing marks the root as a heading. It passes because the requirement lands on
         // what hangs below it, which is cited.
         var summary = await this.Service().SaveDraftAsync(
-            survey,
+            topic,
             Draft(Cites("CI is slow", (responses[0], "22 minutes"))),
             "agent",
             null,
@@ -130,13 +130,13 @@ public class SummaryGroundingTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, _) = await this.ClosedSurveyAsync();
+        var (topic, _) = await this.ClosedTopicAsync();
 
         // Read as a heading this is an empty section; read as a finding it is uncited. The
         // untyped rule cannot tell the two apart, and rejects both.
         var rejection = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
             () => this.Service().SaveDraftAsync(
-                survey,
+                topic,
                 new SummaryDraft()
                 {
                     Body = "Overview",
@@ -155,11 +155,11 @@ public class SummaryGroundingTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, responses) = await this.ClosedSurveyAsync();
+        var (topic, responses) = await this.ClosedTopicAsync();
 
         var rejection = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
             () => this.Service().SaveDraftAsync(
-                survey,
+                topic,
                 Draft(Cites("CI takes 45 minutes", (responses[0], "45 minutes"))),
                 "agent",
                 null,
@@ -171,15 +171,15 @@ public class SummaryGroundingTests : DatabaseTest
     }
 
     [TestMethod]
-    public async Task Citing_a_response_from_another_survey_is_rejected()
+    public async Task Citing_a_response_from_another_topic_is_rejected()
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, _) = await this.ClosedSurveyAsync();
+        var (topic, _) = await this.ClosedTopicAsync();
 
         var rejection = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
             () => this.Service().SaveDraftAsync(
-                survey,
+                topic,
                 Draft(Cites("Something", (Guid.NewGuid(), "22 minutes"))),
                 "agent",
                 null,
@@ -193,7 +193,7 @@ public class SummaryGroundingTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, responses) = await this.ClosedSurveyAsync();
+        var (topic, responses) = await this.ClosedTopicAsync();
 
         var withdrawn = await mDb.Responses.SingleAsync(r => r.Id == responses[1], this.Cancellation);
         withdrawn.IsDeleted = true;
@@ -201,7 +201,7 @@ public class SummaryGroundingTests : DatabaseTest
 
         var rejection = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
             () => this.Service().SaveDraftAsync(
-                survey,
+                topic,
                 Draft(Cites("On-call hurt", (responses[1], "fourteen pages"))),
                 "agent",
                 null,
@@ -211,23 +211,23 @@ public class SummaryGroundingTests : DatabaseTest
     }
 
     [TestMethod]
-    public async Task An_open_survey_cannot_be_summarised()
+    public async Task An_open_topic_cannot_be_summarised()
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, responses) = await this.ClosedSurveyAsync();
-        survey.IsAcceptingResponses = true;
+        var (topic, responses) = await this.ClosedTopicAsync();
+        topic.IsAcceptingResponses = true;
         await mDb.SaveChangesAsync(this.Cancellation);
 
         var rejection = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
             () => this.Service().SaveDraftAsync(
-                survey,
+                topic,
                 Draft(Cites("CI is slow", (responses[0], "22 minutes"))),
                 "agent",
                 null,
                 this.Cancellation));
 
-        Assert.AreEqual("survey_open", rejection.Reason);
+        Assert.AreEqual("topic_open", rejection.Reason);
     }
 
     [TestMethod]
@@ -235,7 +235,7 @@ public class SummaryGroundingTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, responses) = await this.ClosedSurveyAsync();
+        var (topic, responses) = await this.ClosedTopicAsync();
 
         // The good branch must not survive the bad one.
         var draft = new SummaryDraft()
@@ -249,7 +249,7 @@ public class SummaryGroundingTests : DatabaseTest
         };
 
         await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
-            () => this.Service().SaveDraftAsync(survey, draft, "agent", null, this.Cancellation));
+            () => this.Service().SaveDraftAsync(topic, draft, "agent", null, this.Cancellation));
 
         Assert.AreEqual(0, await mDb.Summaries.CountAsync(this.Cancellation));
         Assert.AreEqual(0, await mDb.SummaryNodes.CountAsync(this.Cancellation));
@@ -261,17 +261,17 @@ public class SummaryGroundingTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, responses) = await this.ClosedSurveyAsync();
+        var (topic, responses) = await this.ClosedTopicAsync();
         var service = this.Service();
 
         var draft = Draft(Cites("CI is slow", (responses[0], "22 minutes")));
-        var summary = await service.SaveDraftAsync(survey, draft, "agent", null, this.Cancellation);
+        var summary = await service.SaveDraftAsync(topic, draft, "agent", null, this.Cancellation);
 
         summary.IsDraft = false;
         await mDb.SaveChangesAsync(this.Cancellation);
 
         var rejection = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
-            () => service.SaveDraftAsync(survey, draft, "agent", summary.Id, this.Cancellation));
+            () => service.SaveDraftAsync(topic, draft, "agent", summary.Id, this.Cancellation));
 
         Assert.AreEqual("summary_published", rejection.Reason);
     }
@@ -281,18 +281,18 @@ public class SummaryGroundingTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, responses) = await this.ClosedSurveyAsync();
+        var (topic, responses) = await this.ClosedTopicAsync();
         var service = this.Service();
 
         var first = await service.SaveDraftAsync(
-            survey,
+            topic,
             Draft(Cites("CI is slow", (responses[0], "22 minutes"))),
             "agent",
             null,
             this.Cancellation);
 
         var second = await service.SaveDraftAsync(
-            survey,
+            topic,
             Draft(Cites("On-call was noisy", (responses[1], "fourteen pages"))),
             "agent",
             first.Id,
@@ -317,7 +317,7 @@ public class SummaryGroundingTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, responses) = await this.ClosedSurveyAsync();
+        var (topic, responses) = await this.ClosedTopicAsync();
 
         // One retry should be able to fix the lot, so validation does not stop at the first.
         var draft = new SummaryDraft()
@@ -334,7 +334,7 @@ public class SummaryGroundingTests : DatabaseTest
         };
 
         var rejection = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
-            () => this.Service().SaveDraftAsync(survey, draft, "agent", null, this.Cancellation));
+            () => this.Service().SaveDraftAsync(topic, draft, "agent", null, this.Cancellation));
 
         Assert.HasCount(3, rejection.Failures);
 
@@ -358,11 +358,11 @@ public class SummaryGroundingTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, responses) = await this.ClosedSurveyAsync();
+        var (topic, responses) = await this.ClosedTopicAsync();
 
         var rejection = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
             () => this.Service().SaveDraftAsync(
-                survey,
+                topic,
                 Draft(Cites("CI is slow", (responses[0], "A full run is 22 minutes and it failed often."))),
                 "agent",
                 null,
@@ -411,10 +411,10 @@ public class SummaryGroundingTests : DatabaseTest
         };
     }
 
-    private async Task<(Survey Survey, Guid[] Responses)> ClosedSurveyAsync()
+    private async Task<(Topic Topic, Guid[] Responses)> ClosedTopicAsync()
     {
-        var survey = NewSurvey(ResponseIdentity.Required);
-        survey.IsAcceptingResponses = false;
+        var topic = NewTopic(ResponseIdentity.Required);
+        topic.IsAcceptingResponses = false;
 
         var anna = new Response()
         {
@@ -434,12 +434,12 @@ public class SummaryGroundingTests : DatabaseTest
             CreatedAt = DateTimeOffset.UtcNow,
         };
 
-        survey.Responses.Add(anna);
-        survey.Responses.Add(tom);
+        topic.Responses.Add(anna);
+        topic.Responses.Add(tom);
 
-        mDb.Surveys.Add(survey);
+        mDb.Topics.Add(topic);
         await mDb.SaveChangesAsync(this.Cancellation);
 
-        return (survey, [anna.Id, tom.Id]);
+        return (topic, [anna.Id, tom.Id]);
     }
 }

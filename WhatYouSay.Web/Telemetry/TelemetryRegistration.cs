@@ -20,7 +20,7 @@ public static class TelemetryRegistration
                 // Recorded SQL is the parameterised text, so response bodies and author
                 // names never reach the trace store through query spans.
                 .AddEntityFrameworkCoreInstrumentation()
-                .AddProcessor<SurveyCodeRedactingProcessor>()
+                .AddProcessor<TopicCodeRedactingProcessor>()
                 .AddOtlpExporter())
             .WithMetrics(metrics => metrics
                 .AddMeter("*")

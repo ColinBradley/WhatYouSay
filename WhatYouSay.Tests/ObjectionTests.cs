@@ -17,7 +17,7 @@ public class ObjectionTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, summary, response, node) = await this.SeededAsync();
+        var (topic, summary, response, node) = await this.SeededAsync();
 
         mDb.NodeReactions.Add(new NodeReaction()
         {
@@ -30,7 +30,7 @@ public class ObjectionTests : DatabaseTest
         await mDb.SaveChangesAsync(this.Cancellation);
 
         var objection = (await new ReactionService(mDb)
-            .ListObjectionsAsync(survey, summary.Id, this.Cancellation))
+            .ListObjectionsAsync(topic, summary.Id, this.Cancellation))
             .Single();
 
         Assert.AreEqual(node.Text, objection.NodeText);
@@ -44,7 +44,7 @@ public class ObjectionTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, summary, response, node) = await this.SeededAsync();
+        var (topic, summary, response, node) = await this.SeededAsync();
 
         mDb.NodeReactions.Add(new NodeReaction()
         {
@@ -56,7 +56,7 @@ public class ObjectionTests : DatabaseTest
         await mDb.SaveChangesAsync(this.Cancellation);
 
         Assert.IsEmpty(await new ReactionService(mDb)
-            .ListObjectionsAsync(survey, summary.Id, this.Cancellation));
+            .ListObjectionsAsync(topic, summary.Id, this.Cancellation));
     }
 
     [TestMethod]
@@ -64,7 +64,7 @@ public class ObjectionTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, summary, response, node) = await this.SeededAsync();
+        var (topic, summary, response, node) = await this.SeededAsync();
 
         mDb.NodeReactions.Add(new NodeReaction()
         {
@@ -78,7 +78,7 @@ public class ObjectionTests : DatabaseTest
         await mDb.SaveChangesAsync(this.Cancellation);
 
         Assert.IsEmpty(await new ReactionService(mDb)
-            .ListObjectionsAsync(survey, summary.Id, this.Cancellation));
+            .ListObjectionsAsync(topic, summary.Id, this.Cancellation));
     }
 
     [TestMethod]
@@ -88,7 +88,7 @@ public class ObjectionTests : DatabaseTest
 
         await SeedData.EnsureSeededAsync(mDb, this.Cancellation);
 
-        var retro = await mDb.Surveys
+        var retro = await mDb.Topics
             .Include(s => s.Summaries)
             .SingleAsync(s => s.Code == "spr47ab", this.Cancellation);
 
@@ -101,10 +101,10 @@ public class ObjectionTests : DatabaseTest
         Assert.IsTrue(objections.All(o => o.ResponseBody.Length > 0));
     }
 
-    private async Task<(Survey Survey, Summary Summary, Response Response, SummaryNode Node)> SeededAsync()
+    private async Task<(Topic Topic, Summary Summary, Response Response, SummaryNode Node)> SeededAsync()
     {
-        var survey = NewSurvey(ResponseIdentity.Required);
-        survey.IsAcceptingResponses = false;
+        var topic = NewTopic(ResponseIdentity.Required);
+        topic.IsAcceptingResponses = false;
 
         var response = new Response()
         {
@@ -118,12 +118,12 @@ public class ObjectionTests : DatabaseTest
         var node = new SummaryNode() { Text = "CI is slow" };
 
         summary.Nodes.Add(node);
-        survey.Responses.Add(response);
-        survey.Summaries.Add(summary);
+        topic.Responses.Add(response);
+        topic.Summaries.Add(summary);
 
-        mDb.Surveys.Add(survey);
+        mDb.Topics.Add(topic);
         await mDb.SaveChangesAsync(this.Cancellation);
 
-        return (survey, summary, response, node);
+        return (topic, summary, response, node);
     }
 }

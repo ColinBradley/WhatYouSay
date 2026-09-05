@@ -8,13 +8,13 @@ namespace WhatYouSay.Tests;
 public class SeedDataTests : DatabaseTest
 {
     [TestMethod]
-    public async Task Anonymous_surveys_record_no_identifying_metadata()
+    public async Task Anonymous_topics_record_no_identifying_metadata()
     {
         using var activity = TestTelemetry.Source.Start();
 
         await SeedData.EnsureSeededAsync(mDb, this.Cancellation);
 
-        var anonymous = await mDb.Surveys
+        var anonymous = await mDb.Topics
             .Include(s => s.Responses)
             .SingleAsync(s => s.ResponseIdentity == ResponseIdentity.Anonymous, this.Cancellation);
 
@@ -26,13 +26,13 @@ public class SeedDataTests : DatabaseTest
     }
 
     [TestMethod]
-    public async Task Named_surveys_do_record_timestamps_and_authors()
+    public async Task Named_topics_do_record_timestamps_and_authors()
     {
         using var activity = TestTelemetry.Source.Start();
 
         await SeedData.EnsureSeededAsync(mDb, this.Cancellation);
 
-        var retro = await mDb.Surveys
+        var retro = await mDb.Topics
             .Include(s => s.Responses)
             .SingleAsync(s => s.Code == "spr47ab", this.Cancellation);
 
@@ -47,15 +47,15 @@ public class SeedDataTests : DatabaseTest
 
         await SeedData.EnsureSeededAsync(mDb, this.Cancellation);
 
-        var surveys = await mDb.Surveys.Include(s => s.Responses).ToListAsync(this.Cancellation);
+        var topics = await mDb.Topics.Include(s => s.Responses).ToListAsync(this.Cancellation);
 
-        Assert.HasCount(4, surveys);
+        Assert.HasCount(4, topics);
 
-        Assert.Contains(s => s.Responses.Count <= 5, surveys);
-        Assert.Contains(s => s.Responses.Count is > 10 and < 20, surveys);
-        Assert.Contains(s => s.Responses.Count > 50, surveys);
+        Assert.Contains(s => s.Responses.Count <= 5, topics);
+        Assert.Contains(s => s.Responses.Count is > 10 and < 20, topics);
+        Assert.Contains(s => s.Responses.Count > 50, topics);
 
-        Assert.Contains(s => !s.IsAcceptingResponses, surveys);
+        Assert.Contains(s => !s.IsAcceptingResponses, topics);
     }
 
     [TestMethod]
@@ -66,6 +66,6 @@ public class SeedDataTests : DatabaseTest
         await SeedData.EnsureSeededAsync(mDb, this.Cancellation);
         await SeedData.EnsureSeededAsync(mDb, this.Cancellation);
 
-        Assert.AreEqual(4, await mDb.Surveys.CountAsync(this.Cancellation));
+        Assert.AreEqual(4, await mDb.Topics.CountAsync(this.Cancellation));
     }
 }

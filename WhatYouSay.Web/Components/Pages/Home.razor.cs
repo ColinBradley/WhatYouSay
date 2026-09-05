@@ -5,12 +5,12 @@ namespace WhatYouSay.Web.Components.Pages;
 
 public partial class Home
 {
-    private IReadOnlyList<SurveyListing>? mListings;
+    private IReadOnlyList<TopicListing>? mListings;
 
     private string? mNotFound;
 
     [Inject]
-    private SurveyService Surveys { get; set; } = default!;
+    private TopicService Topics { get; set; } = default!;
 
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
@@ -20,7 +20,7 @@ public partial class Home
 
     protected override async Task OnInitializedAsync()
     {
-        mListings = await this.Surveys.ListPubliclyListedAsync();
+        mListings = await this.Topics.ListPubliclyListedAsync();
     }
 
     private async Task OpenByCodeAsync()
@@ -32,13 +32,13 @@ public partial class Home
             return;
         }
 
-        if (await this.Surveys.FindByCodeAsync(code) is null)
+        if (await this.Topics.FindByCodeAsync(code) is null)
         {
             mNotFound = code;
 
             return;
         }
 
-        this.Navigation.NavigateTo($"/surveys/{code}");
+        this.Navigation.NavigateTo($"/topics/{code}");
     }
 }

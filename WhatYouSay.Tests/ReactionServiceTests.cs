@@ -13,13 +13,13 @@ public class ReactionServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, node, token) = await this.SummarisedSurveyAsync();
+        var (topic, node, token) = await this.SummarisedTopicAsync();
         var service = this.Service();
 
-        await service.ToggleAsync(survey, node, token, ReactionKind.Agree, this.Cancellation);
+        await service.ToggleAsync(topic, node, token, ReactionKind.Agree, this.Cancellation);
         Assert.AreEqual(1, await mDb.NodeReactions.CountAsync(this.Cancellation));
 
-        await service.ToggleAsync(survey, node, token, ReactionKind.Agree, this.Cancellation);
+        await service.ToggleAsync(topic, node, token, ReactionKind.Agree, this.Cancellation);
         Assert.AreEqual(0, await mDb.NodeReactions.CountAsync(this.Cancellation));
     }
 
@@ -28,11 +28,11 @@ public class ReactionServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, node, _) = await this.SummarisedSurveyAsync();
+        var (topic, node, _) = await this.SummarisedTopicAsync();
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
             () => this.Service().ToggleAsync(
-                survey, node, Secrets.NewToken(), ReactionKind.Agree, this.Cancellation));
+                topic, node, Secrets.NewToken(), ReactionKind.Agree, this.Cancellation));
 
         Assert.AreEqual(0, await mDb.NodeReactions.CountAsync(this.Cancellation));
     }
@@ -42,28 +42,28 @@ public class ReactionServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, node, token) = await this.SummarisedSurveyAsync();
+        var (topic, node, token) = await this.SummarisedTopicAsync();
 
         var response = await mDb.Responses.SingleAsync(this.Cancellation);
         response.IsDeleted = true;
         await mDb.SaveChangesAsync(this.Cancellation);
 
-        Assert.IsFalse(await this.Service().CanReactAsync(survey.Id, token, this.Cancellation));
+        Assert.IsFalse(await this.Service().CanReactAsync(topic.Id, token, this.Cancellation));
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            () => this.Service().ToggleAsync(survey, node, token, ReactionKind.Agree, this.Cancellation));
+            () => this.Service().ToggleAsync(topic, node, token, ReactionKind.Agree, this.Cancellation));
     }
 
     [TestMethod]
-    public async Task A_node_on_another_survey_cannot_be_reacted_to()
+    public async Task A_node_on_another_topic_cannot_be_reacted_to()
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, _, token) = await this.SummarisedSurveyAsync();
-        var (_, otherNode, _) = await this.SummarisedSurveyAsync();
+        var (topic, _, token) = await this.SummarisedTopicAsync();
+        var (_, otherNode, _) = await this.SummarisedTopicAsync();
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            () => this.Service().ToggleAsync(survey, otherNode, token, ReactionKind.Agree, this.Cancellation));
+            () => this.Service().ToggleAsync(topic, otherNode, token, ReactionKind.Agree, this.Cancellation));
     }
 
     [TestMethod]
@@ -71,11 +71,11 @@ public class ReactionServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, node, token) = await this.SummarisedSurveyAsync();
+        var (topic, node, token) = await this.SummarisedTopicAsync();
         var service = this.Service();
 
-        await service.SetObjectionAsync(survey, node, token, "That is not what I meant", this.Cancellation);
-        await service.SetObjectionAsync(survey, node, token, "Closer, but still wrong", this.Cancellation);
+        await service.SetObjectionAsync(topic, node, token, "That is not what I meant", this.Cancellation);
+        await service.SetObjectionAsync(topic, node, token, "Closer, but still wrong", this.Cancellation);
 
         var stored = await mDb.NodeReactions.SingleAsync(this.Cancellation);
 
@@ -89,23 +89,23 @@ public class ReactionServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, node, token) = await this.SummarisedSurveyAsync();
+        var (topic, node, token) = await this.SummarisedTopicAsync();
         var service = this.Service();
 
-        await service.SetObjectionAsync(survey, node, token, "Wrong", this.Cancellation);
-        await service.WithdrawAsync(survey, node, token, ReactionKind.Misrepresents, this.Cancellation);
+        await service.SetObjectionAsync(topic, node, token, "Wrong", this.Cancellation);
+        await service.WithdrawAsync(topic, node, token, ReactionKind.Misrepresents, this.Cancellation);
 
         Assert.AreEqual(0, await mDb.NodeReactions.CountAsync(this.Cancellation));
     }
 
     [TestMethod]
-    public async Task Anonymous_surveys_record_no_reaction_timestamps()
+    public async Task Anonymous_topics_record_no_reaction_timestamps()
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, node, token) = await this.SummarisedSurveyAsync(ResponseIdentity.Anonymous);
+        var (topic, node, token) = await this.SummarisedTopicAsync(ResponseIdentity.Anonymous);
 
-        await this.Service().ToggleAsync(survey, node, token, ReactionKind.Agree, this.Cancellation);
+        await this.Service().ToggleAsync(topic, node, token, ReactionKind.Agree, this.Cancellation);
 
         var stored = await mDb.NodeReactions.SingleAsync(this.Cancellation);
 
@@ -117,13 +117,13 @@ public class ReactionServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, node, mine) = await this.SummarisedSurveyAsync();
-        var theirs = await this.AddResponderAsync(survey);
+        var (topic, node, mine) = await this.SummarisedTopicAsync();
+        var theirs = await this.AddResponderAsync(topic);
         var service = this.Service();
 
-        await service.ToggleAsync(survey, node, mine, ReactionKind.Agree, this.Cancellation);
-        await service.ToggleAsync(survey, node, theirs, ReactionKind.Agree, this.Cancellation);
-        await service.ToggleAsync(survey, node, theirs, ReactionKind.Important, this.Cancellation);
+        await service.ToggleAsync(topic, node, mine, ReactionKind.Agree, this.Cancellation);
+        await service.ToggleAsync(topic, node, theirs, ReactionKind.Agree, this.Cancellation);
+        await service.ToggleAsync(topic, node, theirs, ReactionKind.Important, this.Cancellation);
 
         var summaryId = await mDb.Summaries.Select(s => s.Id).SingleAsync(this.Cancellation);
         var tally = (await service.TallyAsync(summaryId, mine, this.Cancellation))[node];
@@ -139,10 +139,10 @@ public class ReactionServiceTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (survey, node, token) = await this.SummarisedSurveyAsync();
+        var (topic, node, token) = await this.SummarisedTopicAsync();
         var service = this.Service();
 
-        await service.ToggleAsync(survey, node, token, ReactionKind.Agree, this.Cancellation);
+        await service.ToggleAsync(topic, node, token, ReactionKind.Agree, this.Cancellation);
 
         var summaryId = await mDb.Summaries.Select(s => s.Id).SingleAsync(this.Cancellation);
         var tally = (await service.TallyAsync(summaryId, null, this.Cancellation))[node];
@@ -157,14 +157,14 @@ public class ReactionServiceTests : DatabaseTest
         return new ReactionService(mDb);
     }
 
-    private async Task<string> AddResponderAsync(Survey survey)
+    private async Task<string> AddResponderAsync(Topic topic)
     {
         var token = Secrets.NewToken();
 
         mDb.Responses.Add(new Response()
         {
             Id = Guid.NewGuid(),
-            SurveyId = survey.Id,
+            TopicId = topic.Id,
             Body = "Another answer",
             AuthTokenHash = Secrets.HashToken(token),
         });
@@ -174,16 +174,16 @@ public class ReactionServiceTests : DatabaseTest
         return token;
     }
 
-    private async Task<(Survey Survey, int NodeId, string Token)> SummarisedSurveyAsync(
+    private async Task<(Topic Topic, int NodeId, string Token)> SummarisedTopicAsync(
         ResponseIdentity identity = ResponseIdentity.Required
     )
     {
-        var survey = NewSurvey(identity);
-        survey.IsAcceptingResponses = false;
+        var topic = NewTopic(identity);
+        topic.IsAcceptingResponses = false;
 
         var token = Secrets.NewToken();
 
-        survey.Responses.Add(new Response()
+        topic.Responses.Add(new Response()
         {
             Id = Guid.NewGuid(),
             Body = "CI is slow",
@@ -197,11 +197,11 @@ public class ReactionServiceTests : DatabaseTest
 
         summary.Nodes.Add(heading);
         summary.Nodes.Add(leaf);
-        survey.Summaries.Add(summary);
+        topic.Summaries.Add(summary);
 
-        mDb.Surveys.Add(survey);
+        mDb.Topics.Add(topic);
         await mDb.SaveChangesAsync(this.Cancellation);
 
-        return (survey, leaf.Id, token);
+        return (topic, leaf.Id, token);
     }
 }

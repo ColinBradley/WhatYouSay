@@ -6,18 +6,18 @@ using WhatYouSay.Telemetry;
 
 namespace WhatYouSay.Services;
 
-/// <summary>A survey and the one-time secrets that only exist at creation.</summary>
-public record CreatedSurvey
+/// <summary>A topic and the one-time secrets that only exist at creation.</summary>
+public record CreatedTopic
 {
-    public required Survey Survey { get; init; }
+    public required Topic Topic { get; init; }
 
     /// <summary>Shown once on the confirmation screen; only its hash is stored.</summary>
     public required string SummariserToken { get; init; }
 }
 
-public class SurveyAdminService(WhatYouSayContext db)
+public class TopicAdminService(WhatYouSayContext db)
 {
-    public async Task<CreatedSurvey> CreateAsync(
+    public async Task<CreatedTopic> CreateAsync(
         string title,
         string prompt,
         string adminPassword,
@@ -31,7 +31,7 @@ public class SurveyAdminService(WhatYouSayContext db)
 
         var token = Secrets.NewToken();
 
-        var survey = new Survey()
+        var topic = new Topic()
         {
             Id = Guid.CreateVersion7(),
             Code = await this.UniqueCodeAsync(cancellationToken),
@@ -46,65 +46,65 @@ public class SurveyAdminService(WhatYouSayContext db)
             CreatedAt = DateTimeOffset.UtcNow,
         };
 
-        db.Surveys.Add(survey);
+        db.Topics.Add(topic);
         await db.SaveChangesAsync(cancellationToken);
 
-        WhatYouSayTelemetry.SurveyCreated(survey);
+        WhatYouSayTelemetry.TopicCreated(topic);
 
-        return new CreatedSurvey { Survey = survey, SummariserToken = token };
+        return new CreatedTopic { Topic = topic, SummariserToken = token };
     }
 
-    public bool CheckPassword(Survey survey, string password)
+    public bool CheckPassword(Topic topic, string password)
     {
-        return Secrets.VerifyPassword(survey.AdminPasswordHash, password);
+        return Secrets.VerifyPassword(topic.AdminPasswordHash, password);
     }
 
     public async Task SetAcceptingResponsesAsync(
-        Survey survey,
+        Topic topic,
         bool accepting,
         CancellationToken cancellationToken = default
     )
     {
-        using var activity = WhatYouSayTelemetry.Source.Start().SetSurvey(survey);
+        using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
 
-        if (accepting && !survey.CanReopen)
+        if (accepting && !topic.CanReopen)
         {
             activity.RecordFailure("summary_exists");
 
             throw new InvalidOperationException(
-                "A summary has been generated, so this survey stays closed. Run a new survey instead.");
+                "A summary has been generated, so this topic stays closed. Run a new topic instead.");
         }
 
-        survey.IsAcceptingResponses = accepting;
+        topic.IsAcceptingResponses = accepting;
 
         await db.SaveChangesAsync(cancellationToken);
     }
 
     public async Task UpdateSettingsAsync(
-        Survey survey,
+        Topic topic,
         bool isPubliclyListed,
         bool areResponsesPublic,
         CancellationToken cancellationToken = default
     )
     {
-        using var activity = WhatYouSayTelemetry.Source.Start().SetSurvey(survey);
+        using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
 
-        survey.IsPubliclyListed = isPubliclyListed;
-        survey.AreResponsesPublic = areResponsesPublic;
+        topic.IsPubliclyListed = isPubliclyListed;
+        topic.AreResponsesPublic = areResponsesPublic;
 
         await db.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>Returns the new token; the old one stops working immediately.</summary>
     public async Task<string> RegenerateSummariserTokenAsync(
-        Survey survey,
+        Topic topic,
         CancellationToken cancellationToken = default
     )
     {
-        using var activity = WhatYouSayTelemetry.Source.Start().SetSurvey(survey);
+        using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
 
         var token = Secrets.NewToken();
-        survey.SummariserTokenHash = Secrets.HashToken(token);
+        topic.SummariserTokenHash = Secrets.HashToken(token);
 
         await db.SaveChangesAsync(cancellationToken);
 
@@ -112,15 +112,15 @@ public class SurveyAdminService(WhatYouSayContext db)
     }
 
     public async Task DeleteResponseAsync(
-        Survey survey,
+        Topic topic,
         Guid responseId,
         CancellationToken cancellationToken = default
     )
     {
-        using var activity = WhatYouSayTelemetry.Source.Start().SetSurvey(survey);
+        using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
 
         var response = await db.Responses.FirstOrDefaultAsync(
-            r => r.Id == responseId && r.SurveyId == survey.Id,
+            r => r.Id == responseId && r.TopicId == topic.Id,
             cancellationToken);
 
         if (response is null)
@@ -143,19 +143,19 @@ public class SurveyAdminService(WhatYouSayContext db)
     /// where it stops.
     /// </exception>
     public async Task SetSummaryVisibilityAsync(
-        Survey survey,
+        Topic topic,
         Guid summaryId,
         bool published,
         CancellationToken cancellationToken = default
     )
     {
-        using var activity = WhatYouSayTelemetry.Source.Start().SetSurvey(survey);
+        using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
 
-        var summary = await this.RequireSummaryAsync(survey, summaryId, cancellationToken);
+        var summary = await this.RequireSummaryAsync(topic, summaryId, cancellationToken);
 
         if (published)
         {
-            await this.RequireGroundedAsync(survey, summary, cancellationToken);
+            await this.RequireGroundedAsync(topic, summary, cancellationToken);
         }
 
         summary.IsDraft = !published;
@@ -166,7 +166,7 @@ public class SurveyAdminService(WhatYouSayContext db)
     }
 
     private async Task RequireGroundedAsync(
-        Survey survey,
+        Topic topic,
         Summary summary,
         CancellationToken cancellationToken
     )
@@ -196,7 +196,7 @@ public class SurveyAdminService(WhatYouSayContext db)
             })
             .ToList();
 
-        WhatYouSayTelemetry.SummaryRejected(survey, "branch_without_citation");
+        WhatYouSayTelemetry.SummaryRejected(topic, "branch_without_citation");
         Activity.Current.RecordFailure("branch_without_citation");
 
         throw new SummaryGroundingException(
@@ -208,14 +208,14 @@ public class SurveyAdminService(WhatYouSayContext db)
     }
 
     public async Task DeleteSummaryAsync(
-        Survey survey,
+        Topic topic,
         Guid summaryId,
         CancellationToken cancellationToken = default
     )
     {
-        using var activity = WhatYouSayTelemetry.Source.Start().SetSurvey(survey);
+        using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
 
-        var summary = await this.RequireSummaryAsync(survey, summaryId, cancellationToken);
+        var summary = await this.RequireSummaryAsync(topic, summaryId, cancellationToken);
 
         db.Summaries.Remove(summary);
 
@@ -223,29 +223,29 @@ public class SurveyAdminService(WhatYouSayContext db)
     }
 
     private async Task<Summary> RequireSummaryAsync(
-        Survey survey,
+        Topic topic,
         Guid summaryId,
         CancellationToken cancellationToken
     )
     {
         return await db.Summaries.FirstOrDefaultAsync(
-                s => s.Id == summaryId && s.SurveyId == survey.Id,
+                s => s.Id == summaryId && s.TopicId == topic.Id,
                 cancellationToken)
-            ?? throw new InvalidOperationException($"No summary {summaryId} on this survey.");
+            ?? throw new InvalidOperationException($"No summary {summaryId} on this topic.");
     }
 
     private async Task<string> UniqueCodeAsync(CancellationToken cancellationToken)
     {
         for (var attempt = 0; attempt < 10; attempt++)
         {
-            var code = Secrets.NewSurveyCode();
+            var code = Secrets.NewTopicCode();
 
-            if (!await db.Surveys.AnyAsync(s => s.Code == code, cancellationToken))
+            if (!await db.Topics.AnyAsync(s => s.Code == code, cancellationToken))
             {
                 return code;
             }
         }
 
-        throw new InvalidOperationException("Could not find a free survey code.");
+        throw new InvalidOperationException("Could not find a free topic code.");
     }
 }

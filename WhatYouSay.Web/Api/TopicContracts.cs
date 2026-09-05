@@ -1,7 +1,7 @@
 namespace WhatYouSay.Web.Api;
 
-/// <summary>What <c>GET /api/surveys/{code}</c> tells an agent about the survey its token is scoped to.</summary>
-public record SurveyInfo
+/// <summary>What <c>GET /api/topics/{code}</c> tells an agent about the topic its token is scoped to.</summary>
+public record TopicInfo
 {
     public required string Code { get; init; }
 
@@ -26,9 +26,9 @@ public record ResponseInfo
 
     public required string Body { get; init; }
 
-    /// <summary>Null on anonymous surveys, where it was never collected.</summary>
+    /// <summary>Null on anonymous topics, where it was never collected.</summary>
     public string? Author { get; init; }
 
-    /// <summary>Null on anonymous surveys, where it was never recorded.</summary>
+    /// <summary>Null on anonymous topics, where it was never recorded.</summary>
     public DateTimeOffset? CreatedAt { get; init; }
 }

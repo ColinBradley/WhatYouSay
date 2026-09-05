@@ -1,15 +1,15 @@
 @page "/new"
 @using WhatYouSay.Data
 
-<PageTitle>New survey</PageTitle>
+<PageTitle>New topic</PageTitle>
 
 <Breadcrumb Items="@mCrumbs" />
 
 @if (mCreated is not null)
 {
-    <h1>Survey created</h1>
+    <h1>Topic created</h1>
 
-    <p class="lead">@mCreated.Survey.Title</p>
+    <p class="lead">@mCreated.Topic.Title</p>
 
     <h2 class="h5 mt-4">Share this link</h2>
     <p><code>@mShareLink</code></p>
@@ -19,20 +19,20 @@
         <div class="fw-semibold">Copy this now — it is not shown again.</div>
         <code>@mCreated.SummariserToken</code>
         <div class="small mt-2">
-            Give it to an agent along with the survey code to let it draft summaries. It
+            Give it to an agent along with the topic code to let it draft summaries. It
             cannot read your admin password, edit responses, or publish anything.
         </div>
     </div>
 
-    <a class="btn btn-primary" href="@($"/surveys/{mCreated.Survey.Code}/admin")">Go to admin</a>
+    <a class="btn btn-primary" href="@($"/topics/{mCreated.Topic.Code}/admin")">Go to admin</a>
 }
 else
 {
-    <h1>New survey</h1>
+    <h1>New topic</h1>
 
     <p class="lead">One open question. Everything else is a setting.</p>
 
-    <form method="post" @formname="create-survey" @onsubmit="CreateAsync" style="max-width: 40rem">
+    <form method="post" @formname="create-topic" @onsubmit="CreateAsync" style="max-width: 40rem">
         <AntiforgeryToken />
 
         <div class="mb-3">
@@ -45,7 +45,7 @@ else
             <label class="form-label" for="prompt">The question</label>
             <textarea class="form-control" id="prompt" name="Prompt" rows="3"
                       placeholder="@mExample.Prompt">@Prompt</textarea>
-            <div class="form-text">Title and question together are the whole survey.</div>
+            <div class="form-text">Title and question together are the whole topic.</div>
         </div>
 
         <div class="mb-3">
@@ -70,7 +70,7 @@ else
                 </div>
             }
 
-            <div class="form-text">Fixed once the survey exists, so choose carefully.</div>
+            <div class="form-text">Fixed once the topic exists, so choose carefully.</div>
         </fieldset>
 
         <div class="form-check">
@@ -90,6 +90,6 @@ else
             <p class="text-danger">@mError</p>
         }
 
-        <button class="btn btn-primary" type="submit">Create survey</button>
+        <button class="btn btn-primary" type="submit">Create topic</button>
     </form>
 }

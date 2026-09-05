@@ -20,8 +20,8 @@ public partial class Breadcrumb
         return new Crumb { Text = "Home", Href = "/" };
     }
 
-    public static Crumb Survey(string code, string title)
+    public static Crumb Topic(string code, string title)
     {
-        return new Crumb { Text = title, Href = $"/surveys/{code}" };
+        return new Crumb { Text = title, Href = $"/topics/{code}" };
     }
 }

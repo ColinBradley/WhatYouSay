@@ -5,10 +5,10 @@ using WhatYouSay.Telemetry;
 
 namespace WhatYouSay.Data.Seed;
 
-/// <summary>Development seed data: four surveys of deliberately different shapes.</summary>
+/// <summary>Development seed data: four topics of deliberately different shapes.</summary>
 public static class SeedData
 {
-    /// <summary>Admin password for every seeded survey. Development only, obviously.</summary>
+    /// <summary>Admin password for every seeded topic. Development only, obviously.</summary>
     public const string AdminPassword = "letmein";
 
     public static async Task EnsureSeededAsync(
@@ -18,7 +18,7 @@ public static class SeedData
     {
         using var activity = WhatYouSayTelemetry.Source.Start();
 
-        if (await db.Surveys.AnyAsync(cancellationToken))
+        if (await db.Topics.AnyAsync(cancellationToken))
         {
             activity?.SetTag("seed.skipped", true);
             return;
@@ -27,14 +27,14 @@ public static class SeedData
         var retro = Retro();
         AddRetroSummary(retro);
 
-        db.Surveys.AddRange(retro, Takeaway(), CompanyWide(), Diary());
+        db.Topics.AddRange(retro, Takeaway(), CompanyWide(), Diary());
         await db.SaveChangesAsync(cancellationToken);
 
-        var seeded = await db.Surveys.AsNoTracking().ToListAsync(cancellationToken);
+        var seeded = await db.Topics.AsNoTracking().ToListAsync(cancellationToken);
 
-        activity?.SetTag("seed.surveys.count", seeded.Count);
+        activity?.SetTag("seed.topics.count", seeded.Count);
         activity?.SetTag("seed.admin.password", AdminPassword);
-        activity?.SetTag("seed.surveys", string.Join(", ", seeded.Select(survey => $"/surveys/{survey.Code} — {survey.Title}")));
+        activity?.SetTag("seed.topics", string.Join(", ", seeded.Select(topic => $"/topics/{topic.Code} — {topic.Title}")));
         activity?.SetTag("seed.summariser.tokens", string.Join(", ", sSummariserTokens));
     }
 
@@ -45,7 +45,7 @@ public static class SeedData
     private static readonly string[] sSummariserTokens =
         ["dev-retro", "dev-lunch", "dev-company", "dev-diary"];
 
-    private static Survey Build(
+    private static Topic Build(
         string code,
         string summariserToken,
         string title,
@@ -58,7 +58,7 @@ public static class SeedData
         var anonymous = identity == ResponseIdentity.Anonymous;
         var createdAt = new DateTimeOffset(2026, 8, 17, 9, 0, 0, TimeSpan.Zero);
 
-        var survey = new Survey()
+        var topic = new Topic()
         {
             Id = Guid.CreateVersion7(),
             Code = code,
@@ -77,10 +77,10 @@ public static class SeedData
         {
             var (author, body) = responses[i];
 
-            survey.Responses.Add(new Response()
+            topic.Responses.Add(new Response()
             {
                 // v4, not v7: a time-ordered Guid would leak submission order and time in
-                // anonymous surveys. See ResponseService.SubmitAsync.
+                // anonymous topics. See ResponseService.SubmitAsync.
                 Id = Guid.NewGuid(),
                 Body = body,
                 Author = anonymous ? null : author,
@@ -90,11 +90,11 @@ public static class SeedData
             });
         }
 
-        return survey;
+        return topic;
     }
 
     /// <summary>Named responses with overlapping themes and a causal chain. Closed, so it can be summarised.</summary>
-    private static Survey Retro() =>
+    private static Topic Retro() =>
         Build(
             "spr47ab", "dev-retro",
             "Sprint 47 retro",
@@ -117,7 +117,7 @@ public static class SeedData
             ]);
 
     /// <summary>The small case: five responses, one of them a single word.</summary>
-    private static Survey Takeaway() =>
+    private static Topic Takeaway() =>
         Build(
             "lunch42", "dev-lunch",
             "Friday team lunch — what are we getting?",
@@ -136,7 +136,7 @@ public static class SeedData
     /// The scale case: anonymous, closed, many topics, and roughly a third low-effort
     /// answers. Anonymous means no timestamps, so ordering falls back to the random Guid.
     /// </summary>
-    private static Survey CompanyWide() =>
+    private static Topic CompanyWide() =>
         Build(
             "allco26", "dev-company",
             "What should we change about how we work in 2026?",
@@ -203,7 +203,7 @@ public static class SeedData
             ]);
 
     /// <summary>Single-author case. Author is a date rather than a person.</summary>
-    private static Survey Diary() =>
+    private static Topic Diary() =>
         Build(
             "diary08", "dev-diary",
             "August journal",
@@ -224,7 +224,7 @@ public static class SeedData
             ]);
 
     /// <summary>A hand-written summary, so the summary page has structure to render without an agent.</summary>
-    private static void AddRetroSummary(Survey survey)
+    private static void AddRetroSummary(Topic topic)
     {
         var writtenAt = new DateTimeOffset(2026, 8, 21, 16, 30, 0, TimeSpan.Zero);
 
@@ -257,70 +257,70 @@ public static class SeedData
 
         summary.Nodes.AddRange(Tree(
             Node("The build feedback loop",
-                Cites(survey, "A full CI run takes 22 minutes and fails often enough that a green build is not a reliable gate.",
+                Cites(topic, "A full CI run takes 22 minutes and fails often enough that a green build is not a reliable gate.",
                     [(0, "A full run is 22 minutes and it fails on flaky integration tests maybe one time in four")],
-                    Cites(survey, "The same three suites are the ones that fail.",
+                    Cites(topic, "The same three suites are the ones that fail.",
                         [(7, "Flaky tests, same three suites every time")]),
-                    Cites(survey, "Re-running a flake rather than fixing it has switched the safety net off by degrees.",
+                    Cites(topic, "Re-running a flake rather than fixing it has switched the safety net off by degrees.",
                         [(7, "We re-run them and move on, which means we've effectively switched off our own safety net")])),
-                Cites(survey, "People have started batching commits to dodge the wait.",
+                Cites(topic, "People have started batching commits to dodge the wait.",
                     [(0, "I've started batching three or four commits before pushing just to avoid the wait")],
                     // Cites nothing of its own: inherited support, which is what the branch rule allows.
                     Node("Which is the opposite of what fast feedback is meant to encourage, and the person doing it knows it."))),
             Node("Review latency",
-                Cites(survey, "A first review comment arrives a day or more after the pull request goes up.",
+                Cites(topic, "A first review comment arrives a day or more after the pull request goes up.",
                     [(5, "I put a PR up Monday morning and got the first comment Tuesday afternoon")],
-                    Cites(survey, "By then the author has context-switched away and has to reload the whole change.",
+                    Cites(topic, "By then the author has context-switched away and has to reload the whole change.",
                         [(5, "by which point I'd context-switched twice and had to reload the whole thing in my head")])),
-                Cites(survey, "Pull requests are getting larger, which is consistent with the commit batching above.",
+                Cites(topic, "Pull requests are getting larger, which is consistent with the commit batching above.",
                     [
                         (5, "The PRs are also getting bigger, which can't be helping"),
                         (0, "I've started batching three or four commits before pushing just to avoid the wait"),
                     ])),
             Node("Sprint shape",
-                Cites(survey, "Eleven tickets in flight across six people meant everything was nearly done and nothing shipped until Thursday.",
+                Cites(topic, "Eleven tickets in flight across six people meant everything was nearly done and nothing shipped until Thursday.",
                     [(9, "Everything was 90% done and nothing actually shipped until the Thursday")]),
-                Cites(survey, "Work pulled in on day four makes the original estimate meaningless.",
+                Cites(topic, "Work pulled in on day four makes the original estimate meaningless.",
                     [(11, "can we stop pulling extra work into the sprint on day four")]),
-                Cites(survey, "Vague acceptance criteria on the reporting tickets cost a day and a half of rework.",
+                Cites(topic, "Vague acceptance criteria on the reporting tickets cost a day and a half of rework.",
                     [(2, "I spent a day and a half building the wrong thing and only found out at review")],
-                    Cites(survey, "The acceptance criteria conversation wanted before the ticket is pulled, not during.",
+                    Cites(topic, "The acceptance criteria conversation wanted before the ticket is pulled, not during.",
                         [(2, "the AC conversation needs to happen before the ticket is pulled, not during")])),
-                Cites(survey, "A time box on spike tickets wanted.",
+                Cites(topic, "A time box on spike tickets wanted.",
                     [(8, "putting a time box on spike tickets, they always balloon")])),
             Node("Unowned infrastructure",
                 Node("Staging",
-                    Cites(survey, "Staging was down for most of a Tuesday with nobody to ask.",
+                    Cites(topic, "Staging was down for most of a Tuesday with nobody to ask.",
                         [(10, "Staging was down for most of Tuesday and nobody knew who to ask")],
-                        Cites(survey, "It has no owner and is becoming a running joke that costs a day each time.",
+                        Cites(topic, "It has no owner and is becoming a running joke that costs a day each time.",
                             [(10, "There's no clear ownership and it's turning into a running joke")])),
-                    Cites(survey, "On-call was dominated by a single repeating disk alert on that same box.",
+                    Cites(topic, "On-call was dominated by a single repeating disk alert on that same box.",
                         [(3, "eleven of them the same disk alert on the staging box that nobody owns")],
-                        Cites(survey, "The cost landed the next day rather than during the night.",
+                        Cites(topic, "The cost landed the next day rather than during the night.",
                             [(3, "I got about four hours sleep on the Wednesday and was useless on the Thursday")])))),
             Node("What worked",
-                Cites(survey, "Pairing on the payments migration produced a better result than either person would have reached alone.",
+                Cites(topic, "Pairing on the payments migration produced a better result than either person would have reached alone.",
                     [(1, "Two days of it and we shipped something neither of us would have got right alone")],
-                    Cites(survey, "Hard to justify while the board is full, which ties back to work in progress.",
+                    Cites(topic, "Hard to justify while the board is full, which ties back to work in progress.",
                         [(1, "it's hard to justify when the board is full")]),
-                    Cites(survey, "More pairing wanted.",
+                    Cites(topic, "More pairing wanted.",
                         [(11, "More pairing please")])),
-                Cites(survey, "The new design system components saved real time on the settings screens.",
+                Cites(topic, "The new design system components saved real time on the settings screens.",
                     [(4, "saved me a lot of time on the settings screens")])),
             Node("Left open",
-                Cites(survey, "Whether standup is still doing anything, or is status theatre for someone who is not in the room.",
+                Cites(topic, "Whether standup is still doing anything, or is status theatre for someone who is not in the room.",
                     [(6, "we're doing status theatre for a manager who isn't even in the room")]))));
 
-        survey.Summaries.Add(summary);
+        topic.Summaries.Add(summary);
 
-        AddRetroReactions(survey, summary);
+        AddRetroReactions(topic, summary);
     }
 
     /// <summary>
     /// Reactions from the people whose words the summary is built on, so the objection
     /// display in the admin editor has something to show without hand-building one.
     /// </summary>
-    private static void AddRetroReactions(Survey survey, Summary summary)
+    private static void AddRetroReactions(Topic topic, Summary summary)
     {
         var nodes = summary.Nodes;
 
@@ -345,10 +345,10 @@ public static class SeedData
 
             node.Reactions.Add(new NodeReaction()
             {
-                ResponderTokenHash = survey.Responses[responderIndex].AuthTokenHash,
+                ResponderTokenHash = topic.Responses[responderIndex].AuthTokenHash,
                 Kind = kind,
                 Note = note,
-                CreatedAt = survey.IsAnonymous ? null : survey.CreatedAt.AddDays(1),
+                CreatedAt = topic.IsAnonymous ? null : topic.CreatedAt.AddDays(1),
             });
         }
     }
@@ -395,7 +395,7 @@ public static class SeedData
     }
 
     private static SummaryNode Cites(
-        Survey survey,
+        Topic topic,
         string text,
         (int ResponseIndex, string Quote)[] citations,
         params SummaryNode[] children
@@ -405,7 +405,7 @@ public static class SeedData
 
         foreach (var (responseIndex, quote) in citations)
         {
-            var response = survey.Responses[responseIndex];
+            var response = topic.Responses[responseIndex];
 
             // A typo in a seed quote fails loudly here rather than rendering wrong.
             var location = QuoteLocator.Locate(response.Body, quote)

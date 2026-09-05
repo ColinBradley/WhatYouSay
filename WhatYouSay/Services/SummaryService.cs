@@ -11,14 +11,14 @@ public class SummaryService(WhatYouSayContext db)
     /// The newest summary a non-admin is allowed to see: blessed by a human and published.
     /// </summary>
     public async Task<Summary?> FindLatestVisibleAsync(
-        Guid surveyId,
+        Guid topicId,
         CancellationToken cancellationToken = default
     )
     {
         using var activity = WhatYouSayTelemetry.Source.Start();
 
         var summary = await this.Detailed()
-            .Where(s => s.SurveyId == surveyId && !s.IsDraft && s.IsPublic)
+            .Where(s => s.TopicId == topicId && !s.IsDraft && s.IsPublic)
             .OrderByDescending(s => s.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -36,27 +36,27 @@ public class SummaryService(WhatYouSayContext db)
     }
 
     public async Task<IReadOnlyList<Summary>> ListVisibleAsync(
-        Guid surveyId,
+        Guid topicId,
         CancellationToken cancellationToken = default
     )
     {
         using var activity = WhatYouSayTelemetry.Source.Start();
 
         return await db.Summaries
-            .Where(s => s.SurveyId == surveyId && !s.IsDraft && s.IsPublic)
+            .Where(s => s.TopicId == topicId && !s.IsDraft && s.IsPublic)
             .OrderByDescending(s => s.CreatedAt)
             .ToListAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<Summary>> ListAllAsync(
-        Guid surveyId,
+        Guid topicId,
         CancellationToken cancellationToken = default
     )
     {
         using var activity = WhatYouSayTelemetry.Source.Start();
 
         return await db.Summaries
-            .Where(s => s.SurveyId == surveyId)
+            .Where(s => s.TopicId == topicId)
             .OrderByDescending(s => s.CreatedAt)
             .ToListAsync(cancellationToken);
     }
@@ -66,32 +66,32 @@ public class SummaryService(WhatYouSayContext db)
     /// applying it partially, so a summary is never half-cited.
     /// </summary>
     public async Task<Summary> SaveDraftAsync(
-        Survey survey,
+        Topic topic,
         SummaryDraft draft,
         string createdBy,
         Guid? replacing = null,
         CancellationToken cancellationToken = default
     )
     {
-        using var activity = WhatYouSayTelemetry.Source.Start().SetSurvey(survey);
+        using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
 
-        var responses = await this.ValidateAsync(survey, draft, cancellationToken);
+        var responses = await this.ValidateAsync(topic, draft, cancellationToken);
 
         var summary = replacing is { } id
             ? await db.Summaries
                 .Include(s => s.Nodes)
-                .FirstOrDefaultAsync(s => s.Id == id && s.SurveyId == survey.Id, cancellationToken)
+                .FirstOrDefaultAsync(s => s.Id == id && s.TopicId == topic.Id, cancellationToken)
             : null;
 
         if (replacing is not null && summary is null)
         {
-            throw this.Reject(survey, "unknown_summary", "/", $"No summary {replacing} on this survey.");
+            throw this.Reject(topic, "unknown_summary", "/", $"No summary {replacing} on this topic.");
         }
 
         if (summary is not null && !summary.IsDraft)
         {
             throw this.Reject(
-                survey,
+                topic,
                 "summary_published",
                 "/",
                 "That summary has been published, so it is immutable. Create a new one instead.");
@@ -104,7 +104,7 @@ public class SummaryService(WhatYouSayContext db)
             summary = new Summary()
             {
                 Id = Guid.CreateVersion7(),
-                SurveyId = survey.Id,
+                TopicId = topic.Id,
                 Body = draft.Body,
                 CreatedBy = createdBy,
                 CreatedAt = now,
@@ -132,7 +132,7 @@ public class SummaryService(WhatYouSayContext db)
 
         SummaryTree.Assemble(summary);
 
-        WhatYouSayTelemetry.SummaryDrafted(survey);
+        WhatYouSayTelemetry.SummaryDrafted(topic);
 
         return summary;
 
@@ -171,28 +171,28 @@ public class SummaryService(WhatYouSayContext db)
 
     /// <summary>Runs before anything is written, so a failure leaves nothing behind.</summary>
     private async Task<Dictionary<Guid, Response>> ValidateAsync(
-        Survey survey,
+        Topic topic,
         SummaryDraft draft,
         CancellationToken cancellationToken
     )
     {
-        if (survey.IsAcceptingResponses)
+        if (topic.IsAcceptingResponses)
         {
             throw this.Reject(
-                survey,
-                "survey_open",
+                topic,
+                "topic_open",
                 "/",
-                "This survey is still accepting responses. Summarising a moving target "
-                + "produces quotes that stop matching, so close the survey first.");
+                "This topic is still accepting responses. Summarising a moving target "
+                + "produces quotes that stop matching, so close the topic first.");
         }
 
         if (draft.Nodes.Count == 0)
         {
-            throw this.Reject(survey, "empty_summary", "/nodes", "A summary needs at least one node.");
+            throw this.Reject(topic, "empty_summary", "/nodes", "A summary needs at least one node.");
         }
 
         var responses = await db.Responses
-            .Where(r => r.SurveyId == survey.Id && !r.IsDeleted)
+            .Where(r => r.TopicId == topic.Id && !r.IsDeleted)
             .ToDictionaryAsync(r => r.Id, cancellationToken);
 
         // Every problem is collected rather than thrown on, so one retry can fix the lot.
@@ -205,7 +205,7 @@ public class SummaryService(WhatYouSayContext db)
 
         if (failures.Count > 0)
         {
-            throw this.Reject(survey, failures);
+            throw this.Reject(topic, failures);
         }
 
         return responses;
@@ -257,7 +257,7 @@ public class SummaryService(WhatYouSayContext db)
                     Path = $"{path}/responseId",
                     Reason = "unknown_response",
                     Message = $"\"{Trim(node.Text)}\" cites response {reference.ResponseId}, which "
-                        + "is not a live response on this survey.",
+                        + "is not a live response on this topic.",
                 });
 
                 return;
@@ -284,27 +284,27 @@ public class SummaryService(WhatYouSayContext db)
     }
 
     private SummaryGroundingException Reject(
-        Survey survey,
+        Topic topic,
         string reason,
         string path,
         string message
     )
     {
         return this.Reject(
-            survey,
+            topic,
             [new GroundingFailure() { Path = path, Reason = reason, Message = message }]
         );
     }
 
     private SummaryGroundingException Reject(
-        Survey survey,
+        Topic topic,
         List<GroundingFailure> failures
     )
     {
         // The first reason is the one that gets tagged; the rest travel on the exception.
         var reason = failures[0].Reason;
 
-        WhatYouSayTelemetry.SummaryRejected(survey, reason);
+        WhatYouSayTelemetry.SummaryRejected(topic, reason);
         Activity.Current.RecordFailure(reason);
 
         return new SummaryGroundingException(reason, Explain(failures), failures);

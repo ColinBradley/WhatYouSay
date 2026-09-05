@@ -9,7 +9,7 @@ namespace WhatYouSay.Web.Components.Pages;
 
 public partial class AdminPage
 {
-    private Survey? mSurvey;
+    private Topic? mTopic;
 
     private bool mIsAdmin;
 
@@ -30,10 +30,10 @@ public partial class AdminPage
     private IReadOnlyList<Crumb> mCrumbs = [];
 
     [Inject]
-    private SurveyService Surveys { get; set; } = default!;
+    private TopicService Topics { get; set; } = default!;
 
     [Inject]
-    private SurveyAdminService Admin { get; set; } = default!;
+    private TopicAdminService Admin { get; set; } = default!;
 
     [Inject]
     private SummaryService Summaries { get; set; } = default!;
@@ -58,9 +58,9 @@ public partial class AdminPage
 
     protected override async Task OnInitializedAsync()
     {
-        mSurvey = await this.Surveys.FindByCodeAsync(this.Code);
+        mTopic = await this.Topics.FindByCodeAsync(this.Code);
 
-        if (mSurvey is null)
+        if (mTopic is null)
         {
             mCrumbs = [Breadcrumb.Home(), new Crumb { Text = "Not found" }];
 
@@ -70,11 +70,11 @@ public partial class AdminPage
         mCrumbs =
         [
             Breadcrumb.Home(),
-            Breadcrumb.Survey(mSurvey.Code, mSurvey.Title),
+            Breadcrumb.Topic(mTopic.Code, mTopic.Title),
             new Crumb { Text = "Admin" },
         ];
 
-        mIsAdmin = await this.Session.CanAdministerAsync(mSurvey.Id);
+        mIsAdmin = await this.Session.CanAdministerAsync(mTopic.Id);
 
         if (!mIsAdmin)
         {
@@ -86,71 +86,71 @@ public partial class AdminPage
 
     private async Task LoadDashboardAsync()
     {
-        mShareLink = this.Navigation.ToAbsoluteUri($"/surveys/{this.Code}").ToString();
-        mResponseCount = await this.Surveys.CountResponsesAsync(mSurvey!.Id);
-        mSummaryCount = (await this.Summaries.ListAllAsync(mSurvey.Id)).Count;
+        mShareLink = this.Navigation.ToAbsoluteUri($"/topics/{this.Code}").ToString();
+        mResponseCount = await this.Topics.CountResponsesAsync(mTopic!.Id);
+        mSummaryCount = (await this.Summaries.ListAllAsync(mTopic.Id)).Count;
 
-        mReopenReason = mSurvey.CanReopen
+        mReopenReason = mTopic.CanReopen
             ? null
-            : "A summary has been generated, so this survey stays closed. Run a new survey instead.";
+            : "A summary has been generated, so this topic stays closed. Run a new topic instead.";
     }
 
     private async Task SignInAsync()
     {
-        if (mSurvey is null)
+        if (mTopic is null)
         {
             return;
         }
 
-        if (string.IsNullOrEmpty(this.Password) || !this.Admin.CheckPassword(mSurvey, this.Password))
+        if (string.IsNullOrEmpty(this.Password) || !this.Admin.CheckPassword(mTopic, this.Password))
         {
             mError = "That password does not match.";
 
             return;
         }
 
-        this.Session.Grant(mSurvey.Id);
+        this.Session.Grant(mTopic.Id);
         this.Reload();
     }
 
     private void SignOut()
     {
-        if (mSurvey is null)
+        if (mTopic is null)
         {
             return;
         }
 
-        this.Session.Revoke(mSurvey.Id);
-        this.Navigation.NavigateTo($"/surveys/{this.Code}");
+        this.Session.Revoke(mTopic.Id);
+        this.Navigation.NavigateTo($"/topics/{this.Code}");
     }
 
     private async Task CloseAsync()
     {
-        await this.GuardedAsync(() => this.Admin.SetAcceptingResponsesAsync(mSurvey!, false));
+        await this.GuardedAsync(() => this.Admin.SetAcceptingResponsesAsync(mTopic!, false));
     }
 
     private async Task ReopenAsync()
     {
-        await this.GuardedAsync(() => this.Admin.SetAcceptingResponsesAsync(mSurvey!, true));
+        await this.GuardedAsync(() => this.Admin.SetAcceptingResponsesAsync(mTopic!, true));
     }
 
     private async Task SaveSettingsAsync()
     {
         await this.GuardedAsync(() => this.Admin.UpdateSettingsAsync(
-            mSurvey!, this.IsPubliclyListed, this.AreResponsesPublic));
+            mTopic!, this.IsPubliclyListed, this.AreResponsesPublic));
     }
 
     private async Task RegenerateTokenAsync()
     {
-        if (mSurvey is null || !await this.Session.CanAdministerAsync(mSurvey.Id))
+        if (mTopic is null || !await this.Session.CanAdministerAsync(mTopic.Id))
         {
             return;
         }
 
-        mNewToken = await this.Admin.RegenerateSummariserTokenAsync(mSurvey);
+        mNewToken = await this.Admin.RegenerateSummariserTokenAsync(mTopic);
 
         mPrompt = SummariserPrompt.For(
-            mSurvey, this.Navigation.BaseUri.TrimEnd('/'), mNewToken);
+            mTopic, this.Navigation.BaseUri.TrimEnd('/'), mNewToken);
 
         // Stays on the page rather than redirecting, because the token is shown once.
         await this.LoadDashboardAsync();
@@ -158,7 +158,7 @@ public partial class AdminPage
 
     private async Task GuardedAsync(Func<Task> action)
     {
-        if (mSurvey is null || !await this.Session.CanAdministerAsync(mSurvey.Id))
+        if (mTopic is null || !await this.Session.CanAdministerAsync(mTopic.Id))
         {
             return;
         }
@@ -179,6 +179,6 @@ public partial class AdminPage
 
     private void Reload()
     {
-        this.Navigation.NavigateTo($"/surveys/{this.Code}/admin");
+        this.Navigation.NavigateTo($"/topics/{this.Code}/admin");
     }
 }

@@ -24,7 +24,7 @@ public static class Secrets
     public static string NewToken() =>
         Base64Url(RandomNumberGenerator.GetBytes(32));
 
-    public static string NewSurveyCode() =>
+    public static string NewTopicCode() =>
         RandomNumberGenerator.GetString(CodeAlphabet, CodeLength);
 
     public static string HashToken(string token) =>

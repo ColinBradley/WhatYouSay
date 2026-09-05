@@ -1,17 +1,17 @@
-@page "/surveys/{Code}/summary"
-@page "/surveys/{Code}/summary/{SummaryId:guid}"
+@page "/topics/{Code}/summary"
+@page "/topics/{Code}/summary/{SummaryId:guid}"
 @using WhatYouSay.Data
 @using WhatYouSay.Services
 @using WhatYouSay.Web.Markdown
 
-<PageTitle>@(mSurvey is null ? "Summary" : $"Summary — {mSurvey.Title}")</PageTitle>
+<PageTitle>@(mTopic is null ? "Summary" : $"Summary — {mTopic.Title}")</PageTitle>
 
 <Breadcrumb Items="@mCrumbs" />
 
-@if (mSurvey is null)
+@if (mTopic is null)
 {
-    <h1>Survey not found</h1>
-    <p class="text-body-secondary">No survey has the code &ldquo;@Code&rdquo;.</p>
+    <h1>Topic not found</h1>
+    <p class="text-body-secondary">No topic has the code &ldquo;@Code&rdquo;.</p>
     <a href="/">Back to the list</a>
 }
 else
@@ -23,14 +23,14 @@ else
         @if (SummaryId is null)
         {
             <div class="alert alert-secondary mt-3">
-                No summary has been published for this survey yet.
+                No summary has been published for this topic yet.
             </div>
         }
         else
         {
             <div class="alert alert-secondary mt-3">
                 That version isn&rsquo;t available.
-                <a href="@($"/surveys/{Code}/summary")">See the current summary</a>.
+                <a href="@($"/topics/{Code}/summary")">See the current summary</a>.
             </div>
         }
 
@@ -39,7 +39,7 @@ else
             <p>
                 @mUnpublished unpublished
                 @(mUnpublished == 1 ? "version is" : "versions are") waiting for you.
-                <a href="@($"/surveys/{Code}/admin/summaries")">Review them</a>.
+                <a href="@($"/topics/{Code}/admin/summaries")">Review them</a>.
             </p>
         }
     }
@@ -52,7 +52,7 @@ else
                 @foreach (var version in mVersions.Where(v => v.Id != mSummary.Id))
                 {
                     <text> · </text>
-                    <a href="@($"/surveys/{Code}/summary/{version.Id}")">@version.CreatedAt.ToString("d MMM yyyy")</a>
+                    <a href="@($"/topics/{Code}/summary/{version.Id}")">@version.CreatedAt.ToString("d MMM yyyy")</a>
                     @(version.IsVisibleToPublic ? null : " (unpublished)")
                 }
             </p>
@@ -64,8 +64,8 @@ else
         {
             <div class="alert alert-warning small">
                 This version has not been published. You can see it because you administer
-                this survey; nobody else can, and nobody can react to it yet.
-                <a href="@($"/surveys/{Code}/admin/summaries")">Publish it</a> to open it up.
+                this topic; nobody else can, and nobody can react to it yet.
+                <a href="@($"/topics/{Code}/admin/summaries")">Publish it</a> to open it up.
             </div>
         }
         else
@@ -74,7 +74,7 @@ else
                 @if (mReading.CanReact)
                 {
                     <text>
-                        You answered this survey, so you can react to anything below that says
+                        You answered this topic, so you can react to anything below that says
                         something. Say what you agree with, what matters most to you, and flag
                         anything that misrepresents what you wrote.
                     </text>
@@ -82,7 +82,7 @@ else
                 else
                 {
                     <text>
-                        Only people who answered this survey can react to it. You can still see
+                        Only people who answered this topic can react to it. You can still see
                         what everyone else thought.
                     </text>
                 }

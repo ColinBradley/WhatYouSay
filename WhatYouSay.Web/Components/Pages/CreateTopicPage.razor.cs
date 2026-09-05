@@ -8,7 +8,7 @@ using WhatYouSay.Web.Components.Shared;
 
 namespace WhatYouSay.Web.Components.Pages;
 
-public partial class CreateSurveyPage
+public partial class CreateTopicPage
 {
     /// <summary>Placeholder copy for the title and question boxes, shown as a matched pair.</summary>
     private sealed record Example
@@ -58,17 +58,17 @@ public partial class CreateSurveyPage
     // page is static SSR, so one instance is one page load is one example.
     private readonly Example mExample = sExamples[Random.Shared.Next(sExamples.Length)];
 
-    private CreatedSurvey? mCreated;
+    private CreatedTopic? mCreated;
 
     private string? mShareLink;
 
     private string? mError;
 
     private readonly IReadOnlyList<Crumb> mCrumbs =
-        [Breadcrumb.Home(), new Crumb { Text = "New survey" }];
+        [Breadcrumb.Home(), new Crumb { Text = "New topic" }];
 
     [Inject]
-    private SurveyAdminService Admin { get; set; } = default!;
+    private TopicAdminService Admin { get; set; } = default!;
 
     [Inject]
     private AdminSession Session { get; set; } = default!;
@@ -128,10 +128,10 @@ public partial class CreateSurveyPage
             this.AreResponsesPublic);
 
         // Straight into admin without asking for the password just set.
-        this.Session.Grant(mCreated.Survey.Id);
+        this.Session.Grant(mCreated.Topic.Id);
 
         mShareLink = this.Navigation
-            .ToAbsoluteUri($"/surveys/{mCreated.Survey.Code}")
+            .ToAbsoluteUri($"/topics/{mCreated.Topic.Code}")
             .ToString();
     }
 }

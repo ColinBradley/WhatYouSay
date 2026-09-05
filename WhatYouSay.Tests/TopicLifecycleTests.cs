@@ -3,37 +3,37 @@ using WhatYouSay.Data;
 namespace WhatYouSay.Tests;
 
 [TestClass]
-public class SurveyLifecycleTests : DatabaseTest
+public class TopicLifecycleTests : DatabaseTest
 {
     [TestMethod]
-    public async Task A_survey_cannot_reopen_once_a_summary_exists()
+    public async Task A_topic_cannot_reopen_once_a_summary_exists()
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var survey = NewSurvey(ResponseIdentity.Required);
-        survey.IsAcceptingResponses = false;
+        var topic = NewTopic(ResponseIdentity.Required);
+        topic.IsAcceptingResponses = false;
 
-        mDb.Surveys.Add(survey);
+        mDb.Topics.Add(topic);
         await mDb.SaveChangesAsync(this.Cancellation);
 
-        Assert.IsTrue(survey.CanReopen);
+        Assert.IsTrue(topic.CanReopen);
 
-        survey.Summaries.Add(new Summary { Body = "overview", CreatedBy = "agent" });
+        topic.Summaries.Add(new Summary { Body = "overview", CreatedBy = "agent" });
         await mDb.SaveChangesAsync(this.Cancellation);
 
         // Responses may only change while nothing references them.
-        Assert.IsFalse(survey.CanReopen);
+        Assert.IsFalse(topic.CanReopen);
     }
 
     [TestMethod]
-    public void An_open_survey_is_not_reopenable_because_it_was_never_closed()
+    public void An_open_topic_is_not_reopenable_because_it_was_never_closed()
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var survey = NewSurvey(ResponseIdentity.Required);
+        var topic = NewTopic(ResponseIdentity.Required);
 
-        Assert.IsTrue(survey.IsAcceptingResponses);
-        Assert.IsFalse(survey.CanReopen);
+        Assert.IsTrue(topic.IsAcceptingResponses);
+        Assert.IsFalse(topic.CanReopen);
     }
 
     [TestMethod]

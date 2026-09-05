@@ -25,19 +25,19 @@ public class SummaryEditService(WhatYouSayContext db)
 {
     /// <summary>The draft with its whole tree, references and their responses.</summary>
     public async Task<Summary?> LoadAsync(
-        Survey survey,
+        Topic topic,
         Guid summaryId,
         CancellationToken cancellationToken = default
     )
     {
-        using var activity = WhatYouSayTelemetry.Source.Start().SetSurvey(survey);
+        using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
 
         var summary = await db.Summaries
             .Include(s => s.Nodes)
                 .ThenInclude(n => n.References.Where(r => !r.Response.IsDeleted))
                     .ThenInclude(r => r.Response)
             .AsSplitQuery()
-            .FirstOrDefaultAsync(s => s.Id == summaryId && s.SurveyId == survey.Id, cancellationToken);
+            .FirstOrDefaultAsync(s => s.Id == summaryId && s.TopicId == topic.Id, cancellationToken);
 
         if (summary is not null)
         {
@@ -48,28 +48,28 @@ public class SummaryEditService(WhatYouSayContext db)
     }
 
     public async Task SetBodyAsync(
-        Survey survey,
+        Topic topic,
         Guid summaryId,
         string body,
         CancellationToken cancellationToken = default
     )
     {
-        var summary = await this.RequireDraftAsync(survey, summaryId, cancellationToken);
+        var summary = await this.RequireDraftAsync(topic, summaryId, cancellationToken);
 
         summary.Body = body.Trim();
 
-        await this.SaveAsync(survey, summary, "body", cancellationToken);
+        await this.SaveAsync(topic, summary, "body", cancellationToken);
     }
 
     public async Task SetTextAsync(
-        Survey survey,
+        Topic topic,
         Guid summaryId,
         int nodeId,
         string text,
         CancellationToken cancellationToken = default
     )
     {
-        var summary = await this.RequireDraftAsync(survey, summaryId, cancellationToken);
+        var summary = await this.RequireDraftAsync(topic, summaryId, cancellationToken);
         var node = Require(summary, nodeId);
         var trimmed = text.Trim();
 
@@ -81,19 +81,19 @@ public class SummaryEditService(WhatYouSayContext db)
 
         node.Text = trimmed;
 
-        await this.SaveAsync(survey, summary, "text", cancellationToken);
+        await this.SaveAsync(topic, summary, "text", cancellationToken);
     }
 
     /// <summary>Appends a node to the end of a sibling group, or to the roots when parentless.</summary>
     public async Task<int> AddNodeAsync(
-        Survey survey,
+        Topic topic,
         Guid summaryId,
         int? parentId,
         string text,
         CancellationToken cancellationToken = default
     )
     {
-        var summary = await this.RequireDraftAsync(survey, summaryId, cancellationToken);
+        var summary = await this.RequireDraftAsync(topic, summaryId, cancellationToken);
 
         if (parentId is { } id)
         {
@@ -114,20 +114,20 @@ public class SummaryEditService(WhatYouSayContext db)
         // node in summary.Nodes twice once fixup runs, and every ordinal after it wrong.
         summary.Nodes.Add(node);
 
-        await this.SaveAsync(survey, summary, "add", cancellationToken);
+        await this.SaveAsync(topic, summary, "add", cancellationToken);
 
         return node.Id;
     }
 
     /// <summary>Takes the node's whole subtree with it, along with every quote and reaction on it.</summary>
     public async Task DeleteNodeAsync(
-        Survey survey,
+        Topic topic,
         Guid summaryId,
         int nodeId,
         CancellationToken cancellationToken = default
     )
     {
-        var summary = await this.RequireDraftAsync(survey, summaryId, cancellationToken);
+        var summary = await this.RequireDraftAsync(topic, summaryId, cancellationToken);
         var node = Require(summary, nodeId);
         var doomed = SummaryTree.Subtree(summary, node).ToList();
 
@@ -142,19 +142,19 @@ public class SummaryEditService(WhatYouSayContext db)
 
         SummaryTree.Renumber(SummaryTree.Siblings(summary, node.ParentId));
 
-        await this.SaveAsync(survey, summary, "delete", cancellationToken);
+        await this.SaveAsync(topic, summary, "delete", cancellationToken);
     }
 
     /// <summary>Reorders or reparents a node. A move with nowhere to go does nothing.</summary>
     public async Task MoveAsync(
-        Survey survey,
+        Topic topic,
         Guid summaryId,
         int nodeId,
         NodeMove move,
         CancellationToken cancellationToken = default
     )
     {
-        var summary = await this.RequireDraftAsync(survey, summaryId, cancellationToken);
+        var summary = await this.RequireDraftAsync(topic, summaryId, cancellationToken);
         var node = Require(summary, nodeId);
         var siblings = SummaryTree.Siblings(summary, node.ParentId);
         var at = siblings.IndexOf(node);
@@ -199,7 +199,7 @@ public class SummaryEditService(WhatYouSayContext db)
 
         SummaryTree.Assemble(summary);
 
-        await this.SaveAsync(survey, summary, "move", cancellationToken);
+        await this.SaveAsync(topic, summary, "move", cancellationToken);
     }
 
     /// <summary>
@@ -207,7 +207,7 @@ public class SummaryEditService(WhatYouSayContext db)
     /// one fails exactly as an agent's would.
     /// </summary>
     public async Task AddReferenceAsync(
-        Survey survey,
+        Topic topic,
         Guid summaryId,
         int nodeId,
         Guid responseId,
@@ -215,11 +215,11 @@ public class SummaryEditService(WhatYouSayContext db)
         CancellationToken cancellationToken = default
     )
     {
-        var summary = await this.RequireDraftAsync(survey, summaryId, cancellationToken);
+        var summary = await this.RequireDraftAsync(topic, summaryId, cancellationToken);
         var node = Require(summary, nodeId);
 
         var response = await db.Responses.FirstOrDefaultAsync(
-            r => r.Id == responseId && r.SurveyId == survey.Id && !r.IsDeleted,
+            r => r.Id == responseId && r.TopicId == topic.Id && !r.IsDeleted,
             cancellationToken);
 
         if (response is null)
@@ -227,7 +227,7 @@ public class SummaryEditService(WhatYouSayContext db)
             throw Reject(
                 "unknown_response",
                 $"/nodes/{nodeId}/references/responseId",
-                $"Response {responseId} is not a live response on this survey.");
+                $"Response {responseId} is not a live response on this topic.");
         }
 
         if (QuoteLocator.Locate(response.Body, quote) is not { } location)
@@ -263,17 +263,17 @@ public class SummaryEditService(WhatYouSayContext db)
 
         node.References.Add(reference);
 
-        await this.SaveAsync(survey, summary, "cite", cancellationToken);
+        await this.SaveAsync(topic, summary, "cite", cancellationToken);
     }
 
     public async Task DeleteReferenceAsync(
-        Survey survey,
+        Topic topic,
         Guid summaryId,
         int referenceId,
         CancellationToken cancellationToken = default
     )
     {
-        var summary = await this.RequireDraftAsync(survey, summaryId, cancellationToken);
+        var summary = await this.RequireDraftAsync(topic, summaryId, cancellationToken);
 
         var reference = await db.References.FirstOrDefaultAsync(
             r => r.Id == referenceId && r.Node.SummaryId == summary.Id,
@@ -286,11 +286,11 @@ public class SummaryEditService(WhatYouSayContext db)
 
         db.References.Remove(reference);
 
-        await this.SaveAsync(survey, summary, "uncite", cancellationToken);
+        await this.SaveAsync(topic, summary, "uncite", cancellationToken);
     }
 
     private async Task SaveAsync(
-        Survey survey,
+        Topic topic,
         Summary summary,
         string kind,
         CancellationToken cancellationToken
@@ -304,17 +304,17 @@ public class SummaryEditService(WhatYouSayContext db)
 
         await db.SaveChangesAsync(cancellationToken);
 
-        WhatYouSayTelemetry.SummaryEdited(survey, kind);
+        WhatYouSayTelemetry.SummaryEdited(topic, kind);
     }
 
     private async Task<Summary> RequireDraftAsync(
-        Survey survey,
+        Topic topic,
         Guid summaryId,
         CancellationToken cancellationToken
     )
     {
-        var summary = await this.LoadAsync(survey, summaryId, cancellationToken)
-            ?? throw new InvalidOperationException($"No summary {summaryId} on this survey.");
+        var summary = await this.LoadAsync(topic, summaryId, cancellationToken)
+            ?? throw new InvalidOperationException($"No summary {summaryId} on this topic.");
 
         if (!summary.IsDraft)
         {

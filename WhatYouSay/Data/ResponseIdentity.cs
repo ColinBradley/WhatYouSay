@@ -1,7 +1,7 @@
 namespace WhatYouSay.Data;
 
 /// <summary>
-/// How much identity a survey asks of its responders. Set at creation and immutable
+/// How much identity a topic asks of its responders. Set at creation and immutable
 /// thereafter: switching to <see cref="Anonymous"/> cannot retroactively unrecord
 /// timestamps or unsay names, and switching away from it changes the deal earlier
 /// responders agreed to.

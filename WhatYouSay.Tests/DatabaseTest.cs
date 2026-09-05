@@ -47,13 +47,13 @@ public abstract class DatabaseTest : IDisposable
     /// <summary>Lets the runner abort a test promptly.</summary>
     protected CancellationToken Cancellation => this.TestContext.CancellationToken;
 
-    protected static Survey NewSurvey(ResponseIdentity identity)
+    protected static Topic NewTopic(ResponseIdentity identity)
     {
-        return new Survey()
+        return new Topic()
         {
             Id = Guid.CreateVersion7(),
             Code = Guid.NewGuid().ToString("n")[..7],
-            Title = "Test survey",
+            Title = "Test topic",
             Description = "A prompt",
             AdminPasswordHash = "hash",
             SummariserTokenHash = Guid.NewGuid().ToString("n"),
@@ -62,19 +62,19 @@ public abstract class DatabaseTest : IDisposable
         };
     }
 
-    /// <summary>A survey with a heading over one grounded node, the smallest usable tree.</summary>
+    /// <summary>A topic with a heading over one grounded node, the smallest usable tree.</summary>
     protected async Task<SummaryNode> SeededLeafAsync()
     {
-        var survey = NewSurvey(ResponseIdentity.Required);
+        var topic = NewTopic(ResponseIdentity.Required);
         var summary = new Summary { Body = "overview" };
         var heading = new SummaryNode { Text = "Tooling" };
         var leaf = new SummaryNode { Text = "CI is slow", Parent = heading };
 
         summary.Nodes.Add(heading);
         summary.Nodes.Add(leaf);
-        survey.Summaries.Add(summary);
+        topic.Summaries.Add(summary);
 
-        mDb.Surveys.Add(survey);
+        mDb.Topics.Add(topic);
         await mDb.SaveChangesAsync(this.Cancellation);
 
         return leaf;

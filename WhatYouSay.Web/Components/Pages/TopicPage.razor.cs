@@ -6,9 +6,9 @@ using WhatYouSay.Web.Components.Shared;
 
 namespace WhatYouSay.Web.Components.Pages;
 
-public partial class SurveyPage
+public partial class TopicPage
 {
-    private Survey? mSurvey;
+    private Topic? mTopic;
 
     private Response? mOwnResponse;
 
@@ -21,7 +21,7 @@ public partial class SurveyPage
     private IReadOnlyList<Crumb> mCrumbs = [];
 
     [Inject]
-    private SurveyService Surveys { get; set; } = default!;
+    private TopicService Topics { get; set; } = default!;
 
     [Inject]
     private ResponseService Responses { get; set; } = default!;
@@ -49,24 +49,24 @@ public partial class SurveyPage
 
     protected override async Task OnInitializedAsync()
     {
-        mSurvey = await this.Surveys.FindByCodeAsync(this.Code);
+        mTopic = await this.Topics.FindByCodeAsync(this.Code);
 
-        if (mSurvey is null)
+        if (mTopic is null)
         {
             mCrumbs = [Breadcrumb.Home(), new Crumb { Text = "Not found" }];
 
             return;
         }
 
-        mCrumbs = [Breadcrumb.Home(), new Crumb { Text = mSurvey.Title }];
-        mFrozen = !mSurvey.IsAcceptingResponses;
-        mHasVisibleSummary = await this.Summaries.FindLatestVisibleAsync(mSurvey.Id) is not null;
+        mCrumbs = [Breadcrumb.Home(), new Crumb { Text = mTopic.Title }];
+        mFrozen = !mTopic.IsAcceptingResponses;
+        mHasVisibleSummary = await this.Summaries.FindLatestVisibleAsync(mTopic.Id) is not null;
 
-        var token = ResponderCookie.Read(this.HttpContext, mSurvey.Id);
+        var token = ResponderCookie.Read(this.HttpContext, mTopic.Id);
 
         if (token is not null)
         {
-            mOwnResponse = await this.Responses.FindOwnAsync(mSurvey.Id, token);
+            mOwnResponse = await this.Responses.FindOwnAsync(mTopic.Id, token);
         }
 
         // On a GET, prefill the editor with what is already stored.
@@ -79,7 +79,7 @@ public partial class SurveyPage
 
     private async Task SubmitAsync()
     {
-        if (mSurvey is null || mFrozen)
+        if (mTopic is null || mFrozen)
         {
             return;
         }
@@ -91,21 +91,21 @@ public partial class SurveyPage
             return;
         }
 
-        if (!this.Validate(mSurvey))
+        if (!this.Validate(mTopic))
         {
             return;
         }
 
         if (mOwnResponse is null)
         {
-            var token = await this.Responses.SubmitAsync(mSurvey, this.Body!, this.Author);
+            var token = await this.Responses.SubmitAsync(mTopic, this.Body!, this.Author);
 
             // Static SSR, so the response has not started and a cookie can still be written.
-            ResponderCookie.Write(this.HttpContext, mSurvey.Id, token);
+            ResponderCookie.Write(this.HttpContext, mTopic.Id, token);
         }
         else
         {
-            await this.Responses.EditAsync(mSurvey, mOwnResponse, this.Body!, this.Author);
+            await this.Responses.EditAsync(mTopic, mOwnResponse, this.Body!, this.Author);
         }
 
         this.Reload();
@@ -113,23 +113,23 @@ public partial class SurveyPage
 
     private async Task WithdrawAsync()
     {
-        if (mSurvey is null || mOwnResponse is null)
+        if (mTopic is null || mOwnResponse is null)
         {
             return;
         }
 
-        await this.Responses.WithdrawAsync(mSurvey, mOwnResponse);
-        ResponderCookie.Clear(this.HttpContext, mSurvey.Id);
+        await this.Responses.WithdrawAsync(mTopic, mOwnResponse);
+        ResponderCookie.Clear(this.HttpContext, mTopic.Id);
 
         this.Reload();
     }
 
     private void Reload()
     {
-        this.Navigation.NavigateTo($"/surveys/{this.Code}");
+        this.Navigation.NavigateTo($"/topics/{this.Code}");
     }
 
-    private bool Validate(Survey survey)
+    private bool Validate(Topic topic)
     {
         if (string.IsNullOrWhiteSpace(this.Body))
         {
@@ -138,9 +138,9 @@ public partial class SurveyPage
             return false;
         }
 
-        if (survey.ResponseIdentity == ResponseIdentity.Required && string.IsNullOrWhiteSpace(this.Author))
+        if (topic.ResponseIdentity == ResponseIdentity.Required && string.IsNullOrWhiteSpace(this.Author))
         {
-            mError = "This survey asks everyone to put their name to what they write.";
+            mError = "This topic asks everyone to put their name to what they write.";
 
             return false;
         }
@@ -152,19 +152,19 @@ public partial class SurveyPage
 
     private string NameLabel()
     {
-        return mSurvey!.ResponseIdentity == ResponseIdentity.Optional ? "Your name (optional)" : "Your name";
+        return mTopic!.ResponseIdentity == ResponseIdentity.Optional ? "Your name (optional)" : "Your name";
     }
 
     private string? FrozenReason()
     {
         return mFrozen
-            ? "This survey has closed. Responses are frozen so the quotes in the summary stay accurate."
+            ? "This topic has closed. Responses are frozen so the quotes in the summary stay accurate."
             : null;
     }
 
     private string StorageNotice()
     {
-        return mSurvey!.ResponseIdentity switch
+        return mTopic!.ResponseIdentity switch
         {
             ResponseIdentity.Anonymous =>
                 "Anonymous: no name and no timestamp is recorded, not even hidden. A cookie in "
