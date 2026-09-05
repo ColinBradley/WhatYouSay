@@ -95,8 +95,8 @@ public class ResponseServiceTests : DatabaseTest
         var token = await service.SubmitAsync(topic, "original", "Anna", this.Cancellation);
         var response = (await service.FindOwnAsync(topic.Id, token, this.Cancellation))!;
 
-        topic.IsAcceptingResponses = false;
-        await mDb.SaveChangesAsync(this.Cancellation);
+        await new TopicAdminService(mDb)
+            .SetAcceptingResponsesAsync(topic, false, this.Cancellation);
 
         // This is what keeps summary quote offsets from rotting.
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(

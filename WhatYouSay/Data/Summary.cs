@@ -30,6 +30,12 @@ public class Summary
     /// </summary>
     public bool IsAgentEditable { get; set; }
 
+    /// <summary>
+    /// Live responses when the agent last wrote this version.
+    /// A different live count means the version is outdated.
+    /// </summary>
+    public int ResponseCountAtWrite { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }

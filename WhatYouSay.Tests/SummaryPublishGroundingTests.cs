@@ -5,7 +5,8 @@ namespace WhatYouSay.Tests;
 
 /// <summary>
 /// The branch rule at the other end of the pipeline. An agent cannot submit an ungrounded
-/// tree; a human editor can build one a node at a time, so publishing has to say no.
+/// tree; a person can write one, so here the rule classifies rather than refuses and
+/// publishing lets it through.
 /// </summary>
 [TestClass]
 public class SummaryPublishGroundingTests : DatabaseTest
@@ -22,21 +23,23 @@ public class SummaryPublishGroundingTests : DatabaseTest
         Assert.IsTrue(summary.IsVisibleToPublic);
     }
 
+    /// <summary>
+    /// Publishing used to refuse this. It cannot any more: a page of meeting notes has
+    /// nothing to cite, and refusing would make it unpublishable. What the rule still
+    /// does is name the node, so the editor and the summary page can show what it rests
+    /// on — which was always the part a reader needed.
+    /// </summary>
     [TestMethod]
-    public async Task A_branch_ending_in_nothing_anybody_wrote_does_not_publish()
+    public async Task A_branch_ending_in_nothing_anybody_wrote_publishes_and_is_marked()
     {
         using var activity = TestTelemetry.Source.Start();
 
         var (topic, summary) = await this.SeededAsync(citeTheLeaf: false);
 
-        var failure = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
-            () => this.Admin().SetSummaryVisibilityAsync(
-                topic, summary.Id, true, this.Cancellation
-            )
-        );
+        await this.Admin().SetSummaryVisibilityAsync(topic, summary.Id, true, this.Cancellation);
 
-        Assert.AreEqual("branch_without_citation", failure.Reason);
-        Assert.IsFalse(summary.IsVisibleToPublic);
+        Assert.IsTrue(summary.IsVisibleToPublic);
+        Assert.IsNotEmpty(SummaryGrounding.Ungrounded(summary));
     }
 
     [TestMethod]
@@ -56,7 +59,9 @@ public class SummaryPublishGroundingTests : DatabaseTest
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (topic, summary) = await this.SeededAsync(citeTheLeaf: true);
+        var (_, summary) = await this.SeededAsync(citeTheLeaf: true);
+
+        Assert.IsEmpty(SummaryGrounding.Ungrounded(summary));
 
         // References to a withdrawn response are filtered out of every read, so the node
         // they supported has to stop counting as supported too.
@@ -64,17 +69,13 @@ public class SummaryPublishGroundingTests : DatabaseTest
         await mDb.SaveChangesAsync(this.Cancellation);
 
         await using var fresh = this.NewContext();
-        var reloaded = fresh.Topics.Single(s => s.Id == topic.Id);
+        var reloaded = await new SummaryService(fresh).FindAsync(summary.Id, this.Cancellation);
 
-        await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
-            () => new TopicAdminService(fresh).SetSummaryVisibilityAsync(
-                reloaded, summary.Id, true, this.Cancellation
-            )
-        );
+        Assert.IsNotEmpty(SummaryGrounding.Ungrounded(reloaded!));
     }
 
     [TestMethod]
-    public async Task Unpublishing_never_checks_grounding()
+    public async Task Unpublishing_an_ungrounded_summary_still_works()
     {
         using var activity = TestTelemetry.Source.Start();
 
@@ -103,6 +104,7 @@ public class SummaryPublishGroundingTests : DatabaseTest
             Id = Guid.CreateVersion7(),
             Body = "CI is slow and the build takes twenty minutes.",
             AuthTokenHash = Guid.NewGuid().ToString("n"),
+            IsFrozen = true,
         };
 
         var summary = new Summary() { Body = "Overview" };

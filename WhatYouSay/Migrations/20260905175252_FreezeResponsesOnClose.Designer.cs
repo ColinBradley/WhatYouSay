@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using WhatYouSay.Data;
 
@@ -10,9 +11,11 @@ using WhatYouSay.Data;
 namespace WhatYouSay.Migrations
 {
     [DbContext(typeof(WhatYouSayContext))]
-    partial class WhatYouSayContextModelSnapshot : ModelSnapshot
+    [Migration("20260905175252_FreezeResponsesOnClose")]
+    partial class FreezeResponsesOnClose
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.11");
@@ -143,9 +146,6 @@ namespace WhatYouSay.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsPublic")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("ResponseCountAtWrite")
                         .HasColumnType("INTEGER");
 
                     b.Property<Guid>("TopicId")

@@ -38,5 +38,6 @@ public class Topic
     /// Reopening is allowed only while nothing references the responses. Once a summary
     /// exists the topic stays closed for good; run a new topic instead.
     /// </summary>
-    public bool CanReopen => !this.IsAcceptingResponses && this.Summaries.Count == 0;
+    /// <summary>Identity is only unchangeable once somebody has answered under it.</summary>
+    public bool CanChangeIdentity => this.Responses.Count == 0;
 }

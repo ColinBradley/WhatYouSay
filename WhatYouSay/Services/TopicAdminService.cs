@@ -67,15 +67,24 @@ public class TopicAdminService(WhatYouSayContext db)
     {
         using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
 
-        if (accepting && !topic.CanReopen)
-        {
-            activity.RecordFailure("summary_exists");
-
-            throw new InvalidOperationException(
-                "A summary has been generated, so this topic stays closed. Run a new topic instead.");
-        }
-
         topic.IsAcceptingResponses = accepting;
+
+        // Closing is what freezes, and the freeze never lifts. Reopening therefore costs
+        // nothing: what was collected stays frozen, new answers arrive editable, and the
+        // next close freezes those.
+        if (!accepting)
+        {
+            // Through the tracker rather than ExecuteUpdate: a caller holding a Response
+            // over this call would otherwise still see it as editable.
+            var thawed = await db.Responses
+                .Where(r => r.TopicId == topic.Id && !r.IsFrozen)
+                .ToListAsync(cancellationToken);
+
+            foreach (var response in thawed)
+            {
+                response.IsFrozen = true;
+            }
+        }
 
         await db.SaveChangesAsync(cancellationToken);
     }
@@ -84,6 +93,7 @@ public class TopicAdminService(WhatYouSayContext db)
         Topic topic,
         bool isPubliclyListed,
         bool areResponsesPublic,
+        bool anonymous,
         CancellationToken cancellationToken = default
     )
     {
@@ -91,6 +101,25 @@ public class TopicAdminService(WhatYouSayContext db)
 
         topic.IsPubliclyListed = isPubliclyListed;
         topic.AreResponsesPublic = areResponsesPublic;
+
+        // Identity is only unchangeable once somebody has answered under it. At zero
+        // responses there is nothing to unrecord and no deal to change.
+        if (await db.Responses.AnyAsync(r => r.TopicId == topic.Id, cancellationToken))
+        {
+            if (anonymous != topic.IsAnonymous)
+            {
+                activity.RecordFailure("responses_exist");
+
+                throw new InvalidOperationException(
+                    "Somebody has already answered under this setting, so it is fixed now.");
+            }
+        }
+        else
+        {
+            topic.ResponseIdentity = anonymous
+                ? ResponseIdentity.Anonymous
+                : ResponseIdentity.Required;
+        }
 
         await db.SaveChangesAsync(cancellationToken);
     }
@@ -153,10 +182,6 @@ public class TopicAdminService(WhatYouSayContext db)
 
         var summary = await this.RequireSummaryAsync(topic, summaryId, cancellationToken);
 
-        if (published)
-        {
-            await this.RequireGroundedAsync(topic, summary, cancellationToken);
-        }
 
         summary.IsDraft = !published;
         summary.IsPublic = published;
@@ -172,46 +197,35 @@ public class TopicAdminService(WhatYouSayContext db)
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task RequireGroundedAsync(
+    /// <summary>
+    /// Starts a summary with nothing in it, for writing by hand. Takes no grounding check
+    /// because an empty tree has no branches, and no response check because it cites
+    /// nothing; the agent is kept out until an admin hands it over.
+    /// </summary>
+    public async Task<Summary> CreateEmptySummaryAsync(
         Topic topic,
-        Summary summary,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken = default
     )
     {
-        await db.Entry(summary)
-            .Collection(s => s.Nodes)
-            .Query()
-            .Include(n => n.References.Where(r => !r.Response.IsDeleted))
-            .LoadAsync(cancellationToken);
+        using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
 
-        SummaryTree.Assemble(summary);
-
-        var ungrounded = SummaryGrounding.Ungrounded(summary);
-
-        if (ungrounded.Count == 0)
+        var now = DateTimeOffset.UtcNow;
+        var summary = new Summary()
         {
-            return;
-        }
+            Id = Guid.CreateVersion7(),
+            TopicId = topic.Id,
+            Body = string.Empty,
+            CreatedBy = "human",
+            IsAgentEditable = false,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
 
-        var failures = ungrounded
-            .Select(node => new GroundingFailure()
-            {
-                Path = $"/nodes/{node.Id}",
-                Reason = "branch_without_citation",
-                Message = $"Nothing cites \"{node.Text}\", it has nothing under it, and nothing "
-                    + "above it cites a response either.",
-            })
-            .ToList();
+        db.Summaries.Add(summary);
 
-        WhatYouSayTelemetry.SummaryRejected(topic, "branch_without_citation");
-        Activity.Current.RecordFailure("branch_without_citation");
+        await db.SaveChangesAsync(cancellationToken);
 
-        throw new SummaryGroundingException(
-            "branch_without_citation",
-            $"{failures.Count} {(failures.Count == 1 ? "node ends a branch" : "nodes end branches")} "
-                + "with nothing anybody wrote. Cite them, give them something cited underneath, "
-                + "or delete them.",
-            failures);
+        return summary;
     }
 
     public async Task DeleteSummaryAsync(

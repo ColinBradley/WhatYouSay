@@ -16,6 +16,11 @@ public class Response
     /// <summary>SHA-256 of the plaintext token held in the responder's cookie.</summary>
     public required string AuthTokenHash { get; set; }
 
+    /// <summary>
+    /// Prevent editing. Helping tie references to responses - otherwise they can drift.
+    /// </summary>
+    public bool IsFrozen { get; set; }
+
     public bool IsDeleted { get; set; }
 
     /// <summary>Null when the topic is Anonymous. Not collected, not merely hidden.</summary>

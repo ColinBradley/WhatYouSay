@@ -21,7 +21,9 @@ public partial class AdminPage
 
     private string? mShareLink;
 
-    private string? mReopenReason;
+    private bool mCanChangeIdentity;
+
+    private string? mIdentityReason;
 
     private int mResponseCount;
 
@@ -55,6 +57,9 @@ public partial class AdminPage
 
     [SupplyParameterFromForm(FormName = "admin-settings")]
     public bool AreResponsesPublic { get; set; }
+
+    [SupplyParameterFromForm(FormName = "admin-settings")]
+    public bool IsAnonymous { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -90,9 +95,11 @@ public partial class AdminPage
         mResponseCount = await this.Topics.CountResponsesAsync(mTopic!.Id);
         mSummaryCount = (await this.Summaries.ListAllAsync(mTopic.Id)).Count;
 
-        mReopenReason = mTopic.CanReopen
+        mCanChangeIdentity = mResponseCount == 0;
+        mIdentityReason = mCanChangeIdentity
             ? null
-            : "A summary has been generated, so this topic stays closed. Run a new topic instead.";
+            : "Somebody has already answered under this setting. Changing it now cannot "
+                + "unrecord what was collected, and would change the deal they answered under.";
     }
 
     private async Task SignInAsync()
@@ -137,7 +144,7 @@ public partial class AdminPage
     private async Task SaveSettingsAsync()
     {
         await this.GuardedAsync(() => this.Admin.UpdateSettingsAsync(
-            mTopic!, this.IsPubliclyListed, this.AreResponsesPublic));
+            mTopic!, this.IsPubliclyListed, this.AreResponsesPublic, this.IsAnonymous));
     }
 
     private async Task RegenerateTokenAsync()

@@ -12,6 +12,8 @@ public partial class AdminSummariesPage
 
     private List<Summary> mSummaries = [];
 
+    private int mLiveResponses;
+
     private IReadOnlyList<Crumb> mCrumbs = [];
 
     private string? mError;
@@ -69,6 +71,8 @@ public partial class AdminSummariesPage
     private async Task LoadAsync()
     {
         var versions = await this.Summaries.ListAllAsync(mTopic!.Id);
+
+        mLiveResponses = await this.Topics.CountResponsesAsync(mTopic.Id);
         mSummaries = [];
 
         foreach (var version in versions)
@@ -77,12 +81,31 @@ public partial class AdminSummariesPage
         }
     }
 
+    /// <summary>
+    /// A hint, not a state: nothing stores that a version is outdated, and a person who
+    /// worked the new responses in by hand will not clear it. Only the agent writes the
+    /// count, because only the agent reads every response.
+    /// </summary>
+    private bool IsOutdated(Summary summary)
+    {
+        return summary.CreatedBy == "agent" && summary.ResponseCountAtWrite != mLiveResponses;
+    }
+
     private async Task ActAsync()
     {
         if (mTopic is null
             || this.Action is null
             || !await this.Session.CanAdministerAsync(mTopic.Id))
         {
+            return;
+        }
+
+        if (this.Action == "new")
+        {
+            var created = await this.Admin.CreateEmptySummaryAsync(mTopic);
+
+            this.Navigation.NavigateTo($"/topics/{this.Code}/admin/summaries/{created.Id}");
+
             return;
         }
 
@@ -112,9 +135,7 @@ public partial class AdminSummariesPage
         }
         catch (SummaryGroundingException failure)
         {
-            // Publishing an ungrounded tree is refused here as well as in the editor, and
-            // the editor is where the offending nodes are marked.
-            mError = $"{failure.Message} Open it to see which nodes.";
+            mError = failure.Message;
             await this.LoadAsync();
 
             return;

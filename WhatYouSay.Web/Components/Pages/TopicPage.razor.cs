@@ -59,7 +59,6 @@ public partial class TopicPage
         }
 
         mCrumbs = [Breadcrumb.Home(), new Crumb { Text = mTopic.Title }];
-        mFrozen = !mTopic.IsAcceptingResponses;
         mHasVisibleSummary = await this.Summaries.FindLatestVisibleAsync(mTopic.Id) is not null;
 
         var token = ResponderCookie.Read(this.HttpContext, mTopic.Id);
@@ -68,6 +67,10 @@ public partial class TopicPage
         {
             mOwnResponse = await this.Responses.FindOwnAsync(mTopic.Id, token);
         }
+
+        // Your own answer stops being yours to change when it freezes, which is not the
+        // same question as whether the topic is taking new ones.
+        mFrozen = !mTopic.IsAcceptingResponses || mOwnResponse?.IsFrozen == true;
 
         // On a GET, prefill the editor with what is already stored.
         if (mOwnResponse is not null && this.Body is null)
@@ -157,9 +160,14 @@ public partial class TopicPage
 
     private string? FrozenReason()
     {
-        return mFrozen
-            ? "This topic has closed. Responses are frozen so the quotes in the summary stay accurate."
-            : null;
+        if (!mFrozen)
+        {
+            return null;
+        }
+
+        return mOwnResponse?.IsFrozen == true
+            ? "This was frozen when the topic closed, so the quotes taken from it stay accurate."
+            : "This topic is not taking new answers.";
     }
 
     private string StorageNotice()

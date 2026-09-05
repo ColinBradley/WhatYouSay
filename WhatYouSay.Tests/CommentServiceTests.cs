@@ -152,6 +152,7 @@ public class CommentServiceTests : DatabaseTest
             Body = "CI is slow and it costs me an hour a day.",
             Author = identity == ResponseIdentity.Anonymous ? null : "Ash",
             AuthTokenHash = Secrets.HashToken(token),
+            IsFrozen = true,
         });
 
         var summary = new Summary() { Body = "Overview", IsDraft = false, IsPublic = true };

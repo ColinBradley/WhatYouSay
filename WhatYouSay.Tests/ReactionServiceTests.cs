@@ -137,6 +137,7 @@ public class ReactionServiceTests : DatabaseTest
             TopicId = topic.Id,
             Body = "Another answer",
             AuthTokenHash = Secrets.HashToken(token),
+            IsFrozen = true,
         });
 
         await mDb.SaveChangesAsync(this.Cancellation);
@@ -159,6 +160,7 @@ public class ReactionServiceTests : DatabaseTest
             Body = "CI is slow",
             Author = identity == ResponseIdentity.Anonymous ? null : "Anna",
             AuthTokenHash = Secrets.HashToken(token),
+            IsFrozen = true,
         });
 
         var heading = new SummaryNode { Text = "Tooling" };

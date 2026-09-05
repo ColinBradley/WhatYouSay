@@ -210,13 +210,19 @@ public class SummaryGroundingTests : DatabaseTest
         Assert.AreEqual("unknown_response", rejection.Reason);
     }
 
+    /// <summary>
+    /// The rot guarantee is per reference rather than per topic now, so what is refused
+    /// is citing text its author can still edit — which names the actual problem.
+    /// </summary>
     [TestMethod]
-    public async Task An_open_topic_cannot_be_summarised()
+    public async Task A_response_its_author_can_still_edit_cannot_be_cited()
     {
         using var activity = TestTelemetry.Source.Start();
 
         var (topic, responses) = await this.ClosedTopicAsync();
-        topic.IsAcceptingResponses = true;
+
+        var thawed = await mDb.Responses.SingleAsync(r => r.Id == responses[0], this.Cancellation);
+        thawed.IsFrozen = false;
         await mDb.SaveChangesAsync(this.Cancellation);
 
         var rejection = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
@@ -227,7 +233,7 @@ public class SummaryGroundingTests : DatabaseTest
                 null,
                 this.Cancellation));
 
-        Assert.AreEqual("topic_open", rejection.Reason);
+        Assert.AreEqual("response_not_frozen", rejection.Reason);
     }
 
     [TestMethod]
@@ -451,6 +457,7 @@ public class SummaryGroundingTests : DatabaseTest
             Body = AnnaSaid,
             Author = "Anna",
             AuthTokenHash = "a",
+            IsFrozen = true,
             CreatedAt = DateTimeOffset.UtcNow,
         };
 
@@ -460,6 +467,7 @@ public class SummaryGroundingTests : DatabaseTest
             Body = TomSaid,
             Author = "Tom",
             AuthTokenHash = "t",
+            IsFrozen = true,
             CreatedAt = DateTimeOffset.UtcNow,
         };
 

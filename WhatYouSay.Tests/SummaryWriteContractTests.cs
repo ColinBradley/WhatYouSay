@@ -337,6 +337,7 @@ public class SummaryWriteContractTests : DatabaseTest
             Body = AnnaSaid,
             Author = "Anna",
             AuthTokenHash = "a",
+            IsFrozen = true,
             CreatedAt = DateTimeOffset.UtcNow,
         };
 

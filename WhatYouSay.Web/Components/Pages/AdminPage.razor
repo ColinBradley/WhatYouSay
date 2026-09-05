@@ -77,14 +77,15 @@ else
             }
             else
             {
-                <p class="small text-body-secondary">This topic is closed.</p>
+                <p class="small text-body-secondary">
+                    This topic is closed, and every response in it is frozen. Reopening lets
+                    new answers arrive; the frozen ones stay that way, so nothing already
+                    quoted can move.
+                </p>
 
                 <form method="post" @formname="admin-reopen" @onsubmit="ReopenAsync">
                     <AntiforgeryToken />
-                    <button class="btn btn-outline-primary" type="submit"
-                            disabled="@(!mTopic.CanReopen)" title="@mReopenReason">
-                        Reopen
-                    </button>
+                    <button class="btn btn-outline-primary" type="submit">Reopen</button>
                 </form>
             }
         </div>
@@ -108,10 +109,10 @@ else
                 </div>
 
                 <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="identity" disabled
-                           checked="@mTopic.IsAnonymous"
-                           title="Response identity is fixed when a topic is created. Changing it later cannot unrecord what was already collected, and would change the deal people already answered under." />
-                    <label class="form-check-label text-body-secondary" for="identity">
+                    <input class="form-check-input" type="checkbox" id="identity"
+                           name="IsAnonymous" value="true" checked="@mTopic.IsAnonymous"
+                           disabled="@(!mCanChangeIdentity)" title="@mIdentityReason" />
+                    <label class="form-check-label @(mCanChangeIdentity ? null : "text-body-secondary")" for="identity">
                         Anonymous
                     </label>
                 </div>

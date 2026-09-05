@@ -74,7 +74,7 @@ public class TopicAdminServiceTests : DatabaseTest
     }
 
     [TestMethod]
-    public async Task A_topic_can_be_closed_and_reopened_until_a_summary_exists()
+    public async Task A_topic_can_be_closed_and_reopened_freely()
     {
         using var activity = TestTelemetry.Source.Start();
 
@@ -94,9 +94,11 @@ public class TopicAdminServiceTests : DatabaseTest
         topic.Summaries.Add(new Summary { Body = "Overview" });
         await mDb.SaveChangesAsync(this.Cancellation);
 
-        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            () => service.SetAcceptingResponsesAsync(topic, true, this.Cancellation)
-        );
+        // A summary used to close a topic for good. The freeze lives on the response now,
+        // so more input can be asked for without threatening any quote already taken.
+        await service.SetAcceptingResponsesAsync(topic, true, this.Cancellation);
+
+        Assert.IsTrue(topic.IsAcceptingResponses);
     }
 
     [TestMethod]

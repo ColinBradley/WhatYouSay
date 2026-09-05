@@ -252,6 +252,7 @@ public class SummaryEditServiceTests : DatabaseTest
             Id = Guid.CreateVersion7(),
             Body = "I counted nineteen hours of scheduled calls last week.",
             AuthTokenHash = Guid.NewGuid().ToString("n"),
+            IsFrozen = true,
             Author = "Sam",
         };
 

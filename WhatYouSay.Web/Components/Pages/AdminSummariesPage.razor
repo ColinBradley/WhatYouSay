@@ -20,17 +20,23 @@ else
         <div class="alert alert-danger" role="alert">@mError</div>
     }
 
-    @if (mSummaries.Count == 0)
-    {
-        <div class="alert alert-secondary">
-            No summaries yet. Close the topic, then point an agent at
-            <code>/mcp</code> with this topic's summariser token.
-        </div>
-    }
-    else
-    {
-        <form method="post" @formname="summary-action" @onsubmit="ActAsync">
-            <AntiforgeryToken />
+    <form method="post" @formname="summary-action" @onsubmit="ActAsync">
+        <AntiforgeryToken />
+
+        @if (mSummaries.Count == 0)
+        {
+            <div class="alert alert-secondary">
+                No summaries yet. Write one by hand, or close the topic and point an agent
+                at <code>/mcp</code> with this topic's summariser token.
+            </div>
+        }
+
+        <button class="btn btn-primary mb-3" type="submit" name="Action" value="new">
+            New empty summary
+        </button>
+
+        @if (mSummaries.Count > 0)
+        {
 
             <table class="table align-middle">
                 <thead>
@@ -60,6 +66,19 @@ else
                                 else
                                 {
                                     <span class="badge text-bg-secondary">Draft</span>
+                                }
+
+                                @if (summary.IsAgentEditable)
+                                {
+                                    <span class="badge text-bg-info" title="The summariser token can write to this version.">Agent</span>
+                                }
+
+                                @if (this.IsOutdated(summary))
+                                {
+                                    <span class="badge text-bg-warning"
+                                          title="@($"Drawn over {summary.ResponseCountAtWrite} responses; there are {mLiveResponses} now.")">
+                                        Outdated
+                                    </span>
                                 }
                             </td>
                             <td class="text-end">
@@ -98,12 +117,12 @@ else
                     }
                 </tbody>
             </table>
-        </form>
+        }
+    </form>
 
-        <p class="small text-body-secondary">
-            Publishing makes a summary visible to everyone with the link and lets responders
-            react to the nodes that say something. An agent can only write drafts —
-            publishing is yours.
-        </p>
-    }
+    <p class="small text-body-secondary">
+        Publishing makes a summary visible to everyone with the link and lets anyone react to
+        it and comment on it. It also takes the agent off that version; you can hand it back
+        from the editor.
+    </p>
 }

@@ -110,6 +110,7 @@ public class SummaryService(WhatYouSayContext db)
                 Body = draft.Body,
                 CreatedBy = createdBy,
                 IsAgentEditable = true,
+                ResponseCountAtWrite = responses.Count,
                 CreatedAt = now,
                 UpdatedAt = now,
             };
@@ -120,6 +121,7 @@ public class SummaryService(WhatYouSayContext db)
         {
             summary.Body = draft.Body;
             summary.UpdatedAt = now;
+            summary.ResponseCountAtWrite = responses.Count;
         }
 
         var kept = new HashSet<int>();
@@ -168,7 +170,11 @@ public class SummaryService(WhatYouSayContext db)
             }
             else
             {
-                node = new SummaryNode() { Text = draftNode.Text };
+                node = new SummaryNode()
+                {
+                    // Validation refuses a node carrying neither an id nor text.
+                    Text = draftNode.Text ?? throw new InvalidOperationException("A new node needs text."),
+                };
 
                 // Every node carries SummaryId, so every node joins the flat collection.
                 summary.Nodes.Add(node);
@@ -215,16 +221,6 @@ public class SummaryService(WhatYouSayContext db)
         CancellationToken cancellationToken
     )
     {
-        if (topic.IsAcceptingResponses)
-        {
-            throw this.Reject(
-                topic,
-                "topic_open",
-                "/",
-                "This topic is still accepting responses. Summarising a moving target "
-                + "produces quotes that stop matching, so close the topic first.");
-        }
-
         if (draft.Nodes.Count == 0)
         {
             throw this.Reject(topic, "empty_summary", "/nodes", "A summary needs at least one node.");
@@ -373,6 +369,22 @@ public class SummaryService(WhatYouSayContext db)
                     Reason = "unknown_response",
                     Message = $"\"{Trim(node.Text!)}\" cites response {reference.ResponseId}, which "
                         + "is not a live response on this topic.",
+                });
+
+                return;
+            }
+
+            // The whole of the quote-rot guarantee, and the only rule here about
+            // ordering: an offset into text its author can still edit selects the wrong
+            // words later while still validating now.
+            if (!response.IsFrozen)
+            {
+                failures.Add(new GroundingFailure()
+                {
+                    Path = $"{path}/responseId",
+                    Reason = "response_not_frozen",
+                    Message = $"Response {reference.ResponseId} is still editable by whoever "
+                        + "wrote it, so it cannot be cited yet. Close the topic to freeze it.",
                 });
 
                 return;

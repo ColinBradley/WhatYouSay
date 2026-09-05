@@ -85,6 +85,9 @@ public static class SeedData
                 Body = body,
                 Author = anonymous ? null : author,
                 AuthTokenHash = Secrets.HashToken(Secrets.NewToken()),
+                // Closing is what freezes, and a closed topic has to arrive that way or its
+                // summary cites text nothing will let an agent cite.
+                IsFrozen = !acceptingResponses,
                 // Staggered so ordering is realistic where it is recorded at all.
                 CreatedAt = anonymous ? null : createdAt.AddHours(i * 1.7),
             });

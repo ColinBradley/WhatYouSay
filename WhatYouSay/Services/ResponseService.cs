@@ -64,7 +64,7 @@ public class ResponseService(WhatYouSayContext db)
             cancellationToken);
     }
 
-    /// <summary>Editable only while the topic is open, so summary quotes cannot rot.</summary>
+    /// <summary>Editable until frozen, so summary quotes cannot rot.</summary>
     public async Task EditAsync(
         Topic topic,
         Response response,
@@ -75,12 +75,7 @@ public class ResponseService(WhatYouSayContext db)
     {
         using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
 
-        if (!topic.IsAcceptingResponses)
-        {
-            activity.RecordFailure("topic_closed");
-
-            throw new InvalidOperationException("This topic is closed, so responses are frozen.");
-        }
+        RequireEditable(response, activity);
 
         response.Body = ResponseBody.Normalise(body);
         response.Author = topic.IsAnonymous ? null : NullIfBlank(author);
@@ -99,12 +94,7 @@ public class ResponseService(WhatYouSayContext db)
     {
         using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
 
-        if (!topic.IsAcceptingResponses)
-        {
-            activity.RecordFailure("topic_closed");
-
-            throw new InvalidOperationException("This topic is closed, so responses are frozen.");
-        }
+        RequireEditable(response, activity);
 
         response.IsDeleted = true;
 
@@ -129,6 +119,19 @@ public class ResponseService(WhatYouSayContext db)
             : query.OrderBy(r => r.CreatedAt);
 
         return await query.ToListAsync(cancellationToken);
+    }
+
+    private static void RequireEditable(Response response, System.Diagnostics.Activity? activity)
+    {
+        if (!response.IsFrozen)
+        {
+            return;
+        }
+
+        activity.RecordFailure("response_frozen");
+
+        throw new InvalidOperationException(
+            "This response was frozen when the topic closed, so it can no longer be changed.");
     }
 
     private static string? NullIfBlank(string? value) =>
