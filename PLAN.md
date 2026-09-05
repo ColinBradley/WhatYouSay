@@ -82,7 +82,7 @@ That wants three states rather than a bool, so the model carries a `ResponseIden
 
 ## Object model
 
-Guid PKs where the id appears in a URL. `int` identity PKs elsewhere — this is how we get stable display order with no ordering concept in the UI: **insertion order is key order is display order.** In a tree that holds per sibling group, which is enough while the agent writes whole trees depth-first. It stops being enough when a human can move a node; see [step 8](#build-order).
+Guid PKs where the id appears in a URL. `int` identity PKs elsewhere. Display order was key order for as long as only the agent wrote trees — depth-first insertion reproduced sibling order for free — and [step 8](#build-order) ended that, because a human moving a node makes insertion order a lie. Sibling order now lives in `SummaryNode.Ordinal`, scoped to a parent, with the key as the tie-break.
 
 ### Survey
 ```
@@ -147,6 +147,7 @@ The tree. One entity replaces `SummaryTopic` and `SummaryTopicPoint`, because th
 Id           int      identity PK
 SummaryId    Guid     on every node, not just roots — one query loads the whole tree
 ParentId     int?     null at a root
+Ordinal      int      position among siblings; the key breaks ties
 Text         string   terse; a few words to a sentence. The only thing a node says about itself
 Children     SummaryNode[]
 References   SummaryNodeReference[]
@@ -486,7 +487,23 @@ Deliberately front-loads the open question. The thing worth knowing early is whe
 7. **The node tree.** *(done)* `SummaryTopic` and `SummaryTopicPoint` become `SummaryNode`; `SummaryTopicPointResponseReference` and `PointReaction` become `SummaryNodeReference` and `NodeReaction`. One migration, grounding rewritten to the branch rule, nested rendering on the summary page, and the brief updated to describe a tree. Lands before step 8 for one reason: an edit UI written against topics and points would have to be written twice.
 
    The depth check this step exists for was run, and answered a question nobody had asked: the tree carries meaning, but the `Kind` vocabulary shipped with it was leading the agent into writing nodes to fit a box. A second migration [drops `Kind`, `Sentiment`, `Objectivity` and `Intensity`](#node-kinds-tried-removed); a node is now text, references and children.
-8. **Summary edit.** The forms page, publish/unpublish, delete, and prominent display of objections. This is where **no ordering concept** finally dies: moving a node makes insertion order wrong, so the editor brings an `Ordinal` column and a migration with it. Nothing before this step needs one, because the agent rewrites whole trees and depth-first insertion reproduces sibling order for free.
+8. **Summary edit.** *(done)* The edit page, publish/unpublish, delete, and prominent display of objections. This is where **no ordering concept** finally died: moving a node makes insertion order wrong, so the editor brought an `Ordinal` column and a migration with it, backfilling existing rows from key order per sibling group. Nothing before this step needed one, because the agent rewrites whole trees and depth-first insertion reproduces sibling order for free.
+
+   **The editor is the only interactive component in the app**, and deliberately the only one. Everything else is static SSR posting forms, which is right until a page has a dozen controls per row and a full reload between each one. Three consequences worth knowing before touching it.
+
+   `AdminSession` reads the admin cookie off `HttpContext`, which is gone once a circuit starts, so the page is a static shell that does the auth check and renders the editor as a child — the check happens where it always did.
+
+   A scoped `DbContext` lives as long as the circuit rather than as long as a request, so every operation opens a scope of its own; without that an editing session accumulates tracked entities and starts answering reads from the first one.
+
+   **Blazor re-renders the component whose handler ran**, and nearly every control here belongs to `SummaryEditNode` rather than to the editor. Reaching the editor through the cascaded instance is an ordinary method call, so the framework never learns that the node count, the tree and the grounding warnings — all rendered by the parent — have changed: the write lands and the screen does not move. `EventCallback` parameters would re-render their receiver for free and are the idiomatic answer; eight of them threaded through a recursive component cost more than one `StateHasChanged` in the reload, which is what this does instead. Worth knowing because the symptom looks exactly like a stale read and is not one.
+
+   **Grounding grew a second implementation, and a second place it is enforced.** The agent's copy runs over a submitted draft and rejects the whole call. It cannot serve a human editor, who breaks the rule a node at a time — adding a node always produces an uncited leaf, and refusing that would make editing impossible. So [`SummaryGrounding`](#grounding-the-app-validates-the-agent) runs the same branch rule over a stored tree, the editor marks the offending nodes live, and **publishing refuses** while any remain. That is the honest place for it: an ungrounded draft is a work in progress, an ungrounded *published* summary is the exact thing this app exists to prevent.
+
+   **Published means read-only to the human too**, not just to the agent. Unpublish to edit. The alternative — editing in place — silently destroys the reactions attached to any node deleted underneath the people who left them, and forking to a new draft strands them just as thoroughly since node ids do not survive a copy. Neither is better than making the admin take the summary down first, which is one click and says what is happening.
+
+   **The third visibility state went.** `IsDraft` and `IsPublic` are separate columns, and the version list rendered a badge for blessed-but-not-public that nothing could produce, because every caller set the pair together. Publishing is now one bool: it blesses and shows in the same move. The columns stay as they are; it is the UI that stopped implying a state nobody had built.
+
+   **Editing references is included**, and reuses `QuoteLocator` rather than trusting what was typed — so a hand-typed quote with a curly apostrophe in it gets the same character-level diagnosis an agent gets, naming the codepoint and handing back the exact response text. The citation form shows the response body beside the box for precisely this reason. Seeded reactions were added at the same time, because the objection display had nothing to render in development and the headline feature of the step was therefore invisible.
 9. **Summariser hardening.** Everything below came out of watching an agent draft a real summary end to end, which is a different exercise from designing the endpoint and turned up things the design could not have predicted. Grouped as one step because it is all the same surface and wants one migration.
    - **Normalise `Response.Body` line endings to `\n` at ingest**, with a migration renormalising existing rows and repairing the reference offsets that shift as a result. Reasoning under [Response](#response). This one first: every quote the API validates depends on it.
    - **Page `GET /responses`** — `skip`/`take` plus a total. Frozen collection, so no cursor needed.

@@ -1,8 +1,7 @@
 namespace WhatYouSay.Data;
 
 /// <summary>
-/// One node of a summary tree. Identity int PK on purpose: insertion order is key order is
-/// display order, so there is no ordering concept for a human to manage.
+/// One node of a summary tree.
 /// </summary>
 public class SummaryNode
 {
@@ -19,6 +18,8 @@ public class SummaryNode
     public int? ParentId { get; set; }
 
     public SummaryNode? Parent { get; set; }
+
+    public int Ordinal { get; set; }
 
     /// <summary>
     /// One assertion, terse: a few words to a sentence. Elaborating means adding a child, not

@@ -19,6 +19,26 @@ public record NodeReactionTally
     public string? MyNote { get; init; }
 }
 
+/// <summary>
+/// One "this misrepresents me", carrying the response its author wrote. Reading the two side
+/// by side is the whole value of the flag: the objection says the summary got them wrong, and
+/// only their own words say what right would have been.
+/// </summary>
+public record Objection
+{
+    public required int NodeId { get; init; }
+
+    public required string NodeText { get; init; }
+
+    /// <summary>Null when the objector flagged the node without saying why.</summary>
+    public required string? Note { get; init; }
+
+    public required string ResponseBody { get; init; }
+
+    /// <summary>Null on an anonymous survey, or when the responder gave no name.</summary>
+    public required string? Author { get; init; }
+}
+
 public class ReactionService(WhatYouSayContext db)
 {
     /// <summary>Adds the reaction, or takes it back if it was already there.</summary>
@@ -124,6 +144,44 @@ public class ReactionService(WhatYouSayContext db)
             .ToDictionary(
                 group => group.Key,
                 group => Tally(group, mineHash));
+    }
+
+    /// <summary>
+    /// Every objection raised against a summary, in reading order, for the admin editing it.
+    /// </summary>
+    /// <remarks>
+    /// The join back to the objector's own response is the reaction cookie doing double duty:
+    /// it is the permission check on the way in and the link to their words on the way out.
+    /// It discloses nothing new — a Required survey carries the name on the response anyway,
+    /// and an anonymous one stays a nameless response.
+    /// </remarks>
+    public async Task<IReadOnlyList<Objection>> ListObjectionsAsync(
+        Survey survey,
+        Guid summaryId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        using var activity = WhatYouSayTelemetry.Source.Start().SetSurvey(survey);
+
+        var query =
+            from reaction in db.NodeReactions
+            join response in db.Responses
+                on reaction.ResponderTokenHash equals response.AuthTokenHash
+            where reaction.Node.SummaryId == summaryId
+                && reaction.Kind == ReactionKind.Misrepresents
+                && response.SurveyId == survey.Id
+                && !response.IsDeleted
+            orderby reaction.Node.Ordinal, reaction.NodeId
+            select new Objection()
+            {
+                NodeId = reaction.NodeId,
+                NodeText = reaction.Node.Text,
+                Note = reaction.Note,
+                ResponseBody = response.Body,
+                Author = response.Author,
+            };
+
+        return await query.ToListAsync(cancellationToken);
     }
 
     public async Task<bool> CanReactAsync(

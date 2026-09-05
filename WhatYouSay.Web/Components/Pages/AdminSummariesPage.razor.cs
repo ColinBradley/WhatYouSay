@@ -14,6 +14,8 @@ public partial class AdminSummariesPage
 
     private IReadOnlyList<Crumb> mCrumbs = [];
 
+    private string? mError;
+
     [Inject]
     private SurveyService Surveys { get; set; } = default!;
 
@@ -91,19 +93,31 @@ public partial class AdminSummariesPage
             return;
         }
 
-        switch (parts[1])
+        try
         {
-            case "publish":
-                await this.Admin.SetSummaryVisibilityAsync(mSurvey, summaryId, true, true);
-                break;
+            switch (parts[1])
+            {
+                case "publish":
+                    await this.Admin.SetSummaryVisibilityAsync(mSurvey, summaryId, true);
+                    break;
 
-            case "unpublish":
-                await this.Admin.SetSummaryVisibilityAsync(mSurvey, summaryId, false, false);
-                break;
+                case "unpublish":
+                    await this.Admin.SetSummaryVisibilityAsync(mSurvey, summaryId, false);
+                    break;
 
-            case "delete":
-                await this.Admin.DeleteSummaryAsync(mSurvey, summaryId);
-                break;
+                case "delete":
+                    await this.Admin.DeleteSummaryAsync(mSurvey, summaryId);
+                    break;
+            }
+        }
+        catch (SummaryGroundingException failure)
+        {
+            // Publishing an ungrounded tree is refused here as well as in the editor, and
+            // the editor is where the offending nodes are marked.
+            mError = $"{failure.Message} Open it to see which nodes.";
+            await this.LoadAsync();
+
+            return;
         }
 
         this.Navigation.NavigateTo($"/surveys/{this.Code}/admin/summaries");

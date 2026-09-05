@@ -20,11 +20,46 @@ public static class SummaryTree
             node.Children.Clear();
         }
 
-        foreach (var node in summary.Nodes.OrderBy(node => node.Id))
+        foreach (var node in summary.Nodes.OrderBy(node => node.Ordinal).ThenBy(node => node.Id))
         {
             if (node.ParentId is { } parentId && byId.TryGetValue(parentId, out var parent))
             {
                 parent.Children.Add(node);
+            }
+        }
+    }
+
+    /// <summary>One sibling group in display order, roots when <paramref name="parentId"/> is null.</summary>
+    public static List<SummaryNode> Siblings(Summary summary, int? parentId)
+    {
+        return [.. summary.Nodes
+            .Where(node => node.ParentId == parentId)
+            .OrderBy(node => node.Ordinal)
+            .ThenBy(node => node.Id)];
+    }
+
+    /// <summary>
+    /// Closes the gaps in a sibling group, so a move or a delete cannot leave two nodes
+    /// sharing an ordinal and falling back to key order to break the tie.
+    /// </summary>
+    public static void Renumber(List<SummaryNode> siblings)
+    {
+        for (var i = 0; i < siblings.Count; i++)
+        {
+            siblings[i].Ordinal = i;
+        }
+    }
+
+    /// <summary>A node and everything under it, so a delete can take its subtree with it.</summary>
+    public static IEnumerable<SummaryNode> Subtree(Summary summary, SummaryNode root)
+    {
+        yield return root;
+
+        foreach (var child in summary.Nodes.Where(node => node.ParentId == root.Id).ToList())
+        {
+            foreach (var descendant in Subtree(summary, child))
+            {
+                yield return descendant;
             }
         }
     }

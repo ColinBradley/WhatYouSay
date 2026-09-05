@@ -19,6 +19,7 @@ builder.Services.AddDbContext<WhatYouSayContext>(options =>
 builder.Services.AddScoped<SurveyService>();
 builder.Services.AddScoped<ResponseService>();
 builder.Services.AddScoped<SummaryService>();
+builder.Services.AddScoped<SummaryEditService>();
 builder.Services.AddScoped<ReactionService>();
 builder.Services.AddScoped<SurveyAdminService>();
 builder.Services.AddScoped<AdminSession>();

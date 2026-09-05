@@ -123,9 +123,9 @@ public class SummaryService(WhatYouSayContext db)
             summary.Nodes.Clear();
         }
 
-        foreach (var node in draft.Nodes)
+        for (var i = 0; i < draft.Nodes.Count; i++)
         {
-            Graft(node, null);
+            Graft(draft.Nodes[i], null, i);
         }
 
         await db.SaveChangesAsync(cancellationToken);
@@ -136,12 +136,13 @@ public class SummaryService(WhatYouSayContext db)
 
         return summary;
 
-        void Graft(NodeDraft draftNode, SummaryNode? parent)
+        void Graft(NodeDraft draftNode, SummaryNode? parent, int ordinal)
         {
             var node = new SummaryNode()
             {
                 Text = draftNode.Text,
                 Parent = parent,
+                Ordinal = ordinal,
             };
 
             foreach (var referenceDraft in draftNode.References)
@@ -158,13 +159,12 @@ public class SummaryService(WhatYouSayContext db)
                 });
             }
 
-            // Every node carries SummaryId, so every node joins the flat collection. Added
-            // depth-first, which is what makes the identity keys come out in reading order.
+            // Every node carries SummaryId, so every node joins the flat collection.
             summary.Nodes.Add(node);
 
-            foreach (var child in draftNode.Children)
+            for (var i = 0; i < draftNode.Children.Count; i++)
             {
-                Graft(child, node);
+                Graft(draftNode.Children[i], node, i);
             }
         }
     }

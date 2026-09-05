@@ -19,13 +19,30 @@ public abstract class DatabaseTest : IDisposable
         mConnection.Open();
 
         mDb = new WhatYouSayContext(
-            new DbContextOptionsBuilder<WhatYouSayContext>().UseSqlite(mConnection).Options);
+            new DbContextOptionsBuilder<WhatYouSayContext>()
+                .UseSqlite(mConnection)
+                .Options
+        );
 
         mDb.Database.Migrate();
     }
 
     /// <summary>Set by MSTest on each test instance.</summary>
     public TestContext TestContext { get; set; } = null!;
+
+    /// <summary>
+    /// A second context over the same database, for asserting what a later request would
+    /// see. Filtered includes cannot evict an entity <see cref="mDb"/> is already tracking,
+    /// so a test about withdrawn responses has to read through fresh eyes.
+    /// </summary>
+    protected WhatYouSayContext NewContext()
+    {
+        return new WhatYouSayContext(
+            new DbContextOptionsBuilder<WhatYouSayContext>()
+                .UseSqlite(mConnection)
+                .Options
+        );
+    }
 
     /// <summary>Lets the runner abort a test promptly.</summary>
     protected CancellationToken Cancellation => this.TestContext.CancellationToken;

@@ -48,6 +48,11 @@ public static class WhatYouSayTelemetry
         unit: "{summary}",
         description: "Draft summaries accepted after passing grounding validation.");
 
+    private static readonly Counter<long> sSummariesEdited = sMeter.CreateCounter<long>(
+        "whatyousay.summaries.edited",
+        unit: "{edit}",
+        description: "Edits a human made to a draft summary, by kind.");
+
     private static readonly Counter<long> sSurveysCreated = sMeter.CreateCounter<long>(
         "whatyousay.surveys.created",
         unit: "{survey}",
@@ -95,6 +100,14 @@ public static class WhatYouSayTelemetry
 
     public static void SurveyCreated(Survey survey) =>
         sSurveysCreated.Add(1, Tags(survey));
+
+    public static void SummaryEdited(Survey survey, string kind)
+    {
+        var tags = Tags(survey);
+        tags.Add("edit.kind", kind);
+
+        sSummariesEdited.Add(1, tags);
+    }
 
     public static void ReactionAdded(Survey survey, ReactionKind kind) =>
         sReactionsAdded.Add(1, WithKind(survey, kind));

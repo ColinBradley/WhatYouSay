@@ -1,0 +1,147 @@
+@using WhatYouSay.Data
+@using WhatYouSay.Services
+
+<li class="mb-3 @(this.Depth == 0 ? null : "ps-3 border-start")">
+    <div class="d-flex gap-2 align-items-start">
+        <input class="form-control form-control-sm @(this.Editor.IsUngrounded(this.Node.Id) ? "border-warning" : null)"
+               value="@this.Node.Text" disabled="@this.Editor.IsLocked"
+               title="@this.Editor.LockedReason"
+               @onchange="@(e => this.Editor.SetTextAsync(this.Node.Id, e.Value?.ToString() ?? string.Empty))" />
+
+        <div class="btn-group btn-group-sm flex-shrink-0">
+            <button class="btn btn-outline-secondary" @onclick="() => this.Editor.MoveAsync(this.Node.Id, NodeMove.Up)"
+                    disabled="@(this.Editor.IsLocked || this.IsFirst())"
+                    title="@this.MoveTitle(this.IsFirst(), "Move up", "Already first in its group.")">
+                &uarr;
+            </button>
+
+            <button class="btn btn-outline-secondary" @onclick="() => this.Editor.MoveAsync(this.Node.Id, NodeMove.Down)"
+                    disabled="@(this.Editor.IsLocked || this.IsLast())"
+                    title="@this.MoveTitle(this.IsLast(), "Move down", "Already last in its group.")">
+                &darr;
+            </button>
+
+            <button class="btn btn-outline-secondary" @onclick="() => this.Editor.MoveAsync(this.Node.Id, NodeMove.Indent)"
+                    disabled="@(this.Editor.IsLocked || this.IsFirst())"
+                    title="@this.MoveTitle(this.IsFirst(), "Make it a child of the node above", "Nothing above it to sit under.")">
+                &rarr;
+            </button>
+
+            <button class="btn btn-outline-secondary" @onclick="() => this.Editor.MoveAsync(this.Node.Id, NodeMove.Outdent)"
+                    disabled="@(this.Editor.IsLocked || this.Node.ParentId is null)"
+                    title="@this.MoveTitle(this.Node.ParentId is null, "Lift it out to its parent's level", "Already at the top level.")">
+                &larr;
+            </button>
+        </div>
+
+        <div class="btn-group btn-group-sm flex-shrink-0">
+            <button class="btn btn-outline-primary" @onclick="() => this.Editor.AddNodeAsync(this.Node.Id)"
+                    disabled="@this.Editor.IsLocked"
+                    title="@(this.Editor.LockedReason ?? "Add a child node")">
+                + child
+            </button>
+
+            <button class="btn btn-outline-primary" @onclick="() => this.Editor.AddNodeAsync(this.Node.ParentId)"
+                    disabled="@this.Editor.IsLocked"
+                    title="@(this.Editor.LockedReason ?? "Add a node at the end of this group")">
+                + sibling
+            </button>
+
+            <button class="btn @(this.Editor.IsConfirmingDelete(this.Node.Id) ? "btn-danger" : "btn-outline-danger")"
+                    @onclick="() => this.Editor.DeleteNodeAsync(this.Node.Id)"
+                    disabled="@this.Editor.IsLocked"
+                    title="@(this.Editor.LockedReason ?? "Delete this node and everything under it")">
+                @(this.Editor.IsConfirmingDelete(this.Node.Id) ? "Really delete?" : "Delete")
+            </button>
+        </div>
+    </div>
+
+    @if (this.Editor.IsUngrounded(this.Node.Id))
+    {
+        <div class="small text-warning-emphasis mt-1">
+            Ends a branch with nothing anybody wrote. Cite it, put something cited under it, or
+            delete it.
+        </div>
+    }
+
+    @foreach (var objection in this.Editor.ObjectionsFor(this.Node.Id))
+    {
+        <div class="small text-warning-emphasis mt-1">
+            &ldquo;@(objection.Note ?? "This misrepresents me.")&rdquo;
+            &mdash; @(objection.Author ?? "a responder")
+        </div>
+    }
+
+    <div class="mt-1 ms-1">
+        @foreach (var reference in this.Node.References)
+        {
+            <div class="d-flex gap-2 align-items-start small">
+                <button class="btn btn-sm btn-link text-danger p-0"
+                        @onclick="() => this.Editor.DeleteReferenceAsync(reference.Id)"
+                        disabled="@this.Editor.IsLocked"
+                        title="@(this.Editor.LockedReason ?? "Remove this quote")">
+                    &times;
+                </button>
+
+                <blockquote class="mb-1">
+                    &ldquo;@reference.Quote&rdquo;
+                    <span class="text-body-secondary">
+                        &mdash; @(reference.Response.Author ?? "anonymous")
+                    </span>
+                </blockquote>
+            </div>
+        }
+
+        <button class="btn btn-sm btn-link p-0" @onclick="() => this.Editor.StartCiting(this.Node.Id)"
+                disabled="@this.Editor.IsLocked"
+                title="@(this.Editor.LockedReason ?? "Quote a response in support of this node")">
+            @(this.Editor.IsCiting(this.Node.Id) ? "Cancel" : "Cite a response")
+        </button>
+
+        @if (this.Editor.IsCiting(this.Node.Id))
+        {
+            <div class="card card-body bg-body-tertiary mt-2">
+                <label class="form-label small">Response</label>
+
+                <select class="form-select form-select-sm" value="@this.Editor.CiteResponseId"
+                        @onchange="@(e => this.Editor.CiteResponseId = Guid.Parse(e.Value?.ToString() ?? Guid.Empty.ToString()))">
+                    @foreach (var response in this.Editor.Responses)
+                    {
+                        <option value="@response.Id">@SummaryEditor.Label(response)</option>
+                    }
+                </select>
+
+                @if (this.Editor.CiteSource() is { } source)
+                {
+                    <label class="form-label small mt-2">
+                        Copy the quote out of this, exactly
+                    </label>
+
+                    <pre class="small bg-body border rounded p-2 mb-0" style="white-space: pre-wrap">@source.Body</pre>
+                }
+
+                <label class="form-label small mt-2">Quote</label>
+
+                <textarea class="form-control form-control-sm" rows="2"
+                          @bind="this.Editor.CiteQuote" @bind:event="oninput"></textarea>
+
+                <div>
+                    <button class="btn btn-sm btn-primary mt-2"
+                            @onclick="() => this.Editor.AddReferenceAsync(this.Node.Id)">
+                        Add quote
+                    </button>
+                </div>
+            </div>
+        }
+    </div>
+
+    @if (this.Node.Children.Count > 0)
+    {
+        <ul class="list-unstyled mt-2">
+            @foreach (var child in this.Node.Children)
+            {
+                <SummaryEditNode Node="@child" Depth="@(this.Depth + 1)" />
+            }
+        </ul>
+    }
+</li>

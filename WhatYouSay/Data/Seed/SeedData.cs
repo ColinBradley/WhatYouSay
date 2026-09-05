@@ -312,6 +312,45 @@ public static class SeedData
                     [(6, "we're doing status theatre for a manager who isn't even in the room")]))));
 
         survey.Summaries.Add(summary);
+
+        AddRetroReactions(survey, summary);
+    }
+
+    /// <summary>
+    /// Reactions from the people whose words the summary is built on, so the objection
+    /// display in the admin editor has something to show without hand-building one.
+    /// </summary>
+    private static void AddRetroReactions(Survey survey, Summary summary)
+    {
+        var nodes = summary.Nodes;
+
+        React(0, "A full CI run takes", ReactionKind.Misrepresents,
+            "I said a green build is not reliable because of flaky tests, not that the 22 minutes "
+            + "is the problem. Those are different complaints.");
+
+        React(2, "A first review comment arrives", ReactionKind.Misrepresents, null);
+        React(1, "A full CI run takes", ReactionKind.Agree, null);
+        React(2, "A full CI run takes", ReactionKind.Agree, null);
+        React(3, "Staging was down for most of a Tuesday", ReactionKind.Important, null);
+
+        void React(int responderIndex, string nodeTextPrefix, ReactionKind kind, string? note)
+        {
+            var node = nodes.FirstOrDefault(
+                n => n.Text.StartsWith(nodeTextPrefix, StringComparison.Ordinal));
+
+            if (node is null)
+            {
+                return;
+            }
+
+            node.Reactions.Add(new NodeReaction()
+            {
+                ResponderTokenHash = survey.Responses[responderIndex].AuthTokenHash,
+                Kind = kind,
+                Note = note,
+                CreatedAt = survey.IsAnonymous ? null : survey.CreatedAt.AddDays(1),
+            });
+        }
     }
 
     /// <summary>
@@ -332,9 +371,10 @@ public static class SeedData
             }
         }
 
-        foreach (var root in roots)
+        for (var i = 0; i < roots.Length; i++)
         {
-            Walk(root);
+            roots[i].Ordinal = i;
+            Walk(roots[i]);
         }
 
         return nodes;
@@ -344,10 +384,11 @@ public static class SeedData
     {
         var node = new SummaryNode() { Text = text };
 
-        foreach (var child in children)
+        for (var i = 0; i < children.Length; i++)
         {
-            child.Parent = node;
-            node.Children.Add(child);
+            children[i].Parent = node;
+            children[i].Ordinal = i;
+            node.Children.Add(children[i]);
         }
 
         return node;

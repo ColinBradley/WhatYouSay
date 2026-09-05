@@ -1,0 +1,161 @@
+@using WhatYouSay.Data
+@using WhatYouSay.Services
+
+@if (mSummary is null)
+{
+    <p class="text-body-secondary">Loading&hellip;</p>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div>
+            <h1 class="mb-1">Edit summary</h1>
+            <p class="lead mb-0">@mSurvey?.Title</p>
+        </div>
+
+        <div class="d-flex gap-2 align-items-center">
+            @if (mSummary.IsVisibleToPublic)
+            {
+                <span class="badge text-bg-success">Published</span>
+            }
+            else
+            {
+                <span class="badge text-bg-secondary">Draft</span>
+            }
+
+            <a class="btn btn-sm btn-outline-secondary"
+               href="@($"/surveys/{Code}/summary/{SummaryId}")">
+                View
+            </a>
+
+            <button class="btn btn-sm btn-outline-primary" @onclick="() => SetPublishedAsync(true)"
+                    disabled="@mSummary.IsVisibleToPublic"
+                    title="@(mSummary.IsVisibleToPublic ? "Already published." : null)">
+                Publish
+            </button>
+
+            <button class="btn btn-sm btn-outline-secondary" @onclick="() => SetPublishedAsync(false)"
+                    disabled="@(!mSummary.IsVisibleToPublic)"
+                    title="@(mSummary.IsVisibleToPublic ? null : "Not published, so there is nothing to take back.")">
+                Unpublish
+            </button>
+
+            <button class="btn btn-sm btn-outline-danger" @onclick="DeleteSummaryAsync">
+                Delete version
+            </button>
+        </div>
+    </div>
+
+    @if (mError is not null)
+    {
+        <div class="alert alert-danger mt-3" role="alert">@mError</div>
+    }
+
+    @if (mNotice is not null)
+    {
+        <div class="alert alert-success mt-3" role="status">@mNotice</div>
+    }
+
+    @if (this.IsLocked)
+    {
+        <div class="alert alert-warning mt-3">
+            This version is published, so it is read-only. Unpublish it to make changes &mdash;
+            people are reading it, and reactions are attached to the nodes as they stand.
+        </div>
+    }
+
+    @if (mObjections.Count > 0)
+    {
+        <section class="card border-warning mt-4">
+            <div class="card-header bg-warning-subtle">
+                <strong>
+                    @mObjections.Count
+                    @(mObjections.Count == 1 ? "objection" : "objections")
+                    from people this summary is about
+                </strong>
+            </div>
+
+            <div class="card-body">
+                <p class="small text-body-secondary">
+                    Each of these is somebody saying a node misrepresents what they wrote, shown
+                    next to what they actually wrote. This is the signal the tool exists for.
+                </p>
+
+                @foreach (var objection in mObjections)
+                {
+                    <div class="border-start border-warning border-3 ps-3 mb-3">
+                        <div class="fw-semibold">@objection.NodeText</div>
+
+                        @if (objection.Note is not null)
+                        {
+                            <div class="mt-1">&ldquo;@objection.Note&rdquo;</div>
+                        }
+                        else
+                        {
+                            <div class="mt-1 fst-italic text-body-secondary">
+                                Flagged without a note.
+                            </div>
+                        }
+
+                        <details class="mt-2">
+                            <summary class="small text-body-secondary">
+                                What @(objection.Author ?? "they") actually wrote
+                            </summary>
+
+                            <blockquote class="small mt-2 mb-0">@objection.ResponseBody</blockquote>
+                        </details>
+                    </div>
+                }
+            </div>
+        </section>
+    }
+
+    @if (mUngrounded.Count > 0)
+    {
+        <div class="alert alert-warning mt-4">
+            @mUngrounded.Count
+            @(mUngrounded.Count == 1 ? "node ends a branch" : "nodes end branches")
+            with nothing anybody wrote, marked below. Publishing is blocked until each one is
+            cited, given something cited underneath, or deleted.
+        </div>
+    }
+
+    <section class="mt-4">
+        <h2 class="h5">Overview</h2>
+
+        <p class="small text-body-secondary">
+            Two or three paragraphs of markdown about what people said. Not a restatement of
+            the tree &mdash; that is what stops the two drifting apart.
+        </p>
+
+        <textarea class="form-control" rows="8" @bind="mBody" disabled="@this.IsLocked"
+                  title="@this.LockedReason"></textarea>
+
+        <button class="btn btn-sm btn-primary mt-2" @onclick="SaveBodyAsync"
+                disabled="@this.IsLocked" title="@this.LockedReason">
+            Save overview
+        </button>
+    </section>
+
+    <section class="mt-4">
+        <h2 class="h5">The tree</h2>
+
+        <p class="small text-body-secondary">
+            @mSummary.Nodes.Count nodes, @SummaryTree.Depth(mSummary.Roots) deep.
+        </p>
+
+        <CascadingValue Value="this" IsFixed="true">
+            <ul class="list-unstyled">
+                @foreach (var root in mSummary.Roots)
+                {
+                    <SummaryEditNode Node="@root" Depth="0" />
+                }
+            </ul>
+        </CascadingValue>
+
+        <button class="btn btn-sm btn-outline-primary" @onclick="() => AddNodeAsync(null)"
+                disabled="@this.IsLocked" title="@this.LockedReason">
+            Add a root node
+        </button>
+    </section>
+}

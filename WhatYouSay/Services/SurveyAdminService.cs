@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Diagnostics;
 using WhatYouSay.Auth;
 using WhatYouSay.Data;
 using WhatYouSay.Telemetry;
@@ -132,11 +133,19 @@ public class SurveyAdminService(WhatYouSayContext db)
         await db.SaveChangesAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Publishing blesses a summary and shows it in one move: there is no state where a
+    /// summary is final but nobody can read it.
+    /// </summary>
+    /// <exception cref="SummaryGroundingException">
+    /// The tree has a branch ending in a claim nothing supports. The agent could not have
+    /// submitted that, but a human editor can produce it a node at a time, and publishing is
+    /// where it stops.
+    /// </exception>
     public async Task SetSummaryVisibilityAsync(
         Survey survey,
         Guid summaryId,
         bool published,
-        bool isPublic,
         CancellationToken cancellationToken = default
     )
     {
@@ -144,11 +153,58 @@ public class SurveyAdminService(WhatYouSayContext db)
 
         var summary = await this.RequireSummaryAsync(survey, summaryId, cancellationToken);
 
+        if (published)
+        {
+            await this.RequireGroundedAsync(survey, summary, cancellationToken);
+        }
+
         summary.IsDraft = !published;
-        summary.IsPublic = isPublic;
+        summary.IsPublic = published;
         summary.UpdatedAt = DateTimeOffset.UtcNow;
 
         await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task RequireGroundedAsync(
+        Survey survey,
+        Summary summary,
+        CancellationToken cancellationToken
+    )
+    {
+        await db.Entry(summary)
+            .Collection(s => s.Nodes)
+            .Query()
+            .Include(n => n.References.Where(r => !r.Response.IsDeleted))
+            .LoadAsync(cancellationToken);
+
+        SummaryTree.Assemble(summary);
+
+        var ungrounded = SummaryGrounding.Ungrounded(summary);
+
+        if (ungrounded.Count == 0)
+        {
+            return;
+        }
+
+        var failures = ungrounded
+            .Select(node => new GroundingFailure()
+            {
+                Path = $"/nodes/{node.Id}",
+                Reason = "branch_without_citation",
+                Message = $"Nothing cites \"{node.Text}\", it has nothing under it, and nothing "
+                    + "above it cites a response either.",
+            })
+            .ToList();
+
+        WhatYouSayTelemetry.SummaryRejected(survey, "branch_without_citation");
+        Activity.Current.RecordFailure("branch_without_citation");
+
+        throw new SummaryGroundingException(
+            "branch_without_citation",
+            $"{failures.Count} {(failures.Count == 1 ? "node ends a branch" : "nodes end branches")} "
+                + "with nothing anybody wrote. Cite them, give them something cited underneath, "
+                + "or delete them.",
+            failures);
     }
 
     public async Task DeleteSummaryAsync(

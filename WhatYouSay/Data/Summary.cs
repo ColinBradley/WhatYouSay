@@ -36,7 +36,7 @@ public class Summary
     public List<SummaryNode> Nodes { get; set; } = [];
 
     /// <summary>
-    /// The tops of the tree, in insertion order. What hangs below them is wired by
+    /// The tops of the tree, in display order. What hangs below them is wired by
     /// <see cref="SummaryTree.Assemble"/>, which every service read runs.
     /// </summary>
     /// <remarks>
@@ -45,7 +45,7 @@ public class Summary
     /// </remarks>
     [NotMapped]
     public IEnumerable<SummaryNode> Roots =>
-        this.Nodes.Where(node => node.ParentId is null).OrderBy(node => node.Id);
+        this.Nodes.Where(node => node.ParentId is null).OrderBy(node => node.Ordinal).ThenBy(node => node.Id);
 
     /// <summary>Admins always; everyone else only once blessed and made public.</summary>
     public bool IsVisibleToPublic => !this.IsDraft && this.IsPublic;

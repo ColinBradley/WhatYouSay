@@ -1,0 +1,23 @@
+@page "/surveys/{Code}/admin/summaries/{Id:guid}"
+
+<PageTitle>Edit summary</PageTitle>
+
+<Breadcrumb Items="@mCrumbs" />
+
+@if (mSurvey is null)
+{
+    <h1>Survey not found</h1>
+    <a href="/">Back to the list</a>
+}
+else if (mMissing)
+{
+    <h1>Summary not found</h1>
+    <a href="@($"/surveys/{Code}/admin/summaries")">Back to the versions</a>
+}
+else
+{
+    @* Static SSR down to here, so AdminSession still has the HttpContext it reads the cookie
+       from. The editor below is the one interactive island in the app. *@
+    <SummaryEditor SurveyId="@mSurvey.Id" Code="@Code" SummaryId="@Id"
+                   @rendermode="InteractiveServer" />
+}

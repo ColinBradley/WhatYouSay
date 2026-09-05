@@ -51,7 +51,8 @@ public class SurveyAdminServiceTests : DatabaseTest
         {
             var created = await service.CreateAsync(
                 $"Survey {i}", "Prompt", "pw",
-                ResponseIdentity.Optional, false, false, this.Cancellation);
+                ResponseIdentity.Optional, false, false, this.Cancellation
+            );
 
             Assert.IsTrue(codes.Add(created.Survey.Code));
         }
@@ -94,7 +95,8 @@ public class SurveyAdminServiceTests : DatabaseTest
         await mDb.SaveChangesAsync(this.Cancellation);
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            () => service.SetAcceptingResponsesAsync(survey, true, this.Cancellation));
+            () => service.SetAcceptingResponsesAsync(survey, true, this.Cancellation)
+        );
     }
 
     [TestMethod]
@@ -104,7 +106,8 @@ public class SurveyAdminServiceTests : DatabaseTest
 
         var service = this.Service();
         var created = await service.CreateAsync(
-            "Retro", "Prompt", "pw", ResponseIdentity.Required, false, false, this.Cancellation);
+            "Retro", "Prompt", "pw", ResponseIdentity.Required, false, false, this.Cancellation
+        );
 
         var response = new Response()
         {
@@ -130,9 +133,11 @@ public class SurveyAdminServiceTests : DatabaseTest
 
         var service = this.Service();
         var mine = await service.CreateAsync(
-            "Mine", "Prompt", "pw", ResponseIdentity.Required, false, false, this.Cancellation);
+            "Mine", "Prompt", "pw", ResponseIdentity.Required, false, false, this.Cancellation
+        );
         var theirs = await service.CreateAsync(
-            "Theirs", "Prompt", "pw", ResponseIdentity.Required, false, false, this.Cancellation);
+            "Theirs", "Prompt", "pw", ResponseIdentity.Required, false, false, this.Cancellation
+        );
 
         var response = new Response()
         {
@@ -166,7 +171,8 @@ public class SurveyAdminServiceTests : DatabaseTest
         Assert.IsFalse(summary.IsVisibleToPublic);
 
         await service.SetSummaryVisibilityAsync(
-            created.Survey, summary.Id, published: true, isPublic: true, this.Cancellation);
+            created.Survey, summary.Id, published: true, this.Cancellation
+        );
 
         Assert.IsTrue(summary.IsVisibleToPublic);
     }
