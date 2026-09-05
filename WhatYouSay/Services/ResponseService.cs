@@ -36,7 +36,7 @@ public class ResponseService(WhatYouSayContext db)
             // answered — undoing the whole point of not recording CreatedAt.
             Id = Guid.NewGuid(),
             TopicId = topic.Id,
-            Body = body.Trim(),
+            Body = ResponseBody.Normalise(body),
             Author = topic.IsAnonymous ? null : NullIfBlank(author),
             AuthTokenHash = Secrets.HashToken(token),
             CreatedAt = topic.IsAnonymous ? null : DateTimeOffset.UtcNow,
@@ -82,7 +82,7 @@ public class ResponseService(WhatYouSayContext db)
             throw new InvalidOperationException("This topic is closed, so responses are frozen.");
         }
 
-        response.Body = body.Trim();
+        response.Body = ResponseBody.Normalise(body);
         response.Author = topic.IsAnonymous ? null : NullIfBlank(author);
         response.UpdatedAt = topic.IsAnonymous ? null : DateTimeOffset.UtcNow;
 
