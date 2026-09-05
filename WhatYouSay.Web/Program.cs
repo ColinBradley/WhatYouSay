@@ -21,6 +21,7 @@ builder.Services.AddScoped<ResponseService>();
 builder.Services.AddScoped<SummaryService>();
 builder.Services.AddScoped<SummaryEditService>();
 builder.Services.AddScoped<ReactionService>();
+builder.Services.AddScoped<CommentService>();
 builder.Services.AddScoped<TopicAdminService>();
 builder.Services.AddScoped<AdminSession>();
 

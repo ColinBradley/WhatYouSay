@@ -61,12 +61,17 @@ public static class WhatYouSayTelemetry
     private static readonly Counter<long> sReactionsAdded = sMeter.CreateCounter<long>(
         "whatyousay.reactions.added",
         unit: "{reaction}",
-        description: "Reactions a responder added to a summary node, by kind.");
+        description: "Reactions added to a summary node, by kind.");
 
     private static readonly Counter<long> sReactionsRemoved = sMeter.CreateCounter<long>(
         "whatyousay.reactions.removed",
         unit: "{reaction}",
-        description: "Reactions a responder took back, by kind.");
+        description: "Reactions taken back, by kind.");
+
+    private static readonly Counter<long> sCommentsAdded = sMeter.CreateCounter<long>(
+        "whatyousay.comments.added",
+        unit: "{comment}",
+        description: "Comments left on a summary node.");
 
     /// <summary>How often an agent cited something it could not substantiate.</summary>
     private static readonly Counter<long> sSummariesRejected = sMeter.CreateCounter<long>(
@@ -111,6 +116,9 @@ public static class WhatYouSayTelemetry
 
     public static void ReactionAdded(Topic topic, ReactionKind kind) =>
         sReactionsAdded.Add(1, WithKind(topic, kind));
+
+    public static void CommentAdded(Topic topic) =>
+        sCommentsAdded.Add(1, Tags(topic));
 
     public static void ReactionRemoved(Topic topic, ReactionKind kind) =>
         sReactionsRemoved.Add(1, WithKind(topic, kind));

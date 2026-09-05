@@ -17,7 +17,7 @@ public partial class SummaryEditor
 
     private IReadOnlyList<Response> mResponses = [];
 
-    private IReadOnlyList<Objection> mObjections = [];
+    private IReadOnlyList<NodeCommentView> mComments = [];
 
     private IReadOnlySet<int> mUngrounded = new HashSet<int>();
 
@@ -151,9 +151,9 @@ public partial class SummaryEditor
                     .GetRequiredService<ResponseService>()
                     .ListAsync(topic);
 
-                mObjections = await scope.ServiceProvider
-                    .GetRequiredService<ReactionService>()
-                    .ListObjectionsAsync(topic, this.SummaryId);
+                mComments = await scope.ServiceProvider
+                    .GetRequiredService<CommentService>()
+                    .ListAsync(topic, this.SummaryId, null, includeHidden: true);
 
                 if (mCiteResponseId == Guid.Empty && mResponses.Count > 0)
                 {
@@ -176,6 +176,13 @@ public partial class SummaryEditor
         return this.RunAsync((services, topic) =>
             services.GetRequiredService<SummaryEditService>()
                 .SetBodyAsync(topic, this.SummaryId, mBody));
+    }
+
+    private Task SetCommentHiddenAsync(int commentId, bool hidden)
+    {
+        return this.RunAsync((services, topic) =>
+            services.GetRequiredService<CommentService>()
+                .SetHiddenAsync(topic, commentId, null, hidden, asAdmin: true));
     }
 
     internal Task SetTextAsync(int nodeId, string text)
@@ -282,9 +289,9 @@ public partial class SummaryEditor
         return mResponses.FirstOrDefault(response => response.Id == mCiteResponseId);
     }
 
-    internal IReadOnlyList<Objection> ObjectionsFor(int nodeId)
+    internal IReadOnlyList<NodeCommentView> CommentsFor(int nodeId)
     {
-        return [.. mObjections.Where(objection => objection.NodeId == nodeId)];
+        return [.. mComments.Where(comment => comment.NodeId == nodeId)];
     }
 
     internal static string Label(Response response)

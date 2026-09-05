@@ -29,6 +29,7 @@ public static class SummariserApi
         topics.MapGet("/summaries", GetSummariesAsync);
         topics.MapGet("/summaries/{summaryId:guid}", GetSummaryAsync);
         topics.MapGet("/summaries/{summaryId:guid}/reactions", GetReactionsAsync);
+        topics.MapGet("/summaries/{summaryId:guid}/comments", GetCommentsAsync);
         topics.MapPost("/summaries", CreateSummaryAsync);
         topics.MapPut("/summaries/{summaryId:guid}", UpdateSummaryAsync);
 
@@ -254,6 +255,47 @@ public static class SummariserApi
         };
     }
 
+    private static async Task<Results<Ok<IReadOnlyList<CommentInfo>>, ProblemHttpResult>> GetCommentsAsync(
+        SummariserSession session,
+        SummaryService summaries,
+        CommentService comments,
+        Guid summaryId,
+        CancellationToken cancellationToken
+    )
+    {
+        var topic = session.Topic;
+
+        using var activity = WebTelemetry.Source.Start().SetTopic(topic);
+
+        if (await FindAsync(session, summaries, summaryId, cancellationToken) is null)
+        {
+            activity.RecordFailure("unknown_summary");
+
+            return NoSuchSummary(summaryId);
+        }
+
+        // Hidden comments are not served: they were closed on purpose, and an agent
+        // answering a settled objection would reopen it.
+        var visible = await comments.ListAsync(topic, summaryId, null, false, cancellationToken);
+
+        IReadOnlyList<CommentInfo> result =
+        [
+            .. visible.Select(comment => new CommentInfo()
+            {
+                NodeId = comment.NodeId,
+                NodeText = comment.NodeText,
+                Body = comment.Body,
+                Author = comment.Author,
+                ResponseBody = comment.ResponseBody,
+            }),
+        ];
+
+        activity?.SetTag("comment.count", result.Count);
+        WebTelemetry.RequestServed(topic, "list_comments");
+
+        return TypedResults.Ok(result);
+    }
+
     private static async Task<Results<Ok<IReadOnlyList<ReactionInfo>>, ProblemHttpResult>> GetReactionsAsync(
         SummariserSession session,
         SummaryService summaries,
@@ -293,21 +335,14 @@ public static class SummariserApi
                 {
                     NodeId = node.Id,
                     NodeText = node.Text,
-                    Agree = mine.Count(r => r.Kind == ReactionKind.Agree),
-                    Important = mine.Count(r => r.Kind == ReactionKind.Important),
-                    Misrepresents = mine.Count(r => r.Kind == ReactionKind.Misrepresents),
-                    Objections =
-                    [
-                        .. mine
-                            .Where(r => r.Kind == ReactionKind.Misrepresents
-                                && !string.IsNullOrWhiteSpace(r.Note))
-                            .Select(r => r.Note!),
-                    ],
+                    Counts = mine
+                        .GroupBy(r => r.Kind)
+                        .ToDictionary(group => group.Key.ToString(), group => group.Count()),
                 };
             }),
         ];
 
-        activity?.SetTag("objection.count", result.Sum(r => r.Objections.Count));
+        activity?.SetTag("reaction.count", result.Sum(r => r.Counts.Values.Sum()));
         WebTelemetry.RequestServed(topic, "list_reactions");
 
         return TypedResults.Ok(result);

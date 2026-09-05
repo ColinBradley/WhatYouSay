@@ -16,6 +16,8 @@ public class WhatYouSayContext(DbContextOptions<WhatYouSayContext> options) : Db
 
     public DbSet<NodeReaction> NodeReactions => this.Set<NodeReaction>();
 
+    public DbSet<NodeComment> NodeComments => this.Set<NodeComment>();
+
     protected override void ConfigureConventions(ModelConfigurationBuilder builder)
     {
         // Covers DateTimeOffset? too. Without this, every OrderBy on a timestamp throws.
@@ -88,13 +90,23 @@ public class WhatYouSayContext(DbContextOptions<WhatYouSayContext> options) : Db
         {
             reaction.Property(r => r.Kind).HasConversion<string>();
 
-            // One toggle per kind per responder per node, so Agree and Important can
-            // coexist while neither can be double-counted.
-            reaction.HasIndex(r => new { r.NodeId, r.ResponderTokenHash, r.Kind }).IsUnique();
+            // One toggle per kind per reactor per node. Conflicting kinds are allowed;
+            // what must not happen is the same one counted twice.
+            reaction.HasIndex(r => new { r.NodeId, r.ReactorTokenHash, r.Kind }).IsUnique();
 
             reaction.HasOne(r => r.Node)
                 .WithMany(n => n.Reactions)
                 .HasForeignKey(r => r.NodeId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        model.Entity<NodeComment>(comment =>
+        {
+            comment.HasIndex(c => c.NodeId);
+
+            comment.HasOne(c => c.Node)
+                .WithMany(n => n.Comments)
+                .HasForeignKey(c => c.NodeId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

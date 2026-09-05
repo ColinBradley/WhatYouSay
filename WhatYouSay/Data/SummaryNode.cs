@@ -39,4 +39,6 @@ public class SummaryNode
     public List<SummaryNodeReference> References { get; set; } = [];
 
     public List<NodeReaction> Reactions { get; set; } = [];
+
+    public List<NodeComment> Comments { get; set; } = [];
 }

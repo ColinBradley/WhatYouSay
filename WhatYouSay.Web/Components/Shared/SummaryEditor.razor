@@ -64,52 +64,63 @@ else
         </div>
     }
 
-    @if (mObjections.Count > 0)
+    @if (mComments.Count > 0)
     {
         <section class="card border-warning mt-4">
             <div class="card-header bg-warning-subtle">
                 <strong>
-                    @mObjections.Count
-                    @(mObjections.Count == 1 ? "objection" : "objections")
-                    from people this summary is about
+                    @mComments.Count
+                    @(mComments.Count == 1 ? "comment" : "comments")
+                    on this summary
                 </strong>
             </div>
 
             <div class="card-body">
                 <p class="small text-body-secondary">
-                    Each of these is somebody saying a node misrepresents what they wrote, shown
-                    next to what they actually wrote. This is the signal the tool exists for.
+                    What the group said back, in their words. Where the commenter also
+                    responded to the topic, their own answer is one click away.
                 </p>
 
-                @foreach (var objection in mObjections)
+                @foreach (var comment in mComments)
                 {
                     <div class="border-start border-warning border-3 ps-3 mb-3">
-                        <div class="fw-semibold">@objection.NodeText</div>
+                        <div class="fw-semibold">
+                            @comment.NodeText
 
-                        @if (objection.Note is not null)
+                            @if (comment.IsHidden)
+                            {
+                                <span class="badge text-bg-secondary ms-1">Hidden</span>
+                            }
+                        </div>
+
+                        <div class="mt-1">&ldquo;@comment.Body&rdquo;</div>
+
+                        @if (comment.ResponseBody is not null)
                         {
-                            <div class="mt-1">&ldquo;@objection.Note&rdquo;</div>
+                            <details class="mt-2">
+                                <summary class="small text-body-secondary">
+                                    What @(comment.Author ?? "they") actually wrote
+                                </summary>
+
+                                <blockquote class="small mt-2 mb-0">@comment.ResponseBody</blockquote>
+                            </details>
                         }
                         else
                         {
-                            <div class="mt-1 fst-italic text-body-secondary">
-                                Flagged without a note.
+                            <div class="small text-body-secondary mt-1">
+                                @(comment.Author ?? "They") did not respond to this topic.
                             </div>
                         }
 
-                        <details class="mt-2">
-                            <summary class="small text-body-secondary">
-                                What @(objection.Author ?? "they") actually wrote
-                            </summary>
-
-                            <blockquote class="small mt-2 mb-0">@objection.ResponseBody</blockquote>
-                        </details>
+                        <button class="btn btn-sm btn-outline-secondary mt-2" type="button"
+                                @onclick="() => this.SetCommentHiddenAsync(comment.Id, !comment.IsHidden)">
+                            @(comment.IsHidden ? "Show" : "Hide")
+                        </button>
                     </div>
                 }
             </div>
         </section>
     }
-
     @if (mUngrounded.Count > 0)
     {
         <div class="alert alert-warning mt-4">

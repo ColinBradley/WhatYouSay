@@ -64,11 +64,10 @@
         </div>
     }
 
-    @foreach (var objection in this.Editor.ObjectionsFor(this.Node.Id))
+    @foreach (var comment in this.Editor.CommentsFor(this.Node.Id))
     {
-        <div class="small text-warning-emphasis mt-1">
-            &ldquo;@(objection.Note ?? "This misrepresents me.")&rdquo;
-            &mdash; @(objection.Author ?? "a responder")
+        <div class="small text-warning-emphasis mt-1 @(comment.IsHidden ? "opacity-50" : null)">
+            &ldquo;@comment.Body&rdquo; &mdash; @(comment.Author ?? "anonymous")
         </div>
     }
 

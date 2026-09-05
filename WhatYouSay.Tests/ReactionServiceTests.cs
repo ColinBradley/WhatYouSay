@@ -23,35 +23,39 @@ public class ReactionServiceTests : DatabaseTest
         Assert.AreEqual(0, await mDb.NodeReactions.CountAsync(this.Cancellation));
     }
 
+    /// <summary>
+    /// The gate that used to be here is gone: a shared link is already the access boundary,
+    /// and a topic that is nothing but hand-written notes has no responders to gate on.
+    /// </summary>
     [TestMethod]
-    public async Task Someone_who_did_not_respond_cannot_react()
+    public async Task Someone_who_never_responded_can_still_react()
     {
         using var activity = TestTelemetry.Source.Start();
 
         var (topic, node, _) = await this.SummarisedTopicAsync();
 
-        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            () => this.Service().ToggleAsync(
-                topic, node, Secrets.NewToken(), ReactionKind.Agree, this.Cancellation));
+        await this.Service().ToggleAsync(
+            topic, node, Secrets.NewToken(), ReactionKind.Agree, this.Cancellation);
 
-        Assert.AreEqual(0, await mDb.NodeReactions.CountAsync(this.Cancellation));
+        Assert.AreEqual(1, await mDb.NodeReactions.CountAsync(this.Cancellation));
     }
 
     [TestMethod]
-    public async Task A_withdrawn_responder_loses_the_right_to_react()
+    public async Task Conflicting_reactions_are_allowed()
     {
         using var activity = TestTelemetry.Source.Start();
 
         var (topic, node, token) = await this.SummarisedTopicAsync();
+        var service = this.Service();
 
-        var response = await mDb.Responses.SingleAsync(this.Cancellation);
-        response.IsDeleted = true;
-        await mDb.SaveChangesAsync(this.Cancellation);
+        await service.ToggleAsync(topic, node, token, ReactionKind.Agree, this.Cancellation);
+        await service.ToggleAsync(topic, node, token, ReactionKind.Disagree, this.Cancellation);
 
-        Assert.IsFalse(await this.Service().CanReactAsync(topic.Id, token, this.Cancellation));
+        var summaryId = await mDb.Summaries.Select(s => s.Id).SingleAsync(this.Cancellation);
+        var tally = (await service.TallyAsync(summaryId, token, this.Cancellation))[node];
 
-        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            () => this.Service().ToggleAsync(topic, node, token, ReactionKind.Agree, this.Cancellation));
+        Assert.Contains(ReactionKind.Agree, tally.Mine);
+        Assert.Contains(ReactionKind.Disagree, tally.Mine);
     }
 
     [TestMethod]
@@ -65,39 +69,6 @@ public class ReactionServiceTests : DatabaseTest
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
             () => this.Service().ToggleAsync(topic, otherNode, token, ReactionKind.Agree, this.Cancellation));
     }
-
-    [TestMethod]
-    public async Task An_objection_carries_a_note_and_can_be_reworded()
-    {
-        using var activity = TestTelemetry.Source.Start();
-
-        var (topic, node, token) = await this.SummarisedTopicAsync();
-        var service = this.Service();
-
-        await service.SetObjectionAsync(topic, node, token, "That is not what I meant", this.Cancellation);
-        await service.SetObjectionAsync(topic, node, token, "Closer, but still wrong", this.Cancellation);
-
-        var stored = await mDb.NodeReactions.SingleAsync(this.Cancellation);
-
-        // Rewording edits the objection rather than withdrawing and re-raising it.
-        Assert.AreEqual(ReactionKind.Misrepresents, stored.Kind);
-        Assert.AreEqual("Closer, but still wrong", stored.Note);
-    }
-
-    [TestMethod]
-    public async Task An_objection_is_withdrawn_explicitly_rather_than_by_resubmitting()
-    {
-        using var activity = TestTelemetry.Source.Start();
-
-        var (topic, node, token) = await this.SummarisedTopicAsync();
-        var service = this.Service();
-
-        await service.SetObjectionAsync(topic, node, token, "Wrong", this.Cancellation);
-        await service.WithdrawAsync(topic, node, token, ReactionKind.Misrepresents, this.Cancellation);
-
-        Assert.AreEqual(0, await mDb.NodeReactions.CountAsync(this.Cancellation));
-    }
-
     [TestMethod]
     public async Task Anonymous_topics_record_no_reaction_timestamps()
     {
@@ -128,8 +99,8 @@ public class ReactionServiceTests : DatabaseTest
         var summaryId = await mDb.Summaries.Select(s => s.Id).SingleAsync(this.Cancellation);
         var tally = (await service.TallyAsync(summaryId, mine, this.Cancellation))[node];
 
-        Assert.AreEqual(2, tally.Agree);
-        Assert.AreEqual(1, tally.Important);
+        Assert.AreEqual(2, tally.CountOf(ReactionKind.Agree));
+        Assert.AreEqual(1, tally.CountOf(ReactionKind.Important));
         Assert.Contains(ReactionKind.Agree, tally.Mine);
         Assert.DoesNotContain(ReactionKind.Important, tally.Mine);
     }
@@ -147,9 +118,8 @@ public class ReactionServiceTests : DatabaseTest
         var summaryId = await mDb.Summaries.Select(s => s.Id).SingleAsync(this.Cancellation);
         var tally = (await service.TallyAsync(summaryId, null, this.Cancellation))[node];
 
-        Assert.AreEqual(1, tally.Agree);
+        Assert.AreEqual(1, tally.CountOf(ReactionKind.Agree));
         Assert.IsEmpty(tally.Mine);
-        Assert.IsNull(tally.MyNote);
     }
 
     private ReactionService Service()

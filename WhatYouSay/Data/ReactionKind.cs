@@ -1,13 +1,21 @@
 namespace WhatYouSay.Data;
 
+/// <summary>
+/// A chat reaction bar. Light by design, and not an analytics channel: someone hits
+/// <see cref="Disagree"/> to flag a thing worth raising, not to file a dissent. Anything
+/// that needs saying goes in a <see cref="NodeComment"/>.
+/// </summary>
 public enum ReactionKind
 {
-    /// <summary>"Yes, that matches what I meant."</summary>
     Agree,
 
-    /// <summary>"This one matters to me" — weight rather than agreement.</summary>
+    Disagree,
+
     Important,
 
-    /// <summary>"This does not represent what I said." The fidelity loop closing.</summary>
-    Misrepresents,
+    Question,
+
+    Celebrate,
+
+    Laugh,
 }

@@ -47,53 +47,60 @@
         </div>
     }
 
-    <div class="d-flex gap-2 align-items-center mt-2 flex-wrap">
-        <button type="submit" name="Action" class="btn btn-sm @Pressed(this.Tally, ReactionKind.Agree)"
-                value="@($"{this.Node.Id}:{ReactionKind.Agree}:toggle")"
-                disabled="@(!this.Reading.CanReact)" title="@this.Reading.ReactReason">
-            Agree@(this.Tally.Agree > 0 ? $" · {this.Tally.Agree}" : "")
-        </button>
-
-        <button type="submit" name="Action" class="btn btn-sm @Pressed(this.Tally, ReactionKind.Important)"
-                value="@($"{this.Node.Id}:{ReactionKind.Important}:toggle")"
-                disabled="@(!this.Reading.CanReact)" title="@this.Reading.ReactReason">
-            Matters to me@(this.Tally.Important > 0 ? $" · {this.Tally.Important}" : "")
-        </button>
-
-        @if (this.Tally.Misrepresents > 0)
+    <div class="d-flex gap-1 align-items-center mt-2 flex-wrap">
+        @foreach (var kind in SummaryReading.Reactions)
         {
-            <span class="badge text-bg-warning">
-                @this.Tally.Misrepresents flagged this as misrepresenting them
-            </span>
+            <button type="submit" name="Action" class="btn btn-sm @Pressed(this.Tally, kind)"
+                    value="@($"{this.Node.Id}:{kind}")" title="@Label(kind)">
+                @Emoji(kind)@(this.Tally.CountOf(kind) > 0 ? $" {this.Tally.CountOf(kind)}" : "")
+            </button>
         }
     </div>
 
-    <details class="mt-2" open="@this.Tally.Mine.Contains(ReactionKind.Misrepresents)">
+    @{
+        var comments = this.Reading.CommentsFor(this.Node.Id);
+    }
+
+    <details class="mt-2" open="@(comments.Count > 0)">
         <summary class="small text-body-secondary">
-            This misrepresents what I said
+            @(comments.Count == 0
+                ? "Comment"
+                : $"{comments.Count} {(comments.Count == 1 ? "comment" : "comments")}")
         </summary>
 
+        @foreach (var comment in comments)
+        {
+            <div class="border-start ps-3 mt-2 @(comment.IsHidden ? "opacity-50" : null)">
+                <div class="small">&ldquo;@comment.Body&rdquo;</div>
+
+                <div class="small text-body-secondary">
+                    @(comment.Author ?? "anonymous")
+
+                    @if (comment.IsHidden)
+                    {
+                        <span class="badge text-bg-secondary ms-1">Hidden</span>
+                    }
+
+                    @if (comment.IsMine)
+                    {
+                        <button type="submit" name="Action" class="btn btn-sm btn-link p-0 ms-1 align-baseline"
+                                value="@($"comment:{comment.Id}:{(comment.IsHidden ? "show" : "hide")}")">
+                            @(comment.IsHidden ? "Show" : "Hide")
+                        </button>
+                    }
+                </div>
+            </div>
+        }
+
         <textarea class="form-control form-control-sm mt-2" rows="2"
-                  name="@SummaryReading.NoteField(this.Node.Id)" disabled="@(!this.Reading.CanReact)"
-                  title="@this.Reading.ReactReason"
-                  placeholder="What did we get wrong?">@this.Tally.MyNote</textarea>
+                  name="@SummaryReading.CommentField(this.Node.Id)"
+                  placeholder="Say something about this"></textarea>
 
-        <div class="d-flex gap-2 mt-2">
-            <button type="submit" name="Action" class="btn btn-sm btn-outline-warning"
-                    value="@($"{this.Node.Id}:{ReactionKind.Misrepresents}:set")"
-                    disabled="@(!this.Reading.CanReact)" title="@this.Reading.ReactReason">
-                @(this.Tally.Mine.Contains(ReactionKind.Misrepresents) ? "Update" : "Flag this")
-            </button>
-
-            <button type="submit" name="Action" class="btn btn-sm btn-link text-body-secondary"
-                    value="@($"{this.Node.Id}:{ReactionKind.Misrepresents}:withdraw")"
-                    disabled="@(!this.Reading.CanReact || !this.Tally.Mine.Contains(ReactionKind.Misrepresents))"
-                    title="@(this.Reading.CanReact ? "You have not flagged this." : this.Reading.ReactReason)">
-                Withdraw
-            </button>
-        </div>
+        <button type="submit" name="Action" class="btn btn-sm btn-outline-secondary mt-2"
+                value="@($"comment:{this.Node.Id}:add")">
+            Add comment
+        </button>
     </details>
-
     @if (this.Node.Children.Count > 0)
     {
         @if (this.Collapse())

@@ -317,42 +317,63 @@ public static class SeedData
     }
 
     /// <summary>
-    /// Reactions from the people whose words the summary is built on, so the objection
-    /// display in the admin editor has something to show without hand-building one.
+    /// Reactions and comments from the people whose words the summary is built on, so the
+    /// admin editor has objections to show without hand-building one.
     /// </summary>
     private static void AddRetroReactions(Topic topic, Summary summary)
     {
         var nodes = summary.Nodes;
 
-        React(0, "A full CI run takes", ReactionKind.Misrepresents,
+        Comment(0, "A full CI run takes",
             "I said a green build is not reliable because of flaky tests, not that the 22 minutes "
             + "is the problem. Those are different complaints.");
 
-        React(2, "A first review comment arrives", ReactionKind.Misrepresents, null);
-        React(1, "A full CI run takes", ReactionKind.Agree, null);
-        React(2, "A full CI run takes", ReactionKind.Agree, null);
-        React(3, "Staging was down for most of a Tuesday", ReactionKind.Important, null);
+        Comment(2, "A first review comment arrives",
+            "This reads like I was complaining about the reviewers. I was complaining about the "
+            + "queue.");
 
-        void React(int responderIndex, string nodeTextPrefix, ReactionKind kind, string? note)
+        React(1, "A full CI run takes", ReactionKind.Agree);
+        React(2, "A full CI run takes", ReactionKind.Agree);
+        React(0, "A first review comment arrives", ReactionKind.Disagree);
+        React(3, "Staging was down for most of a Tuesday", ReactionKind.Important);
+        React(1, "Pairing on the payments migration", ReactionKind.Celebrate);
+
+        void React(int responderIndex, string nodeTextPrefix, ReactionKind kind)
         {
-            var node = nodes.FirstOrDefault(
-                n => n.Text.StartsWith(nodeTextPrefix, StringComparison.Ordinal));
-
-            if (node is null)
+            if (Find(nodeTextPrefix) is not { } node)
             {
                 return;
             }
 
             node.Reactions.Add(new NodeReaction()
             {
-                ResponderTokenHash = topic.Responses[responderIndex].AuthTokenHash,
+                ReactorTokenHash = topic.Responses[responderIndex].AuthTokenHash,
                 Kind = kind,
-                Note = note,
                 CreatedAt = topic.IsAnonymous ? null : topic.CreatedAt.AddDays(1),
             });
         }
-    }
 
+        void Comment(int responderIndex, string nodeTextPrefix, string body)
+        {
+            if (Find(nodeTextPrefix) is not { } node)
+            {
+                return;
+            }
+
+            var responder = topic.Responses[responderIndex];
+
+            node.Comments.Add(new NodeComment()
+            {
+                AuthorTokenHash = responder.AuthTokenHash,
+                Author = responder.Author,
+                Body = body,
+                CreatedAt = topic.IsAnonymous ? null : topic.CreatedAt.AddDays(1),
+            });
+        }
+
+        SummaryNode? Find(string nodeTextPrefix) =>
+            nodes.FirstOrDefault(n => n.Text.StartsWith(nodeTextPrefix, StringComparison.Ordinal));
+    }
     /// <summary>
     /// Flattens the tree the way the service does, because a summary stores every node in
     /// one list and only the parent links describe the shape.

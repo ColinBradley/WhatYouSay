@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Components;
 using WhatYouSay.Data;
+using WhatYouSay.Auth;
 using WhatYouSay.Services;
 using WhatYouSay.Telemetry;
 using WhatYouSay.Web.Auth;
@@ -26,12 +27,11 @@ public partial class SummaryPage
     private SummaryReading mReading = new()
     {
         ResponsesArePublic = false,
-        CanReact = false,
-        ReactReason = null,
         Tallies = new Dictionary<int, NodeReactionTally>(),
+        Comments = [],
     };
 
-    private string? mResponderToken;
+    private string? mReactorToken;
 
     private IReadOnlyList<Crumb> mCrumbs = [];
 
@@ -43,6 +43,9 @@ public partial class SummaryPage
 
     [Inject]
     private ReactionService Reactions { get; set; } = default!;
+
+    [Inject]
+    private CommentService Comments { get; set; } = default!;
 
     [Inject]
     private AdminSession Session { get; set; } = default!;
@@ -113,19 +116,17 @@ public partial class SummaryPage
         }
 
         mRoots = [.. mSummary.Roots];
-        mResponderToken = ResponderCookie.Read(this.HttpContext, mTopic.Id);
-
-        // Reacting is what publishing turns on, so an unpublished version an admin is
-        // previewing takes no reactions — they would attach to nodes the next draft replaces.
-        var canReact = mSummary.IsVisibleToPublic
-            && await this.Reactions.CanReactAsync(mTopic.Id, mResponderToken);
+        mReactorToken = ResponderCookie.Read(this.HttpContext, mTopic.Id);
 
         mReading = new SummaryReading()
         {
             ResponsesArePublic = mTopic.AreResponsesPublic,
-            CanReact = canReact,
-            ReactReason = this.ReactReason(canReact),
-            Tallies = await this.Reactions.TallyAsync(mSummary.Id, mResponderToken),
+            Tallies = await this.Reactions.TallyAsync(mSummary.Id, mReactorToken),
+            Comments = await this.Comments.ListAsync(
+                mTopic,
+                mSummary.Id,
+                mReactorToken,
+                includeHidden: mIsAdmin),
         };
 
         WhatYouSayTelemetry.SummaryViewed(mTopic);
@@ -133,56 +134,69 @@ public partial class SummaryPage
 
     private async Task ReactAsync()
     {
-        if (mTopic is null
-            || mSummary is null
-            || !mReading.CanReact
-            || mResponderToken is null
-            || this.Action is null)
+        if (mTopic is null || mSummary is null || this.Action is null)
         {
             return;
+        }
+
+        // A viewer who has never responded still needs an identity to dedupe on, so the
+        // first reaction or comment mints one. Static SSR is what makes this possible:
+        // there is a response to write the cookie header to.
+        if (mReactorToken is null)
+        {
+            mReactorToken = Secrets.NewToken();
+            ResponderCookie.Write(this.HttpContext, mTopic.Id, mReactorToken);
         }
 
         var parts = this.Action.Split(':');
 
-        if (parts.Length != 3
-            || !int.TryParse(parts[0], out var nodeId)
-            || !Enum.TryParse<ReactionKind>(parts[1], out var kind))
+        if (parts is ["comment", var target, var verb] && int.TryParse(target, out var id))
         {
-            return;
+            await this.CommentAsync(id, verb);
         }
-
-        switch (parts[2])
+        else if (parts is [var node, var kindName]
+            && int.TryParse(node, out var nodeId)
+            && Enum.TryParse<ReactionKind>(kindName, out var kind))
         {
-            case "toggle":
-                await this.Reactions.ToggleAsync(mTopic, nodeId, mResponderToken, kind);
-                break;
-
-            case "set":
-                var note = this.HttpContext.Request.Form[SummaryReading.NoteField(nodeId)].ToString();
-                await this.Reactions.SetObjectionAsync(mTopic, nodeId, mResponderToken, note);
-                break;
-
-            case "withdraw":
-                await this.Reactions.WithdrawAsync(mTopic, nodeId, mResponderToken, kind);
-                break;
+            await this.Reactions.ToggleAsync(mTopic, nodeId, mReactorToken, kind);
         }
 
         this.Navigation.NavigateTo(
             this.HttpContext.Request.Path + this.HttpContext.Request.QueryString);
     }
 
-    private string? ReactReason(bool canReact)
+    private async Task CommentAsync(int id, string verb)
     {
-        if (canReact)
+        switch (verb)
         {
-            return null;
-        }
+            case "add":
+                var body = this.HttpContext.Request.Form[SummaryReading.CommentField(id)].ToString();
 
-        return mSummary!.IsVisibleToPublic
-            ? "Only people who answered this topic can react to it."
-            : "This version has not been published yet.";
+                if (!string.IsNullOrWhiteSpace(body))
+                {
+                    await this.Comments.AddAsync(mTopic!, id, mReactorToken!, body, this.AuthorName());
+                }
+
+                break;
+
+            case "hide":
+            case "show":
+                await this.Comments.SetHiddenAsync(
+                    mTopic!,
+                    id,
+                    mReactorToken,
+                    hidden: verb == "hide",
+                    asAdmin: mIsAdmin);
+
+                break;
+        }
     }
 
+    /// <summary>The name on your own response, so a comment does not ask for it twice.</summary>
+    private string? AuthorName()
+    {
+        return mReading.Comments.FirstOrDefault(c => c.IsMine)?.Author;
+    }
     /// <summary>Versions are held newest first, but read oldest first.</summary>
     private int VersionNumber()
     {

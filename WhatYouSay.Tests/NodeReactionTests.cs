@@ -16,7 +16,7 @@ public class NodeReactionTests : DatabaseTest
         mDb.NodeReactions.Add(new NodeReaction()
         {
             NodeId = leaf.Id,
-            ResponderTokenHash = "same-person",
+            ReactorTokenHash = "same-person",
             Kind = ReactionKind.Agree,
         });
 
@@ -25,7 +25,7 @@ public class NodeReactionTests : DatabaseTest
         mDb.NodeReactions.Add(new NodeReaction()
         {
             NodeId = leaf.Id,
-            ResponderTokenHash = "same-person",
+            ReactorTokenHash = "same-person",
             Kind = ReactionKind.Agree,
         });
 
@@ -40,8 +40,8 @@ public class NodeReactionTests : DatabaseTest
         var leaf = await this.SeededLeafAsync();
 
         mDb.NodeReactions.AddRange(
-            new NodeReaction { NodeId = leaf.Id, ResponderTokenHash = "p", Kind = ReactionKind.Agree },
-            new NodeReaction { NodeId = leaf.Id, ResponderTokenHash = "p", Kind = ReactionKind.Important });
+            new NodeReaction { NodeId = leaf.Id, ReactorTokenHash = "p", Kind = ReactionKind.Agree },
+            new NodeReaction { NodeId = leaf.Id, ReactorTokenHash = "p", Kind = ReactionKind.Important });
 
         await mDb.SaveChangesAsync(this.Cancellation);
 
@@ -56,8 +56,8 @@ public class NodeReactionTests : DatabaseTest
         var leaf = await this.SeededLeafAsync();
 
         mDb.NodeReactions.AddRange(
-            new NodeReaction { NodeId = leaf.Id, ResponderTokenHash = "one", Kind = ReactionKind.Agree },
-            new NodeReaction { NodeId = leaf.Id, ResponderTokenHash = "two", Kind = ReactionKind.Agree });
+            new NodeReaction { NodeId = leaf.Id, ReactorTokenHash = "one", Kind = ReactionKind.Agree },
+            new NodeReaction { NodeId = leaf.Id, ReactorTokenHash = "two", Kind = ReactionKind.Agree });
 
         await mDb.SaveChangesAsync(this.Cancellation);
 

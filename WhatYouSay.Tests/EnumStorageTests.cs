@@ -31,12 +31,12 @@ public class EnumStorageTests : DatabaseTest
         mDb.NodeReactions.Add(new NodeReaction()
         {
             NodeId = leaf.Id,
-            ResponderTokenHash = "hash",
-            Kind = ReactionKind.Misrepresents,
+            ReactorTokenHash = "hash",
+            Kind = ReactionKind.Disagree,
         });
 
         await mDb.SaveChangesAsync(this.Cancellation);
 
-        Assert.AreEqual("Misrepresents", await this.ScalarAsync("SELECT Kind FROM NodeReactions"));
+        Assert.AreEqual("Disagree", await this.ScalarAsync("SELECT Kind FROM NodeReactions"));
     }
 }
