@@ -10,6 +10,8 @@ public record SummaryInfo
 
     public required bool IsPublic { get; init; }
 
+    public required bool IsAgentEditable { get; init; }
+
     public string? CreatedBy { get; init; }
 
     public required int NodeCount { get; init; }

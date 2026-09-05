@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using WhatYouSay.Data;
 using WhatYouSay.Services;
 using WhatYouSay.Telemetry;
@@ -315,7 +316,7 @@ public static class SummariserApi
     private static async Task<Results<Created<DraftResult>, ProblemHttpResult>> CreateSummaryAsync(
         SummariserSession session,
         SummaryService summaries,
-        SummaryDraft summary,
+        HttpRequest request,
         CancellationToken cancellationToken
     )
     {
@@ -323,11 +324,20 @@ public static class SummariserApi
 
         using var activity = WebTelemetry.Source.Start().SetTopic(topic);
 
+        var (summary, malformed) = await ReadDraftAsync(request, cancellationToken);
+
+        if (malformed is not null)
+        {
+            activity.RecordFailure("malformed_payload");
+
+            return malformed;
+        }
+
         try
         {
             var saved = await summaries.SaveDraftAsync(
                 topic,
-                summary,
+                summary!,
                 "agent",
                 null,
                 cancellationToken
@@ -351,7 +361,7 @@ public static class SummariserApi
         SummariserSession session,
         SummaryService summaries,
         Guid summaryId,
-        SummaryDraft summary,
+        HttpRequest request,
         CancellationToken cancellationToken
     )
     {
@@ -366,11 +376,20 @@ public static class SummariserApi
             return NoSuchSummary(summaryId);
         }
 
+        var (summary, malformed) = await ReadDraftAsync(request, cancellationToken);
+
+        if (malformed is not null)
+        {
+            activity.RecordFailure("malformed_payload");
+
+            return malformed;
+        }
+
         try
         {
             var saved = await summaries.SaveDraftAsync(
                 topic,
-                summary,
+                summary!,
                 "agent",
                 summaryId,
                 cancellationToken
@@ -387,6 +406,83 @@ public static class SummariserApi
     }
 
     /// <summary>
+    /// Reads the body here rather than letting the framework bind it, so a payload the
+    /// reader cannot make sense of gets the located answer every other mistake gets. Binding
+    /// happens before a handler runs, so a missing field or a stray comma would otherwise
+    /// come back as a bare 400 with no body outside Development — the one class of mistake
+    /// the API refused to explain, in the surface whose whole job is explaining itself.
+    /// </summary>
+    private static async Task<(SummaryDraft? Draft, ProblemHttpResult? Malformed)> ReadDraftAsync(
+        HttpRequest request,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            var draft = await request.ReadFromJsonAsync<SummaryDraft>(cancellationToken);
+
+            return draft is null
+                ? (null, Malformed("/", "The request body was empty. Send the whole summary."))
+                : (draft, null);
+        }
+        catch (JsonException failure)
+        {
+            return (null, Malformed(Pointer(failure.Path), Explain(failure.Message)));
+        }
+    }
+
+    /// <summary>
+    /// Trims the reader's own message down to the part addressed to whoever sent the JSON.
+    /// The tail repeats the path we have already converted, and "change the reader options"
+    /// is advice for this codebase that an agent would otherwise try to act on.
+    /// </summary>
+    private static string Explain(string message)
+    {
+        var end = message.IndexOf(" Path:", StringComparison.Ordinal);
+        var trimmed = end < 0 ? message : message[..end];
+
+        return trimmed.Replace(" Change the reader options.", string.Empty, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// System.Text.Json locates a fault as <c>$.nodes[0].text</c>; every other failure this
+    /// API reports is a JSON Pointer. One shape, so a caller can act on the path without
+    /// knowing which layer rejected it.
+    /// </summary>
+    private static string Pointer(string? path)
+    {
+        if (path is null or "$")
+        {
+            return "/";
+        }
+
+        return path[1..].Replace("[", "/").Replace("]", string.Empty).Replace(".", "/");
+    }
+
+    private static ProblemHttpResult Malformed(string path, string? message)
+    {
+        var detail = message ?? "The request body is not valid JSON.";
+
+        return TypedResults.Problem(
+            title: "The draft was not saved",
+            detail: detail,
+            statusCode: StatusCodes.Status400BadRequest,
+            extensions: new Dictionary<string, object?>()
+            {
+                ["reason"] = "malformed_payload",
+                ["errors"] = new[]
+                {
+                    new GroundingFailure()
+                    {
+                        Path = path,
+                        Reason = "malformed_payload",
+                        Message = detail,
+                    },
+                },
+            }
+        );
+    }
+    /// <summary>
     /// A rejection has to be as useful as the rules are strict, so every failure travels
     /// back at once, each located by a JSON Pointer into what was sent.
     /// </summary>
@@ -394,7 +490,7 @@ public static class SummariserApi
     {
         var status = rejection.Reason switch
         {
-            "topic_open" or "summary_published" => StatusCodes.Status409Conflict,
+            "topic_open" or "summary_not_agent_editable" => StatusCodes.Status409Conflict,
             _ => StatusCodes.Status422UnprocessableEntity,
         };
 
@@ -467,6 +563,7 @@ public static class SummariserApi
             Id = summary.Id,
             CreatedAt = summary.CreatedAt,
             IsDraft = summary.IsDraft,
+            IsAgentEditable = summary.IsAgentEditable,
             IsPublic = summary.IsPublic,
             CreatedBy = summary.CreatedBy,
             NodeCount = summary.Nodes.Count,

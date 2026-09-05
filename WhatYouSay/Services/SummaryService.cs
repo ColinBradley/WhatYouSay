@@ -75,11 +75,10 @@ public class SummaryService(WhatYouSayContext db)
     {
         using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
 
-        var responses = await this.ValidateAsync(topic, draft, cancellationToken);
-
         var summary = replacing is { } id
             ? await db.Summaries
                 .Include(s => s.Nodes)
+                    .ThenInclude(n => n.References)
                 .FirstOrDefaultAsync(s => s.Id == id && s.TopicId == topic.Id, cancellationToken)
             : null;
 
@@ -88,15 +87,18 @@ public class SummaryService(WhatYouSayContext db)
             throw this.Reject(topic, "unknown_summary", "/", $"No summary {replacing} on this topic.");
         }
 
-        if (summary is not null && !summary.IsDraft)
+        if (summary is not null && !summary.IsAgentEditable)
         {
             throw this.Reject(
                 topic,
-                "summary_published",
+                "summary_not_agent_editable",
                 "/",
-                "That summary has been published, so it is immutable. Create a new one instead.");
+                "That summary is not open to the summariser. An admin can hand it back, or "
+                + "create a new one instead.");
         }
 
+        var stored = summary?.Nodes.ToDictionary(node => node.Id) ?? [];
+        var responses = await this.ValidateAsync(topic, draft, stored, cancellationToken);
         var now = DateTimeOffset.UtcNow;
 
         if (summary is null)
@@ -107,6 +109,7 @@ public class SummaryService(WhatYouSayContext db)
                 TopicId = topic.Id,
                 Body = draft.Body,
                 CreatedBy = createdBy,
+                IsAgentEditable = true,
                 CreatedAt = now,
                 UpdatedAt = now,
             };
@@ -117,15 +120,23 @@ public class SummaryService(WhatYouSayContext db)
         {
             summary.Body = draft.Body;
             summary.UpdatedAt = now;
-
-            // The agent submits a whole summary each time, so replace rather than merge.
-            db.SummaryNodes.RemoveRange(summary.Nodes);
-            summary.Nodes.Clear();
         }
+
+        var kept = new HashSet<int>();
 
         for (var i = 0; i < draft.Nodes.Count; i++)
         {
-            Graft(draft.Nodes[i], null, i);
+            Apply(draft.Nodes[i], null, i);
+        }
+
+        // After the whole tree has been re-parented, so a node moved out from under a
+        // deleted one is no longer its dependent and does not cascade away with it.
+        foreach (var (storedId, node) in stored)
+        {
+            if (!kept.Contains(storedId))
+            {
+                db.SummaryNodes.Remove(node);
+            }
         }
 
         await db.SaveChangesAsync(cancellationToken);
@@ -136,16 +147,51 @@ public class SummaryService(WhatYouSayContext db)
 
         return summary;
 
-        void Graft(NodeDraft draftNode, SummaryNode? parent, int ordinal)
+        void Apply(NodeDraft draftNode, SummaryNode? parent, int ordinal)
         {
-            var node = new SummaryNode()
-            {
-                Text = draftNode.Text,
-                Parent = parent,
-                Ordinal = ordinal,
-            };
+            SummaryNode node;
 
-            foreach (var referenceDraft in draftNode.References)
+            if (draftNode.Id is { } nodeId)
+            {
+                node = stored[nodeId];
+                kept.Add(nodeId);
+
+                // No text means carry it forward: its own words and citations are left
+                // exactly as they are, and only its place in the tree is the agent's to say.
+                if (draftNode.Text is { } revised)
+                {
+                    node.Text = revised;
+                    db.References.RemoveRange(node.References);
+                    node.References.Clear();
+                    Cite(node, draftNode);
+                }
+            }
+            else
+            {
+                node = new SummaryNode() { Text = draftNode.Text };
+
+                // Every node carries SummaryId, so every node joins the flat collection.
+                summary.Nodes.Add(node);
+                Cite(node, draftNode);
+            }
+
+            node.Parent = parent;
+            node.Ordinal = ordinal;
+
+            if (parent is null)
+            {
+                node.ParentId = null;
+            }
+
+            for (var i = 0; i < draftNode.Children.Count; i++)
+            {
+                Apply(draftNode.Children[i], node, i);
+            }
+        }
+
+        void Cite(SummaryNode node, NodeDraft draftNode)
+        {
+            foreach (var referenceDraft in draftNode.References ?? [])
             {
                 var response = responses[referenceDraft.ResponseId];
                 var location = QuoteLocator.Locate(response.Body, referenceDraft.Quote)!.Value;
@@ -158,14 +204,6 @@ public class SummaryService(WhatYouSayContext db)
                     EndIndex = location.EndIndex,
                 });
             }
-
-            // Every node carries SummaryId, so every node joins the flat collection.
-            summary.Nodes.Add(node);
-
-            for (var i = 0; i < draftNode.Children.Count; i++)
-            {
-                Graft(draftNode.Children[i], node, i);
-            }
         }
     }
 
@@ -173,6 +211,7 @@ public class SummaryService(WhatYouSayContext db)
     private async Task<Dictionary<Guid, Response>> ValidateAsync(
         Topic topic,
         SummaryDraft draft,
+        Dictionary<int, SummaryNode> stored,
         CancellationToken cancellationToken
     )
     {
@@ -197,6 +236,7 @@ public class SummaryService(WhatYouSayContext db)
 
         // Every problem is collected rather than thrown on, so one retry can fix the lot.
         var failures = new List<GroundingFailure>();
+        var claimed = new HashSet<int>();
 
         for (var i = 0; i < draft.Nodes.Count; i++)
         {
@@ -215,25 +255,52 @@ public class SummaryService(WhatYouSayContext db)
         // real: a leaf either cites for itself or sits under something that does. A heading
         // needs no citation because the requirement lands on what hangs below it, and a
         // childless node with none is not a heading, whatever it was meant to be.
+        //
+        // A node carried forward by bare id sits outside that rule. It is not being asserted
+        // here - it already exists, and a person may have written it without a quote - so it
+        // is neither checked nor able to ground anything below it unless it is itself cited.
         void Check(NodeDraft node, string path, bool supported)
         {
-            for (var r = 0; r < node.References.Count; r++)
+            var existing = Resolve(node, path);
+            var authored = !string.IsNullOrEmpty(node.Text);
+
+            if (authored)
             {
-                CheckReference(node, node.References[r], $"{path}/references/{r}");
+                var references = node.References ?? [];
+
+                for (var r = 0; r < references.Count; r++)
+                {
+                    CheckReference(node, references[r], $"{path}/references/{r}");
+                }
+            }
+            else if (node.References is not null)
+            {
+                failures.Add(new GroundingFailure()
+                {
+                    Path = $"{path}/references",
+                    Reason = "references_without_text",
+                    Message = "References belong to the assertion they support, so they can only "
+                        + "accompany text. Send the node's text along with them to revise it, or "
+                        + "send the id alone to leave it as it stands.",
+                });
             }
 
             // Support inherits down a branch, so a child of a cited node need not re-cite.
-            var grounded = supported || node.References.Count > 0;
+            var cites = authored
+                ? node.References is { Count: > 0 }
+                : existing is { References.Count: > 0 };
+
+            var grounded = supported || cites;
 
             if (node.Children.Count == 0)
             {
-                if (!grounded)
+                if (!grounded && authored)
                 {
                     failures.Add(new GroundingFailure()
                     {
                         Path = $"{path}/references",
                         Reason = "branch_without_citation",
-                        Message = $"Nothing cites \"{Trim(node.Text)}\", it has nothing under it, "
+                        Message = $"Nothing cites \"{Trim(node.Text!)}\", it has nothing under it, "
                             + "and nothing above it cites a response either. Every branch has to "
                             + "end in something somebody actually wrote.",
                     });
@@ -248,6 +315,54 @@ public class SummaryService(WhatYouSayContext db)
             }
         }
 
+        // An id is a claim about a node that already exists here, so it is checked the way a
+        // responseId is: it has to name something in this summary, and only once.
+        SummaryNode? Resolve(NodeDraft node, string path)
+        {
+            if (node.Id is not { } id)
+            {
+                if (string.IsNullOrEmpty(node.Text))
+                {
+                    failures.Add(new GroundingFailure()
+                    {
+                        Path = path,
+                        Reason = "node_without_text",
+                        Message = "A node needs text, or an id naming the stored node to carry "
+                            + "forward. This one has neither.",
+                    });
+                }
+
+                return null;
+            }
+
+            if (!stored.TryGetValue(id, out var existing))
+            {
+                failures.Add(new GroundingFailure()
+                {
+                    Path = $"{path}/id",
+                    Reason = "unknown_node",
+                    Message = $"Node {id} is not part of this summary. Ids come from GET on the "
+                        + "version you are revising; leave the id out to add a new node.",
+                });
+
+                return null;
+            }
+
+            if (!claimed.Add(id))
+            {
+                failures.Add(new GroundingFailure()
+                {
+                    Path = $"{path}/id",
+                    Reason = "duplicate_node_id",
+                    Message = $"Node {id} appears more than once. A node has one place in the tree.",
+                });
+
+                return null;
+            }
+
+            return existing;
+        }
+
         void CheckReference(NodeDraft node, ReferenceDraft reference, string path)
         {
             if (!responses.TryGetValue(reference.ResponseId, out var response))
@@ -256,7 +371,7 @@ public class SummaryService(WhatYouSayContext db)
                 {
                     Path = $"{path}/responseId",
                     Reason = "unknown_response",
-                    Message = $"\"{Trim(node.Text)}\" cites response {reference.ResponseId}, which "
+                    Message = $"\"{Trim(node.Text!)}\" cites response {reference.ResponseId}, which "
                         + "is not a live response on this topic.",
                 });
 
@@ -274,7 +389,7 @@ public class SummaryService(WhatYouSayContext db)
             {
                 Path = $"{path}/quote",
                 Reason = "quote_not_found",
-                Message = $"\"{Trim(node.Text)}\" quotes \"{Trim(reference.Quote)}\", which does "
+                Message = $"\"{Trim(node.Text!)}\" quotes \"{Trim(reference.Quote)}\", which does "
                     + $"not occur in response {reference.ResponseId}. Quotes must be copied "
                     + "exactly from the response text.",
                 Nearest = mismatch.Nearest,

@@ -12,15 +12,22 @@ public record SummaryDraft
     public required IReadOnlyList<NodeDraft> Nodes { get; init; }
 }
 
+/// <summary>
+/// One node in a submitted tree.
+/// </summary>
 public record NodeDraft
 {
-    public required string Text { get; init; }
+    /// <summary>An existing node in the summary being revised. Null on anything new.</summary>
+    public int? Id { get; init; }
+
+    public string? Text { get; init; }
 
     /// <summary>
-    /// Optional rather than required: a node under a cited one inherits the support above it,
-    /// so only a leaf has to end up grounded.
+    /// Replaces whatever the node cited. Only meaningful with <see cref="Text"/>, since
+    /// citations belong to the assertion they support. Empty is fine anywhere but a leaf: a
+    /// node under a cited one inherits the support above it.
     /// </summary>
-    public IReadOnlyList<ReferenceDraft> References { get; init; } = [];
+    public IReadOnlyList<ReferenceDraft>? References { get; init; }
 
     public IReadOnlyList<NodeDraft> Children { get; init; } = [];
 }

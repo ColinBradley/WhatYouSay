@@ -160,6 +160,13 @@ public class TopicAdminService(WhatYouSayContext db)
 
         summary.IsDraft = !published;
         summary.IsPublic = published;
+
+        // Publishing hands the version back to the humans. Re-opening it to the agent is
+        // then a deliberate act rather than a bit somebody forgot to flip.
+        if (published)
+        {
+            summary.IsAgentEditable = false;
+        }
         summary.UpdatedAt = DateTimeOffset.UtcNow;
 
         await db.SaveChangesAsync(cancellationToken);

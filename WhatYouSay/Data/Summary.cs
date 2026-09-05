@@ -20,10 +20,15 @@ public class Summary
     /// </summary>
     public required string Body { get; set; }
 
-    /// <summary>True until a human blesses it. Agents may only write to drafts.</summary>
+    /// <summary>True until a human blesses it.</summary>
     public bool IsDraft { get; set; } = true;
 
     public bool IsPublic { get; set; }
+
+    /// <summary>
+    /// Whether the summariser token may write to this version.
+    /// </summary>
+    public bool IsAgentEditable { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }
 

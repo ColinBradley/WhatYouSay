@@ -257,7 +257,7 @@ public class SummaryGroundingTests : DatabaseTest
     }
 
     [TestMethod]
-    public async Task A_published_summary_cannot_be_rewritten_by_the_agent()
+    public async Task A_summary_closed_to_the_agent_cannot_be_rewritten_by_it()
     {
         using var activity = TestTelemetry.Source.Start();
 
@@ -267,13 +267,42 @@ public class SummaryGroundingTests : DatabaseTest
         var draft = Draft(Cites("CI is slow", (responses[0], "22 minutes")));
         var summary = await service.SaveDraftAsync(topic, draft, "agent", null, this.Cancellation);
 
-        summary.IsDraft = false;
+        summary.IsAgentEditable = false;
         await mDb.SaveChangesAsync(this.Cancellation);
 
         var rejection = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
             () => service.SaveDraftAsync(topic, draft, "agent", summary.Id, this.Cancellation));
 
-        Assert.AreEqual("summary_published", rejection.Reason);
+        Assert.AreEqual("summary_not_agent_editable", rejection.Reason);
+    }
+
+    /// <summary>
+    /// Write access is its own column now, so the guarantee that publishing ends the
+    /// agent's hold on a version is a consequence rather than a definition. Worth an
+    /// end-to-end test for exactly that reason.
+    /// </summary>
+    [TestMethod]
+    public async Task Publishing_takes_the_agent_off_a_version()
+    {
+        using var activity = TestTelemetry.Source.Start();
+
+        var (topic, responses) = await this.ClosedTopicAsync();
+        var service = this.Service();
+
+        var draft = Draft(Cites("CI is slow", (responses[0], "22 minutes")));
+        var summary = await service.SaveDraftAsync(topic, draft, "agent", null, this.Cancellation);
+
+        Assert.IsTrue(summary.IsAgentEditable, "A fresh agent draft should be the agent's to edit.");
+
+        await new TopicAdminService(mDb)
+            .SetSummaryVisibilityAsync(topic, summary.Id, true, this.Cancellation);
+
+        Assert.IsFalse(summary.IsAgentEditable);
+
+        var rejection = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
+            () => service.SaveDraftAsync(topic, draft, "agent", summary.Id, this.Cancellation));
+
+        Assert.AreEqual("summary_not_agent_editable", rejection.Reason);
     }
 
     [TestMethod]
