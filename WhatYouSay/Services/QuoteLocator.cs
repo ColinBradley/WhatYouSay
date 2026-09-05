@@ -29,6 +29,11 @@ public static class QuoteLocator
     /// <summary>Shortest prefix worth anchoring on; below this every quote "nearly" matches.</summary>
     private const int MinimumAnchor = 12;
 
+    /// <summary>
+    /// Finds the span, comparing normalised text so presentation is forgiven and substance
+    /// is not. What comes back always indexes the original body, so the caller stores the
+    /// response's own characters rather than the string that was sent.
+    /// </summary>
     public static QuoteLocation? Locate(string body, string quote)
     {
         if (string.IsNullOrEmpty(quote))
@@ -38,9 +43,33 @@ public static class QuoteLocator
 
         var start = body.IndexOf(quote, StringComparison.Ordinal);
 
-        return start < 0
-            ? null
-            : new QuoteLocation { StartIndex = start, EndIndex = start + quote.Length };
+        if (start >= 0)
+        {
+            return new QuoteLocation { StartIndex = start, EndIndex = start + quote.Length };
+        }
+
+        var (foldedBody, map) = Fold(body);
+        var (foldedQuote, _) = Fold(quote);
+
+        if (foldedQuote.Length == 0)
+        {
+            return null;
+        }
+
+        var at = foldedBody.IndexOf(foldedQuote, StringComparison.Ordinal);
+
+        if (at < 0)
+        {
+            return null;
+        }
+
+        var end = at + foldedQuote.Length;
+
+        return new QuoteLocation()
+        {
+            StartIndex = map[at],
+            EndIndex = end < map.Length ? map[end] : body.Length,
+        };
     }
 
     /// <summary>Whether the stored offsets still select exactly the stored quote.</summary>

@@ -52,8 +52,9 @@ public static class SummariserBriefing
 
             WHAT TO CALL
 
-              GET  {{api}}/responses
-                   Every live response. Each carries the id you must cite it by.
+              GET  {{api}}/responses?skip=0&take=200
+                   Live responses, paged, with the total. Each carries the id you must
+                   cite it by.
 
               POST {{api}}/summaries
                    Your draft, whole, in one request. Returns the id and an edit URL.
@@ -61,17 +62,22 @@ public static class SummariserBriefing
             And, for a second pass over an existing summary:
 
               GET  {{api}}/summaries
-                   Every version, newest first. Drafts are editable, published ones are not.
+                   Every version, newest first, each saying whether you may write to it.
 
               GET  {{api}}/summaries/{id}
-                   One version in full, including the quotes each node cites.
+                   One version in full: the tree, the quotes each node cites, and the
+                   node ids you need to revise it.
 
               GET  {{api}}/summaries/{id}/reactions
-                   What responders said back: agree and important counts per node, plus
-                   every "this misrepresents me" objection in full.
+                   Counts per node, by kind.
+
+              GET  {{api}}/summaries/{id}/comments
+                   What the group said back, in their own words, with each commenter's
+                   own response beside it where they gave one. Read these first on a
+                   second pass: they are the highest-value input you can have.
 
               PUT  {{api}}/summaries/{id}
-                   Replaces a draft you created. Same rules as POST.
+                   Revises a version that is open to you. See REVISING below.
 
             THE SHAPE: A TREE OF NODES
 
@@ -111,7 +117,10 @@ public static class SummariserBriefing
 
             A JSON object shaped like this, nested as deep as you need. References and
             children are both optional. Do not send offsets for quotes: the app finds them,
-            so a wrong one is not expressible.
+            so a wrong one is not expressible. Build the payload with code if you can and
+            check each quote is a substring of the response body before sending; you are
+            holding the responses already, so that catches most rejections for free. If you
+            cannot, write it out and re-read each quote against the response first.
 
               {
                 "body": "Two or three paragraphs of markdown.",
@@ -152,12 +161,28 @@ public static class SummariserBriefing
                rejects is a branch that never touches anything anybody wrote.
                All instances across all responses should be cited, not just exemplars.
                The responses are the main content to be exposed.
-            2. Every quote is copied character for character out of that response's body.
+            2. Every quote is copied out of that response's body. Do not paraphrase inside
+               a quote, do not drop a word, and do not correct a typo - those change what
+               was said and are refused. Punctuation and spacing are forgiven: a curly
+               apostrophe, an em dash typed as a hyphen, a doubled space or a different
+               case will still match, and what gets stored is the response's own text.
 
-            Do not paraphrase inside a quote, do not tidy punctuation, do not correct a typo,
-            and do not run text together across a line break. Straight quotes and apostrophes
-            must stay straight; a curly one substituted in is the most common rejection there
-            is, and it is invisible unless you look for it.
+            REVISING AN EXISTING SUMMARY
+
+            A PUT does not rebuild the tree. Each node says what you are doing with it:
+
+              id + text     revise it - the text is yours now, so it needs a citation
+              id, no text   carry it forward exactly as it stands
+              text, no id   a new node - it needs a citation
+              id left out   delete it
+
+            Position and nesting always come from the payload, so a bare {"id": 12} can be
+            moved, reparented and reordered freely.
+
+            You will find nodes you cannot cite. A person wrote them - people may assert
+            without a quote, and you may not. That is not a defect to tidy up. Carry them
+            forward by id and they survive untouched; the moment you supply text for one,
+            that text is your assertion and needs a quote of its own.
 
             Nothing is saved unless the whole request passes. A rejection comes back as 422
             listing every problem found in one pass, each naming the node it is in by a JSON
@@ -175,8 +200,14 @@ public static class SummariserBriefing
             - Something one person said can still deserve a node.
             - don't suppress responses that answer a different question than asked.
 
-            On a second pass, read the reactions first and fix the nodes people objected to
-            rather than starting cold.
+            Name people who gave a name, and refer to an anonymous response as a response
+            and nothing more.
+
+            Start a new summary rather than continuing somebody else's. A version being
+            open to you is the admin's decision, not an invitation.
+
+            On a second pass, read the comments first and answer what people said rather
+            than starting cold.
 
             Example partial notes from a dev sprint retro:
               • What went well
@@ -221,9 +252,10 @@ public static class SummariserBriefing
 
                 BEFORE YOU START
 
-                This topic is still accepting responses, so POST {{api}}/summaries will
-                refuse. Summarising a moving target produces quotes that stop matching. Ask
-                whoever gave you this token to close the topic first.
+                This topic is still accepting responses, so nothing in it can be cited yet -
+                an offset into text its author can still edit would select the wrong words
+                later. Ask whoever gave you this token to close the topic first; that freezes
+                every response in it, for good.
                 """
             );
         }

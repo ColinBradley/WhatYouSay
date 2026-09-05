@@ -149,10 +149,16 @@ public static class SummariserApi
         });
     }
 
-    private static async Task<Ok<IReadOnlyList<ResponseInfo>>> GetResponsesAsync(
+    /// <summary>
+    /// Plain skip/take, no cursor: only a frozen response can be cited, so one arriving
+    /// mid-page can shift the window but cannot change anything already read.
+    /// </summary>
+    private static async Task<Ok<ResponsePage>> GetResponsesAsync(
         SummariserSession session,
         ResponseService responses,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        int skip = 0,
+        int take = 200
     )
     {
         var topic = session.Topic;
@@ -160,22 +166,30 @@ public static class SummariserApi
         using var activity = WebTelemetry.Source.Start().SetTopic(topic);
 
         var live = await responses.ListAsync(topic, cancellationToken);
+        var from = Math.Clamp(skip, 0, live.Count);
+        var count = Math.Clamp(take, 0, live.Count - from);
 
-        IReadOnlyList<ResponseInfo> result =
-        [
-            .. live.Select(r => new ResponseInfo()
-            {
-                Id = r.Id,
-                Body = r.Body,
-                Author = r.Author,
-                CreatedAt = r.CreatedAt,
-            }),
-        ];
+        var page = new ResponsePage()
+        {
+            Total = live.Count,
+            Skip = from,
+            Items =
+            [
+                .. live.Skip(from).Take(count).Select(r => new ResponseInfo()
+                {
+                    Id = r.Id,
+                    Body = r.Body,
+                    Author = r.Author,
+                    CreatedAt = r.CreatedAt,
+                }),
+            ],
+        };
 
-        activity?.SetTag("response.count", result.Count);
+        activity?.SetTag("response.count", page.Items.Count);
+        activity?.SetTag("response.total", page.Total);
         WebTelemetry.RequestServed(topic, "list_responses");
 
-        return TypedResults.Ok(result);
+        return TypedResults.Ok(page);
     }
 
     private static async Task<Ok<IReadOnlyList<SummaryInfo>>> GetSummariesAsync(

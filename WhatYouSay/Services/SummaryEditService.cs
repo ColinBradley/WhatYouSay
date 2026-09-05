@@ -256,7 +256,8 @@ public class SummaryEditService(WhatYouSayContext db)
         {
             NodeId = node.Id,
             ResponseId = response.Id,
-            Quote = quote,
+            // The span found in Body, not what was typed: matching forgives presentation.
+            Quote = response.Body[location.StartIndex..location.EndIndex],
             StartIndex = location.StartIndex,
             EndIndex = location.EndIndex,
         };

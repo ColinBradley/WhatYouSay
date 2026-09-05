@@ -205,7 +205,9 @@ public class SummaryService(WhatYouSayContext db)
                 node.References.Add(new SummaryNodeReference()
                 {
                     ResponseId = response.Id,
-                    Quote = referenceDraft.Quote,
+                    // The span taken from Body, not the string that was sent: matching
+                    // forgives presentation, so the two can differ and only one is true.
+                    Quote = response.Body[location.StartIndex..location.EndIndex],
                     StartIndex = location.StartIndex,
                     EndIndex = location.EndIndex,
                 });

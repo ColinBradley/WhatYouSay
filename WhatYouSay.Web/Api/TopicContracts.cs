@@ -20,6 +20,20 @@ public record TopicInfo
     public required int SummaryCount { get; init; }
 }
 
+/// <summary>
+/// A page of responses, with the total so an agent knows what it is dealing with before
+/// it starts. The 60-100 response topic is a real shape, and one unbounded array is both
+/// a context problem and an obstacle to splitting the work between sub-agents.
+/// </summary>
+public record ResponsePage
+{
+    public required int Total { get; init; }
+
+    public required int Skip { get; init; }
+
+    public required IReadOnlyList<ResponseInfo> Items { get; init; }
+}
+
 public record ResponseInfo
 {
     public required Guid Id { get; init; }

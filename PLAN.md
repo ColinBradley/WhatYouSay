@@ -4,7 +4,7 @@ Namespace / app name: `WhatYouSay`. Product name: **What You Say**.
 
 A small, self-hosted tool for a group of people who trust each other to work out what they think about something, together. Someone raises a **topic**, and from there any of it is optional: collect free-text responses, have an AI agent draft a grounded summary of them, write the notes by hand, open the result up for reactions and comments. Built for sprint retros, dev cycle reviews and architecture feedback at work. Not a service, not multi-tenant, no user accounts.
 
-> **Status: building.** Steps 1–8 complete. The tree is stored, validated, served, rendered and editable. Step 9 opens the flow up, and absorbed the summariser hardening that was going to precede it: `Survey` becomes `Topic`, a tree can be written by hand with no responses under it at all, reactions split from comments, and node ids become stable so nothing pointing at a node dies in a rewrite.
+> **Status: building.** Steps 1–9 complete. The flow is open: a topic is a prompt and everything after it is optional, a tree can be written by hand with nothing cited under it, node ids are stable, reactions and comments are separate things, and the freeze that keeps quotes honest lives on the response rather than on a topic that can never reopen. Step 10 is polish.
 
 ## Principles
 
@@ -630,7 +630,7 @@ Deliberately front-loads the open question. The thing worth knowing early is whe
    **The third visibility state went.** `IsDraft` and `IsPublic` are separate columns, and the version list rendered a badge for blessed-but-not-public that nothing could produce, because every caller set the pair together. Publishing is now one bool: it blesses and shows in the same move. The columns stay as they are; it is the UI that stopped implying a state nobody had built.
 
    **Editing references is included**, and reuses `QuoteLocator` rather than trusting what was typed — so a hand-typed quote with a curly apostrophe in it gets the same character-level diagnosis an agent gets, naming the codepoint and handing back the exact response text. The citation form shows the response body beside the box for precisely this reason. Seeded reactions were added at the same time, because the objection display had nothing to render in development and the headline feature of the step was therefore invisible.
-9. **Opening the flow up.** The tool was built for one workflow and turns out to hold several. A person can write a tree with nothing under it, a topic need never collect a response, and the pieces after the prompt become independent of each other.
+9. **Opening the flow up.** *(done)* The tool was built for one workflow and turns out to hold several. A person can write a tree with nothing under it, a topic need never collect a response, and the pieces after the prompt become independent of each other.
 
     **This absorbed a step.** Summariser hardening was going to land first — everything in it came out of watching an agent draft a real summary end to end, which is a different exercise from designing the endpoint and turned up things the design could not have predicted. Then the vocabulary changed and so did the write payload, and half of that step was work on surfaces this one rewrites: the brief and the payload contract would have been written twice. Merged rather than resequenced, because once they are adjacent there is no seam between them worth keeping. One step, one migration.
 
