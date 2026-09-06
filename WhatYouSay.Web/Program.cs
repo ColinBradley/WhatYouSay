@@ -5,6 +5,7 @@ using WhatYouSay.Services;
 using WhatYouSay.Web.Auth;
 using WhatYouSay.Web.Api;
 using WhatYouSay.Web.Telemetry;
+using WhatYouSay.Web.Live;
 using WhatYouSay.Data.Seed;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -24,6 +25,8 @@ builder.Services.AddScoped<ReactionService>();
 builder.Services.AddScoped<CommentService>();
 builder.Services.AddScoped<TopicAdminService>();
 builder.Services.AddScoped<AdminSession>();
+
+builder.Services.AddSingleton<SummaryLiveUpdates>();
 
 builder.Services.AddWhatYouSayTelemetry();
 
@@ -63,8 +66,8 @@ app.MapStaticAssets();
 
 app.MapSummariserApi();
 
-// Listed in the routes but never built: /topics is the collection, and the collection is
-// what the home page shows.
+// Listed in the routes but never built: /topics is the collection, 
+// and the collection is what the home page shows.
 app.MapGet("/topics", () => Results.Redirect("/", permanent: true));
 
 // The topic page leads with the notes, so /summary is the same page under an older name.

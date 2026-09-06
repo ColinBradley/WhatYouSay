@@ -16,7 +16,7 @@
 }
 else
 {
-    <div class="stack wide" style="--stack-gap: var(--section-gap); max-width: 44em">
+    <div class="sections" style="max-width: 44em">
         <section class="stack wide">
             <div class="controls">
                 <h1>@mTopic.Title</h1>
@@ -29,10 +29,8 @@ else
             <p class="prose quiet">@mTopic.Description</p>
         </section>
 
-        @* The whole form reads as unavailable when it is, rather than a live-looking box
-           above a sentence explaining that it isn't. *@
-        <form method="post" @formname="respond" @onsubmit="SubmitAsync"
-              class="panel fields @(mFrozen ? "is-disabled" : null)">
+        @* The page is the form, so it takes no panel of its own. *@
+        <form method="post" @formname="respond" @onsubmit="SubmitAsync" class="fields">
             <AntiforgeryToken />
 
             @if (mFrozen)

@@ -2,7 +2,7 @@
 @using WhatYouSay.Services
 
 @{
-    var comments = this.Reading.CommentsFor(this.Node.Id);
+    var comments = this.Reader.CommentsFor(this.Node.Id);
 }
 
 <li id="@($"node-{this.Node.Id}")">
@@ -19,10 +19,9 @@
             <div class="fine citations">
                 @foreach (var reference in this.Node.References)
                 {
-                    @if (this.Reading.ResponsesArePublic)
+                    @if (this.Reader.ResponsesArePublic)
                     {
-                        @* A button, not a link: app.js scrolls the pane on its own, where an
-                           href moves the page under it as well. *@
+                        @* app.js scrolls the pane on its own; an href would move the page too. *@
                         <button type="button" class="bare" data-shows-quote="@reference.Id"
                                 title="@($"“{reference.Quote}”")">
                             @(reference.Response.Author ?? "anonymous")
@@ -39,12 +38,12 @@
         }
 
         <div class="node-actions">
-            @foreach (var kind in SummaryReading.Reactions)
+            @foreach (var kind in SummaryNodeView.Reactions)
             {
                 @if (this.Tally.CountOf(kind) == 0 && !this.Tally.Mine.Contains(kind))
                 {
-                    <button type="submit" name="Action" class="reaction" title="@Label(kind)"
-                            value="@($"{this.Node.Id}:{kind}")">
+                    <button type="button" class="reaction" title="@Label(kind)"
+                            @onclick="() => this.Reader.ToggleAsync(this.Node.Id, kind)">
                         @Emoji(kind)
                     </button>
                 }
@@ -61,15 +60,16 @@
         </div>
 
         <div class="reactions">
-            @foreach (var kind in SummaryReading.Reactions)
+            @foreach (var kind in SummaryNodeView.Reactions)
             {
                 var count = this.Tally.CountOf(kind);
                 var mine = this.Tally.Mine.Contains(kind);
 
                 @if (count > 0 || mine)
                 {
-                    <button type="submit" name="Action" class="reaction @(mine ? "mine" : null)"
-                            title="@Label(kind)" value="@($"{this.Node.Id}:{kind}")">
+                    <button type="button" class="reaction @(mine ? "mine" : null)"
+                            title="@Label(kind)"
+                            @onclick="() => this.Reader.ToggleAsync(this.Node.Id, kind)">
                         @Emoji(kind)@(count > 0 ? $" {count}" : "")
                     </button>
                 }
@@ -88,12 +88,15 @@
 
         @* The box sits above the thread: saying something is the reason to open this. *@
         <div class="panel stack wide">
-            <textarea rows="2" name="@SummaryReading.CommentField(this.Node.Id)"
-                      placeholder="Say something about this"></textarea>
+            <div class="comment-form">
+                <textarea rows="2" placeholder="Say something about this"
+                          value="@this.Reader.DraftFor(this.Node.Id)"
+                          @onchange="@(e => this.Reader.SetDraft(this.Node.Id, e.Value?.ToString() ?? string.Empty))"></textarea>
 
-            <button type="submit" name="Action" value="@($"comment:{this.Node.Id}:add")">
-                Add comment
-            </button>
+                <button type="button" @onclick="() => this.Reader.AddCommentAsync(this.Node.Id)">
+                    Add comment
+                </button>
+            </div>
 
             @foreach (var comment in comments)
             {
@@ -108,10 +111,10 @@
                             <span class="tag">Hidden</span>
                         }
 
-                        @if (comment.IsMine)
+                        @if (comment.IsMine || this.Reader.IsAdmin)
                         {
-                            <button class="bare" type="submit" name="Action"
-                                    value="@($"comment:{comment.Id}:{(comment.IsHidden ? "show" : "hide")}")">
+                            <button class="bare" type="button"
+                                    @onclick="() => this.Reader.SetCommentHiddenAsync(comment.Id, !comment.IsHidden)">
                                 @(comment.IsHidden ? "Show" : "Hide")
                             </button>
                         }
@@ -123,7 +126,6 @@
 
     @if (this.Node.Children.Count > 0)
     {
-        <SummaryNodeList Nodes="@this.Node.Children" Depth="@(this.Depth + 1)"
-                         Inherited="@this.PassesSupportDown()" />
+        <SummaryNodeList Nodes="@this.Node.Children" Depth="@(this.Depth + 1)" />
     }
 </li>

@@ -2,6 +2,8 @@
 
 Blazor Server, EF Core, SQLite. Design and build order: [PLAN.md](PLAN.md).
 
+This file is for general advice, not a log of changes. It has broad descriptions and important points. Don't describe something here that could be a comment in a code file.
+
 ## Projects
 
 | Project | Contents |
@@ -27,6 +29,7 @@ Blazor Server, EF Core, SQLite. Design and build order: [PLAN.md](PLAN.md).
 - Prefer `required` properties with `init` over constructor parameters, including on records. Positional records get miswired silently when several parameters share a type.
 - Favour immutable types wherever they fit: `record` for data, `init` over `set`, `readonly` fields, `ImmutableArray<T>` or `FrozenSet<T>` for static tables, `IReadOnlyList<T>` on anything a caller should not mutate. EF entities and Blazor `[SupplyParameterFromForm]` / `[Inject]` properties are the exceptions — both need settable properties.
 - Don't manually wrap text in md files.
+- Don't use primary constructors. It makes it bothersome to know what a variable is, as there'll be no m prefix on the name.
 
 ## Analyzers
 
@@ -37,7 +40,7 @@ Address every analyzer diagnostic, including `Info`/suggestion-level ones that d
 - **Disable, don't hide.** A control someone cannot use stays on the page, disabled, with a `title` on the control itself saying why. Hiding it leaves people wondering whether the feature exists.
 - **The exception is a dense set of repeated controls**, where one control per item across a long list buries the content it acts on. Those get `.on-demand` inside a `.hoverable`, which reveals on hover *and* on focus-within, and unconditionally where hover does not exist. `.hoverable` wraps the item's own head and never its children or its comment box, or crossing the gap between two children lights the parent up and a caret in a box holds it open. Anything the group produced — a reaction count above zero — is data rather than a control, and stays visible.
 - Component code lives in a `.razor.cs` partial class, not an `@code` block. Only leave code inline when it is a line or two.
-- Static SSR and form posts everywhere except `SummaryEditor`, the one `InteractiveServer` component. Its page is a static shell that does the `AdminSession` check, and it opens a DI scope per operation.
+- Static SSR and form posts by default. `InteractiveServer` when refreshing the pages is a bad idea.
 
 ## CSS
 
@@ -60,6 +63,7 @@ Delete a comment if it does any of these:
 - Justifies a convention already written down here.
 - Narrates the decision — alternatives weighed, what was considered and rejected, why one approach beats another.
 - Editorialises: "worth knowing", "earns its place", "unusually well placed".
+- Try not to split sentences across lines. Let punctuation guide where a line break should be.
 
 A doc comment on a type or member is for someone calling it, not for someone reviewing the choice to write it. If it reads as reasoning rather than as information needed to change the code safely, it goes.
 

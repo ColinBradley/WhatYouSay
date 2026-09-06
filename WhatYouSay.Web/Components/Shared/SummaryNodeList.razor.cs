@@ -12,8 +12,4 @@ public partial class SummaryNodeList
 
     [Parameter]
     public int Depth { get; set; }
-
-    /// <summary>Whether something above this group cites a response.</summary>
-    [Parameter]
-    public bool Inherited { get; set; }
 }

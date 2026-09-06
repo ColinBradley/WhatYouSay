@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Components;
-using WhatYouSay.Data;
 using WhatYouSay.Auth;
+using WhatYouSay.Data;
 using WhatYouSay.Services;
 using WhatYouSay.Telemetry;
 using WhatYouSay.Web.Auth;
@@ -9,6 +9,11 @@ using WhatYouSay.Web.Telemetry;
 
 namespace WhatYouSay.Web.Components.Pages;
 
+/// <summary>
+/// A static shell around the live reader. It is a shell for one reason: the responder cookie
+/// needs an <see cref="HttpContext"/> to write to, and a circuit has no response to set headers
+/// on. The token is minted here and handed down.
+/// </summary>
 public partial class SummaryPage
 {
     private Topic? mTopic;
@@ -17,27 +22,12 @@ public partial class SummaryPage
 
     private List<Summary> mVersions = [];
 
-    private IReadOnlyList<SummaryNode> mRoots = [];
-
-    /// <summary>Empty unless the topic publishes its responses; the pane is what reads it.</summary>
-    private IReadOnlyList<Response> mResponses = [];
-
-    private ILookup<Guid, SummaryNodeReference> mReferences =
-        Array.Empty<SummaryNodeReference>().ToLookup(r => r.ResponseId);
-
     private bool mIsAdmin;
 
     /// <summary>Only ever non-zero for an admin, since only they list unpublished versions.</summary>
     private int mUnpublished;
 
-    private SummaryReading mReading = new()
-    {
-        ResponsesArePublic = false,
-        Tallies = new Dictionary<int, NodeReactionTally>(),
-        Comments = [],
-    };
-
-    private string? mReactorToken;
+    private string mReactorToken = string.Empty;
 
     private IReadOnlyList<Crumb> mCrumbs = [];
 
@@ -48,19 +38,7 @@ public partial class SummaryPage
     private SummaryService Summaries { get; set; } = default!;
 
     [Inject]
-    private ResponseService Responses { get; set; } = default!;
-
-    [Inject]
-    private ReactionService Reactions { get; set; } = default!;
-
-    [Inject]
-    private CommentService Comments { get; set; } = default!;
-
-    [Inject]
     private AdminSession Session { get; set; } = default!;
-
-    [Inject]
-    private NavigationManager Navigation { get; set; } = default!;
 
     [Parameter]
     public string Code { get; set; } = string.Empty;
@@ -70,9 +48,6 @@ public partial class SummaryPage
 
     [CascadingParameter]
     public HttpContext HttpContext { get; set; } = default!;
-
-    [SupplyParameterFromForm]
-    public string? Action { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -126,96 +101,15 @@ public partial class SummaryPage
             return;
         }
 
-        mRoots = [.. mSummary.Roots];
-        mReactorToken = ResponderCookie.Read(this.HttpContext, mTopic.Id);
-
-        mReading = new SummaryReading()
-        {
-            ResponsesArePublic = mTopic.AreResponsesPublic,
-            Tallies = await this.Reactions.TallyAsync(mSummary.Id, mReactorToken),
-            Comments = await this.Comments.ListAsync(
-                mTopic,
-                mSummary.Id,
-                mReactorToken,
-                includeHidden: mIsAdmin),
-        };
-
-        if (mTopic.AreResponsesPublic)
-        {
-            mResponses = await this.Responses.ListAsync(mTopic);
-            mReferences = mSummary.Nodes
-                .SelectMany(n => n.References)
-                .ToLookup(r => r.ResponseId);
-        }
+        // Minted on arrival rather than on a first reaction, because by then the circuit has
+        // started and there is no response left to set a cookie on. It identifies nobody until
+        // it is used: nothing is written against it until this viewer acts.
+        mReactorToken = ResponderCookie.Read(this.HttpContext, mTopic.Id) ?? Secrets.NewToken();
+        ResponderCookie.Write(this.HttpContext, mTopic.Id, mReactorToken);
 
         WhatYouSayTelemetry.SummaryViewed(mTopic);
     }
 
-    private async Task ReactAsync()
-    {
-        if (mTopic is null || mSummary is null || this.Action is null)
-        {
-            return;
-        }
-
-        // A viewer who has never responded still needs an identity to dedupe on, so the
-        // first reaction or comment mints one. Static SSR is what makes this possible:
-        // there is a response to write the cookie header to.
-        if (mReactorToken is null)
-        {
-            mReactorToken = Secrets.NewToken();
-            ResponderCookie.Write(this.HttpContext, mTopic.Id, mReactorToken);
-        }
-
-        var parts = this.Action.Split(':');
-
-        if (parts is ["comment", var target, var verb] && int.TryParse(target, out var id))
-        {
-            await this.CommentAsync(id, verb);
-        }
-        else if (parts is [var node, var kindName]
-            && int.TryParse(node, out var nodeId)
-            && Enum.TryParse<ReactionKind>(kindName, out var kind))
-        {
-            await this.Reactions.ToggleAsync(mTopic, nodeId, mReactorToken, kind);
-        }
-
-        this.Navigation.NavigateTo(
-            this.HttpContext.Request.Path + this.HttpContext.Request.QueryString);
-    }
-
-    private async Task CommentAsync(int id, string verb)
-    {
-        switch (verb)
-        {
-            case "add":
-                var body = this.HttpContext.Request.Form[SummaryReading.CommentField(id)].ToString();
-
-                if (!string.IsNullOrWhiteSpace(body))
-                {
-                    await this.Comments.AddAsync(mTopic!, id, mReactorToken!, body, this.AuthorName());
-                }
-
-                break;
-
-            case "hide":
-            case "show":
-                await this.Comments.SetHiddenAsync(
-                    mTopic!,
-                    id,
-                    mReactorToken,
-                    hidden: verb == "hide",
-                    asAdmin: mIsAdmin);
-
-                break;
-        }
-    }
-
-    /// <summary>The name on your own response, so a comment does not ask for it twice.</summary>
-    private string? AuthorName()
-    {
-        return mReading.Comments.FirstOrDefault(c => c.IsMine)?.Author;
-    }
     /// <summary>Versions are held newest first, but read oldest first.</summary>
     private int VersionNumber()
     {

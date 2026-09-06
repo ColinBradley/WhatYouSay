@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Microsoft.AspNetCore.Components;
 using WhatYouSay.Data;
 using WhatYouSay.Services;
@@ -6,8 +7,12 @@ namespace WhatYouSay.Web.Components.Shared;
 
 public partial class SummaryNodeView
 {
+    /// <summary>The bar, in display order.</summary>
+    public static readonly ImmutableArray<ReactionKind> Reactions =
+        [.. Enum.GetValues<ReactionKind>()];
+
     [CascadingParameter]
-    public SummaryReading Reading { get; set; } = default!;
+    public SummaryReader Reader { get; set; } = default!;
 
     [Parameter]
     [EditorRequired]
@@ -17,18 +22,9 @@ public partial class SummaryNodeView
     [Parameter]
     public int Depth { get; set; }
 
-    /// <summary>Whether something above this node cites a response.</summary>
-    [Parameter]
-    public bool Inherited { get; set; }
-
     /// <summary>Where the group and this viewer sit on this node.</summary>
     private NodeReactionTally Tally =>
-        this.Reading.TallyFor(this.Node.Id);
-
-    private bool PassesSupportDown()
-    {
-        return this.Inherited || this.Node.References.Count > 0;
-    }
+        this.Reader.TallyFor(this.Node.Id);
 
     private static string Emoji(ReactionKind kind) =>
         kind switch

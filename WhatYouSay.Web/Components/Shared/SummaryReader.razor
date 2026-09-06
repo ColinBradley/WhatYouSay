@@ -1,0 +1,27 @@
+@using WhatYouSay.Data
+@using WhatYouSay.Services
+
+@if (mError is not null)
+{
+    <div class="notice danger" role="alert">@mError</div>
+}
+
+<CascadingValue Value="this" IsFixed="true">
+    <div class="@(mResponses.Count > 0 ? "split" : null)">
+        <div class="@(mResponses.Count > 0 ? "pane" : null)">
+            @if (mResponses.Count > 0)
+            {
+                <div class="pane-head">
+                    <h2>Note tree</h2>
+                </div>
+            }
+
+            <SummaryNodeList Nodes="@mRoots" />
+        </div>
+
+        @if (mResponses.Count > 0)
+        {
+            <ResponsePane Responses="@mResponses" References="@mReferences" />
+        }
+    </div>
+</CascadingValue>

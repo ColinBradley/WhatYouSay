@@ -4,6 +4,6 @@
 <ul class="@(this.Depth == 0 ? "tree" : null)">
     @foreach (var node in this.Nodes)
     {
-        <SummaryNodeView Node="@node" Depth="@this.Depth" Inherited="@this.Inherited" />
+        <SummaryNodeView Node="@node" Depth="@this.Depth" />
     }
 </ul>

@@ -335,6 +335,18 @@ fieldset {
     align-items: start;
 }
 
+/*
+ * A page's own rhythm. Sets gap directly rather than redefining --stack-gap, which a page
+ * wrapper would then inherit into every nested stack — a comment box three levels down had
+ * section spacing inside it for exactly that reason.
+ */
+.sections {
+    display: flex;
+    flex-direction: column;
+    gap: var(--section-gap);
+    width: 100%;
+}
+
 /* A button keeps its natural width; everything else fills the column. */
 .stack.wide > *:not(button):not(.button) {
     width: 100%;
@@ -912,10 +924,6 @@ mark.quoted {
     cursor: pointer;
 }
 
-/* A form that cannot be used says so as a whole, not one control at a time. */
-.is-disabled {
-    background: var(--sunken-bg);
-}
 
 /*
  * A thread nobody has written in is not worth a line of its own. It stays out of the flow
@@ -923,4 +931,16 @@ mark.quoted {
  */
 details.comments.unasked:not([open]) {
     display: none;
+}
+
+/* The box and its button are one act; the thread below is a separate thing. */
+.comment-form {
+    display: flex;
+    flex-direction: column;
+    align-items: start;
+    gap: var(--field-gap);
+}
+
+.comment-form textarea {
+    width: 100%;
 }

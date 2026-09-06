@@ -1,7 +1,5 @@
 @page "/topics/{Code}"
 @page "/topics/{Code}/summary/{SummaryId:guid}"
-@using WhatYouSay.Data
-@using WhatYouSay.Services
 @using WhatYouSay.Web.Markdown
 
 <PageTitle>@(mTopic?.Title ?? "Topic")</PageTitle>
@@ -20,7 +18,7 @@
 }
 else
 {
-    <div class="stack wide" style="--stack-gap: var(--section-gap)">
+    <div class="sections">
         <section class="stack wide">
             <div class="spread">
                 <div class="controls">
@@ -97,28 +95,11 @@ else
                 </div>
             }
 
-            <form method="post" @formname="react" @onsubmit="ReactAsync"
-                  class="@(mResponses.Count > 0 ? "split" : null)">
-                <AntiforgeryToken />
-
-                <div class="@(mResponses.Count > 0 ? "pane" : null)">
-                    @if (mResponses.Count > 0)
-                    {
-                        <div class="pane-head">
-                            <h2>Note tree</h2>
-                        </div>
-                    }
-
-                    <CascadingValue Value="@mReading" IsFixed="true">
-                        <SummaryNodeList Nodes="@mRoots" />
-                    </CascadingValue>
-                </div>
-
-                @if (mResponses.Count > 0)
-                {
-                    <ResponsePane Responses="@mResponses" References="@mReferences" />
-                }
-            </form>
+            @* Static SSR down to here, so the responder cookie is written while there is still
+               a response to write it to. Everything below is live: a reaction posted a form and
+               reloaded the page, and left every other open copy stale until it reloaded too. *@
+            <SummaryReader Code="@Code" SummaryId="@mSummary.Id" ReactorToken="@mReactorToken"
+                           IsAdmin="@mIsAdmin" @rendermode="InteractiveServer" />
         }
     </div>
 }
