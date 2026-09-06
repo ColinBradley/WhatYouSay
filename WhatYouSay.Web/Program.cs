@@ -10,7 +10,6 @@ using WhatYouSay.Data.Seed;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
@@ -50,11 +49,9 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
@@ -70,7 +67,6 @@ app.MapSummariserApi();
 // and the collection is what the home page shows.
 app.MapGet("/topics", () => Results.Redirect("/", permanent: true));
 
-// The topic page leads with the notes, so /summary is the same page under an older name.
 app.MapGet("/topics/{code}/summary", (string code) =>
     Results.Redirect($"/topics/{code}", permanent: true));
 

@@ -4,6 +4,13 @@ Blazor Server, EF Core, SQLite. Design and build order: [PLAN.md](PLAN.md).
 
 This file is for general advice, not a log of changes. It has broad descriptions and important points. Don't describe something here that could be a comment in a code file.
 
+Guidance that only applies to one part of the tree lives beside it, and is loaded when files there are in play. Put a new rule in the narrowest file it holds for; this one is for what crosses projects.
+
+| File | Covers |
+|---|---|
+| [WhatYouSay/AGENTS.md](WhatYouSay/AGENTS.md) | Services, entities, migrations, invariants that span the domain |
+| [WhatYouSay.Web/AGENTS.md](WhatYouSay.Web/AGENTS.md) | UI rules, interactive components, CSS |
+
 ## Projects
 
 | Project | Contents |
@@ -34,24 +41,6 @@ This file is for general advice, not a log of changes. It has broad descriptions
 ## Analyzers
 
 Address every analyzer diagnostic, including `Info`/suggestion-level ones that don't fail the build (`MSTESTxxxx`, `CAxxxx`, `IDExxxx`). Take the suggested fix rather than suppressing it. Note that .editorconfig isn't fully fleshed out and so if a suggestion doesn't make sense and isn't explicitly decided on, query with the user.
-
-## UI
-
-- **Disable, don't hide.** A control someone cannot use stays on the page, disabled, with a `title` on the control itself saying why. Hiding it leaves people wondering whether the feature exists.
-- **The exception is a dense set of repeated controls**, where one control per item across a long list buries the content it acts on. Those get `.on-demand` inside a `.hoverable`, which reveals on hover *and* on focus-within, and unconditionally where hover does not exist. `.hoverable` wraps the item's own head and never its children or its comment box, or crossing the gap between two children lights the parent up and a caret in a box holds it open. Anything the group produced — a reaction count above zero — is data rather than a control, and stays visible.
-- Component code lives in a `.razor.cs` partial class, not an `@code` block. Only leave code inline when it is a line or two.
-- Static SSR and form posts by default. `InteractiveServer` when refreshing the pages is a bad idea.
-
-## CSS
-
-No framework. `wwwroot/app.css` holds role-named tokens (`--control-padding`, `--panel-gap`), a small set of composable classes that read them, and base element styles. A component composes by overriding a token in its own scope, never by inventing a size.
-
-- **A parent spaces its children.** `gap` on the container, never `margin` on the child to push the next one away — the only margins left are `margin: 0` resets and `margin-left: auto`, which is alignment rather than spacing.
-- Sizes are `em`, so a scope that sets `font-size` rescales everything inside it. Set `font-size` only at deliberate anchors — never on a container that can contain itself, or it compounds through the recursion.
-- Hairlines are `px`; a fractional `em` border rounds away at some zoom levels.
-- Light and dark come from `light-dark()` against `color-scheme: light dark`. One declaration per token, no media query, no second block.
-- Shared classes and tokens live in the global sheet. `.razor.css` is for genuinely component-private layout only, since scoped CSS cannot style a shared class without `::deep`.
-- `App.razor` sets `<base href="/">`, so a bare `#fragment` href resolves against the base URL and navigates away. In-page anchors carry the full path. Links doing a same-document jump also need `data-enhance-nav="false"`, or Blazor patches the DOM and `:target` never matches.
 
 ## Comments
 
@@ -90,10 +79,6 @@ dotnet test
 
 ```bash
 dotnet run --project WhatYouSay.Web
-```
-
-```bash
-dotnet ef migrations add <Name> --project WhatYouSay --startup-project WhatYouSay.Web
 ```
 
 ## Development data

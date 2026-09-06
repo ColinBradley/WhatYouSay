@@ -343,7 +343,12 @@ fieldset {
 .sections {
     display: flex;
     flex-direction: column;
+    align-items: start;
     gap: var(--section-gap);
+    width: 100%;
+}
+
+.sections > *:not(button):not(.button) {
     width: 100%;
 }
 
@@ -943,4 +948,28 @@ details.comments.unasked:not([open]) {
 
 .comment-form textarea {
     width: 100%;
+}
+
+/* An outcome the reader must not miss: bigger than a notice, and it announces itself. */
+.banner {
+    font-size: var(--subheading-size);
+    font-weight: 500;
+    border-left-width: 5px;
+}
+
+.flash {
+    animation: flash 1.4s ease-out;
+}
+
+@keyframes flash {
+    0% { transform: scale(0.97); opacity: 0; }
+    12% { opacity: 1; }
+    30% { background: var(--good); color: var(--accent-on); }
+    100% { transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .flash {
+        animation: none;
+    }
 }

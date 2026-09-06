@@ -68,14 +68,21 @@ public record GroundingFailure
 /// problem found in one pass, so a caller fixing them all needs one retry rather than one
 /// per mistake.
 /// </summary>
-public class SummaryGroundingException(
-    string reason,
-    string message,
-    IReadOnlyList<GroundingFailure> failures
-) : Exception(message)
+public class SummaryGroundingException : Exception
 {
-    /// <summary>Short machine-readable cause, used as a metric and span tag.</summary>
-    public string Reason { get; } = reason;
+    public SummaryGroundingException(
+        string reason,
+        string message,
+        IReadOnlyList<GroundingFailure> failures
+    )
+        : base(message)
+    {
+        this.Reason = reason;
+        this.Failures = failures;
+    }
 
-    public IReadOnlyList<GroundingFailure> Failures { get; } = failures;
+    /// <summary>Short machine-readable cause, used as a metric and span tag.</summary>
+    public string Reason { get; }
+
+    public IReadOnlyList<GroundingFailure> Failures { get; }
 }

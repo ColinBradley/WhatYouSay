@@ -7,18 +7,25 @@ namespace WhatYouSay.Web.Auth;
 /// a topic password cookie today; a collection password or real accounts change this class and
 /// nothing else.
 /// </summary>
-public class AdminSession(IHttpContextAccessor accessor, IDataProtectionProvider protection)
+public class AdminSession
 {
     private const string Purpose = "WhatYouSay.Admin.v1";
 
     private static readonly TimeSpan sLifetime = TimeSpan.FromHours(12);
 
-    private readonly ITimeLimitedDataProtector mProtector =
-        protection.CreateProtector(Purpose).ToTimeLimitedDataProtector();
+    private readonly IHttpContextAccessor mAccessor;
+
+    private readonly ITimeLimitedDataProtector mProtector;
+
+    public AdminSession(IHttpContextAccessor accessor, IDataProtectionProvider protection)
+    {
+        mAccessor = accessor;
+        mProtector = protection.CreateProtector(Purpose).ToTimeLimitedDataProtector();
+    }
 
     public Task<bool> CanAdministerAsync(Guid topicId)
     {
-        var http = accessor.HttpContext;
+        var http = mAccessor.HttpContext;
 
         if (http is null || !http.Request.Cookies.TryGetValue(NameFor(topicId), out var cookie))
         {
@@ -38,7 +45,7 @@ public class AdminSession(IHttpContextAccessor accessor, IDataProtectionProvider
 
     public void Grant(Guid topicId)
     {
-        var http = accessor.HttpContext;
+        var http = mAccessor.HttpContext;
 
         if (http is null)
         {
@@ -59,7 +66,7 @@ public class AdminSession(IHttpContextAccessor accessor, IDataProtectionProvider
 
     public void Revoke(Guid topicId)
     {
-        accessor.HttpContext?.Response.Cookies.Delete(NameFor(topicId));
+        mAccessor.HttpContext?.Response.Cookies.Delete(NameFor(topicId));
     }
 
     private static string NameFor(Guid topicId)

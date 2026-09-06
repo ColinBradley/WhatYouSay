@@ -95,9 +95,8 @@ else
                 </div>
             }
 
-            @* Static SSR down to here, so the responder cookie is written while there is still
-               a response to write it to. Everything below is live: a reaction posted a form and
-               reloaded the page, and left every other open copy stale until it reloaded too. *@
+            @* Static SSR ends here, so the responder cookie is written while there is still a
+               response to write it to. *@
             <SummaryReader Code="@Code" SummaryId="@mSummary.Id" ReactorToken="@mReactorToken"
                            IsAdmin="@mIsAdmin" @rendermode="InteractiveServer" />
         }

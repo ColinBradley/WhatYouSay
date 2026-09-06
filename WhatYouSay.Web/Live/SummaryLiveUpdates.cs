@@ -1,15 +1,9 @@
 namespace WhatYouSay.Web.Live;
 
 /// <summary>
-/// Tells everyone reading a summary that somebody changed it. A reaction or a comment is a
-/// thing the group did together, so a viewer holding the page open should see it arrive
-/// rather than find out on their next reload.
+/// Notifies every circuit reading a summary that it changed. Registered as a singleton; the
+/// subscriptions are in-process, so a second instance of the app would not see them.
 /// </summary>
-/// <remarks>
-/// Singleton, and deliberately in-memory: it carries no state worth keeping, only the set of
-/// circuits currently looking at something. A second instance of the app would not see these
-/// notifications, which is the same trade the rest of a single-process self-hosted tool makes.
-/// </remarks>
 public sealed class SummaryLiveUpdates
 {
     private readonly Lock mGate = new();
@@ -17,9 +11,8 @@ public sealed class SummaryLiveUpdates
     private readonly Dictionary<Guid, List<Subscription>> mBySummary = [];
 
     /// <summary>
-    /// Registers <paramref name="onChanged"/> until the returned handle is disposed. A
-    /// component that forgets to dispose keeps its circuit reachable forever, so this is
-    /// called from <c>OnInitialized</c> and disposed from <c>IDisposable</c>, never inline.
+    /// Registers <paramref name="onChanged"/> until the returned handle is disposed. Failing to
+    /// dispose keeps the subscriber's circuit reachable for the life of the process.
     /// </summary>
     public IDisposable Subscribe(Guid summaryId, Func<Task> onChanged)
     {
@@ -40,9 +33,8 @@ public sealed class SummaryLiveUpdates
     }
 
     /// <summary>
-    /// Runs every subscriber for this summary. Each reloads its own view rather than being
-    /// handed one: a tally says which reactions are <em>yours</em>, so there is no shared
-    /// payload to send.
+    /// Runs every subscriber for this summary. Each reloads its own view, since a tally is per
+    /// viewer and there is no shared payload to hand out.
     /// </summary>
     public async Task PublishAsync(Guid summaryId)
     {
@@ -55,8 +47,8 @@ public sealed class SummaryLiveUpdates
                 return;
             }
 
-            // Copied out of the lock: a subscriber may unsubscribe while being notified, and
-            // notifying is an await that must not hold the gate.
+            // A subscriber may unsubscribe while being notified, and the await must not hold
+            // the gate.
             subscribers = [.. found];
         }
 
@@ -68,8 +60,7 @@ public sealed class SummaryLiveUpdates
             }
             catch (Exception)
             {
-                // A circuit that has gone away must not stop the others being told. It
-                // unsubscribes on dispose; this covers the window before that happens.
+                // A circuit torn down before it unsubscribed must not stop the others.
             }
         }
     }
@@ -92,16 +83,24 @@ public sealed class SummaryLiveUpdates
         }
     }
 
-    private sealed class Subscription(SummaryLiveUpdates owner, Guid summaryId, Func<Task> onChanged)
-        : IDisposable
+    private sealed class Subscription : IDisposable
     {
-        public Guid SummaryId { get; } = summaryId;
+        private readonly SummaryLiveUpdates mOwner;
 
-        public Func<Task> OnChanged { get; } = onChanged;
+        public Subscription(SummaryLiveUpdates owner, Guid summaryId, Func<Task> onChanged)
+        {
+            mOwner = owner;
+            this.SummaryId = summaryId;
+            this.OnChanged = onChanged;
+        }
+
+        public Guid SummaryId { get; }
+
+        public Func<Task> OnChanged { get; }
 
         public void Dispose()
         {
-            owner.Remove(this);
+            mOwner.Remove(this);
         }
     }
 }

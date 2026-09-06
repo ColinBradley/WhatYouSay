@@ -36,6 +36,9 @@ dotnet_diagnostic.IDE0042.severity = silent
 # IDE0305: Simplify collection initialization
 dotnet_diagnostic.IDE0305.severity = silent
 
+# IDE0290: Use primary constructor
+dotnet_diagnostic.IDE0290.severity = none
+
 [*.{razor,cshtml}]
 indent_style = space
 indent_size = 4
@@ -43,3 +46,6 @@ indent_size = 4
 [*.{json,props,targets,csproj,slnx,yml,yaml}]
 indent_style = space
 indent_size = 2
+
+# IDE0290: Use primary constructor
+dotnet_diagnostic.IDE0290.severity = none

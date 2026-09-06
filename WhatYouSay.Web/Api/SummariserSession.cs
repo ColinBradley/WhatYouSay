@@ -20,8 +20,15 @@ public enum SummariserRefusal
 /// token in the header, so the two vary independently: a longer-lived or differently
 /// scoped credential later on does not change any URL.
 /// </summary>
-public class SummariserSession(WhatYouSayContext db)
+public class SummariserSession
 {
+    private readonly WhatYouSayContext mDb;
+
+    public SummariserSession(WhatYouSayContext db)
+    {
+        mDb = db;
+    }
+
     private const string BearerPrefix = "Bearer ";
 
     private Topic? mTopic;
@@ -50,7 +57,7 @@ public class SummariserSession(WhatYouSayContext db)
 
         var hash = Secrets.HashToken(token);
 
-        var topic = await db.Topics.FirstOrDefaultAsync(
+        var topic = await mDb.Topics.FirstOrDefaultAsync(
             s => s.SummariserTokenHash == hash,
             cancellationToken
         );

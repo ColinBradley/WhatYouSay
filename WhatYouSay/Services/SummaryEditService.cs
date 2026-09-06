@@ -21,8 +21,15 @@ public enum NodeMove
 /// replaces a whole tree and is validated as a whole, where a person nudges one node and
 /// spends most of the edit with the tree in a state no agent would be allowed to submit.
 /// </remarks>
-public class SummaryEditService(WhatYouSayContext db)
+public class SummaryEditService
 {
+    private readonly WhatYouSayContext mDb;
+
+    public SummaryEditService(WhatYouSayContext db)
+    {
+        mDb = db;
+    }
+
     /// <summary>The draft with its whole tree, references and their responses.</summary>
     public async Task<Summary?> LoadAsync(
         Topic topic,
@@ -32,7 +39,7 @@ public class SummaryEditService(WhatYouSayContext db)
     {
         using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
 
-        var summary = await db.Summaries
+        var summary = await mDb.Summaries
             .Include(s => s.Nodes)
                 .ThenInclude(n => n.References.Where(r => !r.Response.IsDeleted))
                     .ThenInclude(r => r.Response)
@@ -133,7 +140,7 @@ public class SummaryEditService(WhatYouSayContext db)
 
         // Removed explicitly rather than left to the self-referencing cascade, which only
         // fires for children EF happens to be tracking.
-        db.SummaryNodes.RemoveRange(doomed);
+        mDb.SummaryNodes.RemoveRange(doomed);
 
         foreach (var gone in doomed)
         {
@@ -218,7 +225,7 @@ public class SummaryEditService(WhatYouSayContext db)
         var summary = await this.RequireDraftAsync(topic, summaryId, cancellationToken);
         var node = Require(summary, nodeId);
 
-        var response = await db.Responses.FirstOrDefaultAsync(
+        var response = await mDb.Responses.FirstOrDefaultAsync(
             r => r.Id == responseId && r.TopicId == topic.Id && !r.IsDeleted,
             cancellationToken);
 
@@ -276,7 +283,7 @@ public class SummaryEditService(WhatYouSayContext db)
     {
         var summary = await this.RequireDraftAsync(topic, summaryId, cancellationToken);
 
-        var reference = await db.References.FirstOrDefaultAsync(
+        var reference = await mDb.References.FirstOrDefaultAsync(
             r => r.Id == referenceId && r.Node.SummaryId == summary.Id,
             cancellationToken);
 
@@ -285,7 +292,7 @@ public class SummaryEditService(WhatYouSayContext db)
             return;
         }
 
-        db.References.Remove(reference);
+        mDb.References.Remove(reference);
 
         await this.SaveAsync(topic, summary, "uncite", cancellationToken);
     }
@@ -303,7 +310,7 @@ public class SummaryEditService(WhatYouSayContext db)
         // changes it, and the version list is where that shows.
         summary.CreatedBy = "human";
 
-        await db.SaveChangesAsync(cancellationToken);
+        await mDb.SaveChangesAsync(cancellationToken);
 
         WhatYouSayTelemetry.SummaryEdited(topic, kind);
     }

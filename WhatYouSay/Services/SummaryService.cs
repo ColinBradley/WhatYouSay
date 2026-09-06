@@ -5,8 +5,15 @@ using WhatYouSay.Telemetry;
 
 namespace WhatYouSay.Services;
 
-public class SummaryService(WhatYouSayContext db)
+public class SummaryService
 {
+    private readonly WhatYouSayContext mDb;
+
+    public SummaryService(WhatYouSayContext db)
+    {
+        mDb = db;
+    }
+
     /// <summary>
     /// The newest summary a non-admin is allowed to see: blessed by a human and published.
     /// </summary>
@@ -42,7 +49,7 @@ public class SummaryService(WhatYouSayContext db)
     {
         using var activity = WhatYouSayTelemetry.Source.Start();
 
-        return await db.Summaries
+        return await mDb.Summaries
             .Where(s => s.TopicId == topicId && !s.IsDraft && s.IsPublic)
             .OrderByDescending(s => s.CreatedAt)
             .ToListAsync(cancellationToken);
@@ -55,7 +62,7 @@ public class SummaryService(WhatYouSayContext db)
     {
         using var activity = WhatYouSayTelemetry.Source.Start();
 
-        return await db.Summaries
+        return await mDb.Summaries
             .Where(s => s.TopicId == topicId)
             .OrderByDescending(s => s.CreatedAt)
             .ToListAsync(cancellationToken);
@@ -76,7 +83,7 @@ public class SummaryService(WhatYouSayContext db)
         using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
 
         var summary = replacing is { } id
-            ? await db.Summaries
+            ? await mDb.Summaries
                 .Include(s => s.Nodes)
                     .ThenInclude(n => n.References)
                 .FirstOrDefaultAsync(s => s.Id == id && s.TopicId == topic.Id, cancellationToken)
@@ -115,7 +122,7 @@ public class SummaryService(WhatYouSayContext db)
                 UpdatedAt = now,
             };
 
-            db.Summaries.Add(summary);
+            mDb.Summaries.Add(summary);
         }
         else
         {
@@ -137,11 +144,11 @@ public class SummaryService(WhatYouSayContext db)
         {
             if (!kept.Contains(storedId))
             {
-                db.SummaryNodes.Remove(node);
+                mDb.SummaryNodes.Remove(node);
             }
         }
 
-        await db.SaveChangesAsync(cancellationToken);
+        await mDb.SaveChangesAsync(cancellationToken);
 
         SummaryTree.Assemble(summary);
 
@@ -163,7 +170,7 @@ public class SummaryService(WhatYouSayContext db)
                 if (draftNode.Text is { } revised)
                 {
                     node.Text = revised;
-                    db.References.RemoveRange(node.References);
+                    mDb.References.RemoveRange(node.References);
                     node.References.Clear();
                     Cite(node, draftNode);
                 }
@@ -228,7 +235,7 @@ public class SummaryService(WhatYouSayContext db)
             throw this.Reject(topic, "empty_summary", "/nodes", "A summary needs at least one node.");
         }
 
-        var responses = await db.Responses
+        var responses = await mDb.Responses
             .Where(r => r.TopicId == topic.Id && !r.IsDeleted)
             .ToDictionaryAsync(r => r.Id, cancellationToken);
 
@@ -489,7 +496,7 @@ public class SummaryService(WhatYouSayContext db)
     /// </summary>
     private IQueryable<Summary> Detailed()
     {
-        return db.Summaries
+        return mDb.Summaries
             .Include(s => s.Nodes)
                 .ThenInclude(n => n.References.Where(r => !r.Response.IsDeleted))
                     .ThenInclude(r => r.Response)

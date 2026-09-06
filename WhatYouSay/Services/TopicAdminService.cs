@@ -15,8 +15,15 @@ public record CreatedTopic
     public required string SummariserToken { get; init; }
 }
 
-public class TopicAdminService(WhatYouSayContext db)
+public class TopicAdminService
 {
+    private readonly WhatYouSayContext mDb;
+
+    public TopicAdminService(WhatYouSayContext db)
+    {
+        mDb = db;
+    }
+
     public async Task<CreatedTopic> CreateAsync(
         string title,
         string prompt,
@@ -46,8 +53,8 @@ public class TopicAdminService(WhatYouSayContext db)
             CreatedAt = DateTimeOffset.UtcNow,
         };
 
-        db.Topics.Add(topic);
-        await db.SaveChangesAsync(cancellationToken);
+        mDb.Topics.Add(topic);
+        await mDb.SaveChangesAsync(cancellationToken);
 
         WhatYouSayTelemetry.TopicCreated(topic);
 
@@ -76,7 +83,7 @@ public class TopicAdminService(WhatYouSayContext db)
         {
             // Through the tracker rather than ExecuteUpdate: a caller holding a Response
             // over this call would otherwise still see it as editable.
-            var thawed = await db.Responses
+            var thawed = await mDb.Responses
                 .Where(r => r.TopicId == topic.Id && !r.IsFrozen)
                 .ToListAsync(cancellationToken);
 
@@ -86,7 +93,7 @@ public class TopicAdminService(WhatYouSayContext db)
             }
         }
 
-        await db.SaveChangesAsync(cancellationToken);
+        await mDb.SaveChangesAsync(cancellationToken);
     }
 
     public async Task UpdateSettingsAsync(
@@ -104,7 +111,7 @@ public class TopicAdminService(WhatYouSayContext db)
 
         // Identity is only unchangeable once somebody has answered under it. At zero
         // responses there is nothing to unrecord and no deal to change.
-        if (await db.Responses.AnyAsync(r => r.TopicId == topic.Id, cancellationToken))
+        if (await mDb.Responses.AnyAsync(r => r.TopicId == topic.Id, cancellationToken))
         {
             if (anonymous != topic.IsAnonymous)
             {
@@ -121,7 +128,7 @@ public class TopicAdminService(WhatYouSayContext db)
                 : ResponseIdentity.Required;
         }
 
-        await db.SaveChangesAsync(cancellationToken);
+        await mDb.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>Returns the new token; the old one stops working immediately.</summary>
@@ -135,7 +142,7 @@ public class TopicAdminService(WhatYouSayContext db)
         var token = Secrets.NewToken();
         topic.SummariserTokenHash = Secrets.HashToken(token);
 
-        await db.SaveChangesAsync(cancellationToken);
+        await mDb.SaveChangesAsync(cancellationToken);
 
         return token;
     }
@@ -148,7 +155,7 @@ public class TopicAdminService(WhatYouSayContext db)
     {
         using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
 
-        var response = await db.Responses.FirstOrDefaultAsync(
+        var response = await mDb.Responses.FirstOrDefaultAsync(
             r => r.Id == responseId && r.TopicId == topic.Id,
             cancellationToken);
 
@@ -159,7 +166,7 @@ public class TopicAdminService(WhatYouSayContext db)
 
         response.IsDeleted = true;
 
-        await db.SaveChangesAsync(cancellationToken);
+        await mDb.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>
@@ -194,7 +201,7 @@ public class TopicAdminService(WhatYouSayContext db)
         }
         summary.UpdatedAt = DateTimeOffset.UtcNow;
 
-        await db.SaveChangesAsync(cancellationToken);
+        await mDb.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>
@@ -221,9 +228,9 @@ public class TopicAdminService(WhatYouSayContext db)
             UpdatedAt = now,
         };
 
-        db.Summaries.Add(summary);
+        mDb.Summaries.Add(summary);
 
-        await db.SaveChangesAsync(cancellationToken);
+        await mDb.SaveChangesAsync(cancellationToken);
 
         return summary;
     }
@@ -238,9 +245,9 @@ public class TopicAdminService(WhatYouSayContext db)
 
         var summary = await this.RequireSummaryAsync(topic, summaryId, cancellationToken);
 
-        db.Summaries.Remove(summary);
+        mDb.Summaries.Remove(summary);
 
-        await db.SaveChangesAsync(cancellationToken);
+        await mDb.SaveChangesAsync(cancellationToken);
     }
 
     private async Task<Summary> RequireSummaryAsync(
@@ -249,7 +256,7 @@ public class TopicAdminService(WhatYouSayContext db)
         CancellationToken cancellationToken
     )
     {
-        return await db.Summaries.FirstOrDefaultAsync(
+        return await mDb.Summaries.FirstOrDefaultAsync(
                 s => s.Id == summaryId && s.TopicId == topic.Id,
                 cancellationToken)
             ?? throw new InvalidOperationException($"No summary {summaryId} on this topic.");
@@ -261,7 +268,7 @@ public class TopicAdminService(WhatYouSayContext db)
         {
             var code = Secrets.NewTopicCode();
 
-            if (!await db.Topics.AnyAsync(s => s.Code == code, cancellationToken))
+            if (!await mDb.Topics.AnyAsync(s => s.Code == code, cancellationToken))
             {
                 return code;
             }

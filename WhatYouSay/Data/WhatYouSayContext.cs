@@ -2,8 +2,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace WhatYouSay.Data;
 
-public class WhatYouSayContext(DbContextOptions<WhatYouSayContext> options) : DbContext(options)
+public class WhatYouSayContext : DbContext
 {
+    public WhatYouSayContext(DbContextOptions<WhatYouSayContext> options)
+        : base(options)
+    {
+    }
+
     public DbSet<Topic> Topics => this.Set<Topic>();
 
     public DbSet<Response> Responses => this.Set<Response>();

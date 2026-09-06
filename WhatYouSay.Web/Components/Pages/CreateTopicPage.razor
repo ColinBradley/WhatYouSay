@@ -24,25 +24,6 @@
             </button>
         </section>
 
-        <section class="stack wide">
-            <h2>Summariser token</h2>
-
-            <div class="notice warn stack wide">
-                <div class="loud">Copy this now &mdash; it is not shown again.</div>
-
-                <textarea id="new-token" rows="2" readonly>@mCreated.SummariserToken</textarea>
-
-                <button type="button" onclick="whatYouSayCopy(document.getElementById('new-token'), this)">
-                    Copy token
-                </button>
-
-                <p class="fine">
-                    Give it to an agent along with the topic code to let it draft summaries. It
-                    cannot read your admin password, edit responses, or publish anything.
-                </p>
-            </div>
-        </section>
-
         <a class="button primary" href="@($"/topics/{mCreated.Topic.Code}/admin")">Go to admin</a>
     </div>
 }

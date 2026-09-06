@@ -13,13 +13,20 @@ public record TopicListing
     public required bool HasVisibleSummary { get; init; }
 }
 
-public class TopicService(WhatYouSayContext db)
+public class TopicService
 {
+    private readonly WhatYouSayContext mDb;
+
+    public TopicService(WhatYouSayContext db)
+    {
+        mDb = db;
+    }
+
     public async Task<Topic?> FindByCodeAsync(string code, CancellationToken cancellationToken = default)
     {
         using var activity = WhatYouSayTelemetry.Source.Start();
 
-        return await db.Topics.FirstOrDefaultAsync(s => s.Code == code, cancellationToken);
+        return await mDb.Topics.FirstOrDefaultAsync(s => s.Code == code, cancellationToken);
     }
 
     public async Task<IReadOnlyList<TopicListing>> ListPubliclyListedAsync(
@@ -28,7 +35,7 @@ public class TopicService(WhatYouSayContext db)
     {
         using var activity = WhatYouSayTelemetry.Source.Start();
 
-        return await db.Topics
+        return await mDb.Topics
             .Where(s => s.IsPubliclyListed)
             .OrderByDescending(s => s.CreatedAt)
             .Select(s => new TopicListing()
@@ -44,7 +51,7 @@ public class TopicService(WhatYouSayContext db)
     {
         using var activity = WhatYouSayTelemetry.Source.Start();
 
-        return await db.Responses.CountAsync(
+        return await mDb.Responses.CountAsync(
             r => r.TopicId == topicId && !r.IsDeleted,
             cancellationToken);
     }

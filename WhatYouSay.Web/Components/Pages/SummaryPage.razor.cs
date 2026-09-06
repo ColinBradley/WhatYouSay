@@ -10,9 +10,8 @@ using WhatYouSay.Web.Telemetry;
 namespace WhatYouSay.Web.Components.Pages;
 
 /// <summary>
-/// A static shell around the live reader. It is a shell for one reason: the responder cookie
-/// needs an <see cref="HttpContext"/> to write to, and a circuit has no response to set headers
-/// on. The token is minted here and handed down.
+/// The static shell around <see cref="SummaryReader"/>. Mints the responder token and writes its
+/// cookie, which needs an <see cref="HttpContext"/> a circuit does not have.
 /// </summary>
 public partial class SummaryPage
 {
@@ -101,9 +100,8 @@ public partial class SummaryPage
             return;
         }
 
-        // Minted on arrival rather than on a first reaction, because by then the circuit has
-        // started and there is no response left to set a cookie on. It identifies nobody until
-        // it is used: nothing is written against it until this viewer acts.
+        // On arrival, not on a first reaction: by then the circuit has started and there is no
+        // response left to set a cookie on. Nothing is stored against it until this viewer acts.
         mReactorToken = ResponderCookie.Read(this.HttpContext, mTopic.Id) ?? Secrets.NewToken();
         ResponderCookie.Write(this.HttpContext, mTopic.Id, mReactorToken);
 

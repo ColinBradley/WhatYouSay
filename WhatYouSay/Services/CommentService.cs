@@ -26,8 +26,15 @@ public record NodeCommentView
     public required string? ResponseBody { get; init; }
 }
 
-public class CommentService(WhatYouSayContext db)
+public class CommentService
 {
+    private readonly WhatYouSayContext mDb;
+
+    public CommentService(WhatYouSayContext db)
+    {
+        mDb = db;
+    }
+
     public async Task<int> AddAsync(
         Topic topic,
         int nodeId,
@@ -48,7 +55,7 @@ public class CommentService(WhatYouSayContext db)
             throw new InvalidOperationException("A comment needs something in it.");
         }
 
-        await RequireNodeAsync(db, topic, nodeId, activity, cancellationToken);
+        await RequireNodeAsync(mDb, topic, nodeId, activity, cancellationToken);
 
         var comment = new NodeComment()
         {
@@ -59,9 +66,9 @@ public class CommentService(WhatYouSayContext db)
             CreatedAt = topic.IsAnonymous ? null : DateTimeOffset.UtcNow,
         };
 
-        db.NodeComments.Add(comment);
+        mDb.NodeComments.Add(comment);
 
-        await db.SaveChangesAsync(cancellationToken);
+        await mDb.SaveChangesAsync(cancellationToken);
 
         WhatYouSayTelemetry.CommentAdded(topic);
 
@@ -83,7 +90,7 @@ public class CommentService(WhatYouSayContext db)
     {
         using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
 
-        var comment = await db.NodeComments
+        var comment = await mDb.NodeComments
             .FirstOrDefaultAsync(
                 c => c.Id == commentId && c.Node.Summary.TopicId == topic.Id,
                 cancellationToken);
@@ -107,7 +114,7 @@ public class CommentService(WhatYouSayContext db)
 
         comment.IsHidden = hidden;
 
-        await db.SaveChangesAsync(cancellationToken);
+        await mDb.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>
@@ -129,8 +136,8 @@ public class CommentService(WhatYouSayContext db)
         // Left-joined to the commenter's own response: an admin reading an objection wants
         // the words it is about beside it, and a commenter who never responded has none.
         var query =
-            from comment in db.NodeComments
-            join response in db.Responses
+            from comment in mDb.NodeComments
+            join response in mDb.Responses
                     .Where(r => r.TopicId == topic.Id && !r.IsDeleted)
                 on comment.AuthorTokenHash equals response.AuthTokenHash into responses
             from response in responses.DefaultIfEmpty()
@@ -153,14 +160,14 @@ public class CommentService(WhatYouSayContext db)
     }
 
     internal static async Task RequireNodeAsync(
-        WhatYouSayContext db,
+        WhatYouSayContext mDb,
         Topic topic,
         int nodeId,
         System.Diagnostics.Activity? activity,
         CancellationToken cancellationToken
     )
     {
-        var belongs = await db.SummaryNodes.AnyAsync(
+        var belongs = await mDb.SummaryNodes.AnyAsync(
             n => n.Id == nodeId && n.Summary.TopicId == topic.Id,
             cancellationToken);
 

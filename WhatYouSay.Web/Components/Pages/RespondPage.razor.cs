@@ -42,6 +42,9 @@ public partial class RespondPage
     [SupplyParameterFromForm]
     public string? Intent { get; set; }
 
+    [SupplyParameterFromQuery(Name = "saved")]
+    public string? Saved { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
         mTopic = await this.Topics.FindByCodeAsync(this.Code);
@@ -104,13 +107,15 @@ public partial class RespondPage
 
             // Static SSR, so the response has not started and a cookie can still be written.
             ResponderCookie.Write(this.HttpContext, mTopic.Id, token);
-        }
-        else
-        {
-            await this.Responses.EditAsync(mTopic, mOwnResponse, this.Body!, this.Author);
+
+            this.Reload("new");
+
+            return;
         }
 
-        this.Reload();
+        await this.Responses.EditAsync(mTopic, mOwnResponse, this.Body!, this.Author);
+
+        this.Reload("edited");
     }
 
     private async Task WithdrawAsync()
@@ -123,12 +128,16 @@ public partial class RespondPage
         await this.Responses.WithdrawAsync(mTopic, mOwnResponse);
         ResponderCookie.Clear(this.HttpContext, mTopic.Id);
 
-        this.Reload();
+        this.Reload("withdrawn");
     }
 
-    private void Reload()
+    /// <summary>
+    /// The outcome travels in the query string because the post redirects, which is what stops
+    /// a refresh resubmitting it.
+    /// </summary>
+    private void Reload(string outcome)
     {
-        this.Navigation.NavigateTo($"/topics/{this.Code}/respond");
+        this.Navigation.NavigateTo($"/topics/{this.Code}/respond?saved={outcome}");
     }
 
     private bool Validate(Topic topic)
@@ -150,6 +159,17 @@ public partial class RespondPage
         mError = null;
 
         return true;
+    }
+
+    private string? SavedMessage()
+    {
+        return this.Saved switch
+        {
+            "new" => "Your answer is in. You can change it any time before this topic closes.",
+            "edited" => "Saved. This replaces what you wrote before.",
+            "withdrawn" => "Withdrawn. Nothing of yours is left on this topic.",
+            _ => null,
+        };
     }
 
     private string NameLabel()

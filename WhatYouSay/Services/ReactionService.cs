@@ -16,8 +16,15 @@ public record NodeReactionTally
         this.Counts.TryGetValue(kind, out var count) ? count : 0;
 }
 
-public class ReactionService(WhatYouSayContext db)
+public class ReactionService
 {
+    private readonly WhatYouSayContext mDb;
+
+    public ReactionService(WhatYouSayContext db)
+    {
+        mDb = db;
+    }
+
     /// <summary>Adds the reaction, or takes it back if it was already there.</summary>
     public async Task ToggleAsync(
         Topic topic,
@@ -31,16 +38,16 @@ public class ReactionService(WhatYouSayContext db)
 
         activity?.SetTag("reaction.kind", kind.ToString());
 
-        await CommentService.RequireNodeAsync(db, topic, nodeId, activity, cancellationToken);
+        await CommentService.RequireNodeAsync(mDb, topic, nodeId, activity, cancellationToken);
 
         var hash = Secrets.HashToken(reactorToken);
-        var existing = await db.NodeReactions.FirstOrDefaultAsync(
+        var existing = await mDb.NodeReactions.FirstOrDefaultAsync(
             r => r.NodeId == nodeId && r.ReactorTokenHash == hash && r.Kind == kind,
             cancellationToken);
 
         if (existing is null)
         {
-            db.NodeReactions.Add(new NodeReaction()
+            mDb.NodeReactions.Add(new NodeReaction()
             {
                 NodeId = nodeId,
                 ReactorTokenHash = hash,
@@ -52,11 +59,11 @@ public class ReactionService(WhatYouSayContext db)
         }
         else
         {
-            db.NodeReactions.Remove(existing);
+            mDb.NodeReactions.Remove(existing);
             WhatYouSayTelemetry.ReactionRemoved(topic, kind);
         }
 
-        await db.SaveChangesAsync(cancellationToken);
+        await mDb.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>
@@ -71,7 +78,7 @@ public class ReactionService(WhatYouSayContext db)
     {
         using var activity = WhatYouSayTelemetry.Source.Start();
 
-        var reactions = await db.NodeReactions
+        var reactions = await mDb.NodeReactions
             .Where(r => r.Node.SummaryId == summaryId)
             .ToListAsync(cancellationToken);
 

@@ -5,8 +5,15 @@ using WhatYouSay.Telemetry;
 
 namespace WhatYouSay.Services;
 
-public class ResponseService(WhatYouSayContext db)
+public class ResponseService
 {
+    private readonly WhatYouSayContext mDb;
+
+    public ResponseService(WhatYouSayContext db)
+    {
+        mDb = db;
+    }
+
     /// <summary>
     /// Stores a response and returns the plaintext token for the responder's cookie. Only
     /// the hash is kept, so this is the one moment the token is knowable.
@@ -29,7 +36,7 @@ public class ResponseService(WhatYouSayContext db)
 
         var token = Secrets.NewToken();
 
-        db.Responses.Add(new Response()
+        mDb.Responses.Add(new Response()
         {
             // Deliberately v4 and not CreateVersion7. A v7 Guid embeds a Unix timestamp,
             // so it would both restore submission order and leak roughly when someone
@@ -42,7 +49,7 @@ public class ResponseService(WhatYouSayContext db)
             CreatedAt = topic.IsAnonymous ? null : DateTimeOffset.UtcNow,
         });
 
-        await db.SaveChangesAsync(cancellationToken);
+        await mDb.SaveChangesAsync(cancellationToken);
 
         WhatYouSayTelemetry.ResponseSubmitted(topic);
 
@@ -59,7 +66,7 @@ public class ResponseService(WhatYouSayContext db)
 
         var hash = Secrets.HashToken(token);
 
-        return await db.Responses.FirstOrDefaultAsync(
+        return await mDb.Responses.FirstOrDefaultAsync(
             r => r.TopicId == topicId && r.AuthTokenHash == hash && !r.IsDeleted,
             cancellationToken);
     }
@@ -81,7 +88,7 @@ public class ResponseService(WhatYouSayContext db)
         response.Author = topic.IsAnonymous ? null : NullIfBlank(author);
         response.UpdatedAt = topic.IsAnonymous ? null : DateTimeOffset.UtcNow;
 
-        await db.SaveChangesAsync(cancellationToken);
+        await mDb.SaveChangesAsync(cancellationToken);
 
         WhatYouSayTelemetry.ResponseEdited(topic);
     }
@@ -98,7 +105,7 @@ public class ResponseService(WhatYouSayContext db)
 
         response.IsDeleted = true;
 
-        await db.SaveChangesAsync(cancellationToken);
+        await mDb.SaveChangesAsync(cancellationToken);
 
         WhatYouSayTelemetry.ResponseWithdrawn(topic);
     }
@@ -110,7 +117,7 @@ public class ResponseService(WhatYouSayContext db)
     {
         using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
 
-        var query = db.Responses.Where(r => r.TopicId == topic.Id && !r.IsDeleted);
+        var query = mDb.Responses.Where(r => r.TopicId == topic.Id && !r.IsDeleted);
 
         // Anonymous topics have no timestamps to order by, so they fall back to the
         // random Guid. Insertion order would otherwise leak through the SQLite rowid.

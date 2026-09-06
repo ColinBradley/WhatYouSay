@@ -6,9 +6,8 @@ using WhatYouSay.Web.Live;
 namespace WhatYouSay.Web.Components.Shared;
 
 /// <summary>
-/// The published summary, live. Reacting used to post a form and reload the page under the
-/// person reading it; worse, everyone else's copy stayed stale until they reloaded too. A
-/// reaction is something the group does together, so it is pushed to every open copy.
+/// The published summary, with reactions and comments applied in place and pushed to every
+/// other circuit reading the same version.
 /// </summary>
 public partial class SummaryReader : IDisposable
 {
@@ -55,10 +54,7 @@ public partial class SummaryReader : IDisposable
     [EditorRequired]
     public Guid SummaryId { get; set; }
 
-    /// <summary>
-    /// Minted by the static shell before the circuit starts, because writing the cookie it
-    /// lives in needs an <c>HttpContext</c> and a circuit has no response to write headers to.
-    /// </summary>
+    /// <summary>Minted by the shell: the cookie it lives in needs an <c>HttpContext</c>.</summary>
     [Parameter]
     [EditorRequired]
     public string ReactorToken { get; set; } = string.Empty;
@@ -98,7 +94,7 @@ public partial class SummaryReader : IDisposable
 
     protected override async Task OnInitializedAsync()
     {
-        // Subscribed before the first load so a reaction landing mid-load is not missed.
+        // Before the first load, so a change landing mid-load is not missed.
         mSubscription = this.Live.Subscribe(this.SummaryId, this.OnChangedAsync);
 
         await this.LoadAsync();
@@ -149,8 +145,8 @@ public partial class SummaryReader : IDisposable
     }
 
     /// <summary>
-    /// Every write runs in a scope of its own. A scoped DbContext would otherwise live as long
-    /// as the circuit and start answering reads from what it first tracked.
+    /// Runs one write in a DI scope of its own. A scoped DbContext otherwise lives as long as
+    /// the circuit and answers later reads from what it first tracked.
     /// </summary>
     private async Task RunAsync(Func<IServiceProvider, Topic, Task> action)
     {
@@ -172,8 +168,7 @@ public partial class SummaryReader : IDisposable
             return;
         }
 
-        // Everyone reading this summary reloads, including this circuit — so the write lands
-        // on every open copy by the same path, rather than here directly and elsewhere later.
+        // This circuit is a subscriber too, so its own reload comes back through the publish.
         await this.Live.PublishAsync(this.SummaryId);
     }
 
@@ -183,9 +178,8 @@ public partial class SummaryReader : IDisposable
         {
             await this.LoadAsync();
 
-            // The tree renders through SummaryNodeView, and reaching this component through
-            // the cascade is an ordinary method call the framework never sees. Without this
-            // the write lands and nothing on screen moves.
+            // The tree reaches this component through the cascade, which the framework never
+            // sees, so it does not know this rendered output is stale.
             this.StateHasChanged();
         });
     }

@@ -29,7 +29,11 @@ else
             <p class="prose quiet">@mTopic.Description</p>
         </section>
 
-        @* The page is the form, so it takes no panel of its own. *@
+        @if (this.SavedMessage() is { } saved)
+        {
+            <div class="notice good banner flash" role="status">@saved</div>
+        }
+
         <form method="post" @formname="respond" @onsubmit="SubmitAsync" class="fields">
             <AntiforgeryToken />
 
@@ -37,11 +41,9 @@ else
             {
                 <p class="fine">@this.FrozenReason()</p>
             }
-            else if (mOwnResponse is not null)
+            else if (mOwnResponse is not null && this.Saved is null)
             {
-                <p class="fine">
-                    This is your response. @(mOwnResponse.UpdatedAt is not null ? "You have edited it." : "")
-                </p>
+                <p class="fine">This is the answer you already gave. Changing it replaces it.</p>
             }
 
             @if (!mTopic.IsAnonymous)
