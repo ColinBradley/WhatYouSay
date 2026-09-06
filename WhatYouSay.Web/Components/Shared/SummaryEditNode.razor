@@ -1,57 +1,16 @@
 @using WhatYouSay.Data
 @using WhatYouSay.Services
 
-<li class="hoverable">
-    <div class="controls" style="flex-wrap: nowrap; align-items: start">
-        <input class="@(this.Editor.IsUngrounded(this.Node.Id) ? "is-ungrounded" : null)"
-               value="@this.Node.Text" disabled="@this.Editor.IsLocked"
-               title="@this.Editor.LockedReason"
-               @onchange="@(e => this.Editor.SetTextAsync(this.Node.Id, e.Value?.ToString() ?? string.Empty))" />
+@{
+    var comments = this.Editor.CommentsFor(this.Node.Id);
+}
 
-        <div class="controls on-demand" style="flex-wrap: nowrap">
-            <button @onclick="() => this.Editor.MoveAsync(this.Node.Id, NodeMove.Up)"
-                    disabled="@(this.Editor.IsLocked || this.IsFirst())"
-                    title="@this.MoveTitle(this.IsFirst(), "Move up", "Already first in its group.")">
-                &uarr;
-            </button>
-
-            <button @onclick="() => this.Editor.MoveAsync(this.Node.Id, NodeMove.Down)"
-                    disabled="@(this.Editor.IsLocked || this.IsLast())"
-                    title="@this.MoveTitle(this.IsLast(), "Move down", "Already last in its group.")">
-                &darr;
-            </button>
-
-            <button @onclick="() => this.Editor.MoveAsync(this.Node.Id, NodeMove.Indent)"
-                    disabled="@(this.Editor.IsLocked || this.IsFirst())"
-                    title="@this.MoveTitle(this.IsFirst(), "Make it a child of the node above", "Nothing above it to sit under.")">
-                &rarr;
-            </button>
-
-            <button @onclick="() => this.Editor.MoveAsync(this.Node.Id, NodeMove.Outdent)"
-                    disabled="@(this.Editor.IsLocked || this.Node.ParentId is null)"
-                    title="@this.MoveTitle(this.Node.ParentId is null, "Lift it out to its parent's level", "Already at the top level.")">
-                &larr;
-            </button>
-
-            <button @onclick="() => this.Editor.AddNodeAsync(this.Node.Id)"
-                    disabled="@this.Editor.IsLocked"
-                    title="@(this.Editor.LockedReason ?? "Add a child node")">
-                + child
-            </button>
-
-            <button @onclick="() => this.Editor.AddNodeAsync(this.Node.ParentId)"
-                    disabled="@this.Editor.IsLocked"
-                    title="@(this.Editor.LockedReason ?? "Add a node at the end of this group")">
-                + sibling
-            </button>
-
-            <button class="danger" @onclick="() => this.Editor.DeleteNodeAsync(this.Node.Id)"
-                    disabled="@this.Editor.IsLocked"
-                    title="@(this.Editor.LockedReason ?? "Delete this node and everything under it")">
-                @(this.Editor.IsConfirmingDelete(this.Node.Id) ? "Really delete?" : "Delete")
-            </button>
-        </div>
-    </div>
+<li class="@(this.Editor.IsSelected(this.Node.Id) ? "is-picked" : null)">
+    <input class="@(this.Editor.IsUngrounded(this.Node.Id) ? "is-ungrounded" : null)"
+           value="@this.Node.Text" disabled="@this.Editor.IsLocked"
+           title="@this.Editor.LockedReason"
+           @onfocus="() => this.Editor.Select(this.Node.Id)"
+           @onchange="@(e => this.Editor.SetTextAsync(this.Node.Id, e.Value?.ToString() ?? string.Empty))" />
 
     @if (this.Editor.IsUngrounded(this.Node.Id))
     {
@@ -60,76 +19,56 @@
         </div>
     }
 
-    @foreach (var comment in this.Editor.CommentsFor(this.Node.Id))
+    @foreach (var reference in this.Node.References)
     {
-        <div class="fine @(comment.IsHidden ? "is-hidden" : null)" style="color: var(--warn)">
-            &ldquo;@comment.Body&rdquo; &mdash; @(comment.Author ?? "anonymous")
+        <div class="controls fine" style="flex-wrap: nowrap; align-items: start">
+            <blockquote class="grow">
+                &ldquo;@reference.Quote&rdquo;
+                <span class="quiet">&mdash; @(reference.Response.Author ?? "anonymous")</span>
+            </blockquote>
+
+            <button class="bare danger" type="button"
+                    @onclick="() => this.Editor.DeleteReferenceAsync(reference.Id)"
+                    disabled="@this.Editor.IsLocked"
+                    title="@(this.Editor.LockedReason ?? "Remove this quote")">
+                &times;
+            </button>
         </div>
     }
 
-    <div class="stack wide" style="--stack-gap: 0.35em; margin-top: 0.35em">
-        @foreach (var reference in this.Node.References)
-        {
-            <div class="controls fine" style="flex-wrap: nowrap; align-items: start">
-                <blockquote class="grow">
-                    &ldquo;@reference.Quote&rdquo;
-                    <span class="quiet">&mdash; @(reference.Response.Author ?? "anonymous")</span>
-                </blockquote>
+    @foreach (var comment in comments)
+    {
+        <div class="panel node-comment @(comment.IsHidden ? "is-hidden" : null)">
+            <div>@comment.Body</div>
 
-                <button class="bare danger on-demand"
-                        @onclick="() => this.Editor.DeleteReferenceAsync(reference.Id)"
-                        disabled="@this.Editor.IsLocked"
-                        title="@(this.Editor.LockedReason ?? "Remove this quote")">
-                    &times;
-                </button>
-            </div>
-        }
+            <div class="controls fine">
+                <span>@(comment.Author ?? "anonymous")</span>
 
-        <button class="bare @(this.Editor.IsCiting(this.Node.Id) ? null : "on-demand")"
-                @onclick="() => this.Editor.StartCiting(this.Node.Id)"
-                disabled="@this.Editor.IsLocked"
-                title="@(this.Editor.LockedReason ?? "Quote a response in support of this node")">
-            @(this.Editor.IsCiting(this.Node.Id) ? "Cancel" : "Cite a response")
-        </button>
-
-        @if (this.Editor.IsCiting(this.Node.Id))
-        {
-            <div class="panel fields" style="background: var(--sunken-bg)">
-                <div class="field">
-                    <label class="fine">Response</label>
-
-                    <select value="@this.Editor.CiteResponseId"
-                            @onchange="@(e => this.Editor.CiteResponseId = Guid.Parse(e.Value?.ToString() ?? Guid.Empty.ToString()))">
-                        @foreach (var response in this.Editor.Responses)
-                        {
-                            <option value="@response.Id">@SummaryEditor.Label(response)</option>
-                        }
-                    </select>
-                </div>
-
-                @if (this.Editor.CiteSource() is { } source)
+                @if (comment.IsHidden)
                 {
-                    <div class="field">
-                        <label class="fine">Copy the quote out of this, exactly</label>
-
-                        <pre class="fine">@source.Body</pre>
-                    </div>
+                    <span class="tag">Hidden</span>
                 }
 
-                <div class="field">
-                    <label class="fine">Quote</label>
-
-                    <textarea rows="2" @bind="this.Editor.CiteQuote" @bind:event="oninput"></textarea>
-                </div>
-
-                <div>
-                    <button class="primary" @onclick="() => this.Editor.AddReferenceAsync(this.Node.Id)">
-                        Add quote
-                    </button>
-                </div>
+                <button class="bare" type="button"
+                        @onclick="() => this.Editor.SetCommentHiddenAsync(comment.Id, !comment.IsHidden)">
+                    @(comment.IsHidden ? "Show" : "Hide")
+                </button>
             </div>
-        }
-    </div>
+
+            @if (comment.ResponseBody is not null)
+            {
+                <details>
+                    <summary class="fine">What @(comment.Author ?? "they") actually wrote</summary>
+
+                    <p class="verbatim fine">@comment.ResponseBody</p>
+                </details>
+            }
+            else
+            {
+                <p class="fine">@(comment.Author ?? "They") did not respond to this topic.</p>
+            }
+        </div>
+    }
 
     @if (this.Node.Children.Count > 0)
     {

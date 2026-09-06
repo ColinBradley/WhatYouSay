@@ -1,0 +1,58 @@
+@using WhatYouSay.Services
+
+@*
+    Every command in one place, acting on whichever node last held focus. Per-node clusters
+    put eight controls on every row of a twenty-node tree and left nowhere for the response
+    pane to go.
+*@
+
+<div class="edit-toolbar">
+    <div class="controls">
+        @foreach (var (move, glyph) in Directions)
+        {
+            <button type="button" data-move="@move.ToString().ToLowerInvariant()"
+                    disabled="@(!this.Editor.CanMove(move))"
+                    title="@this.Editor.MoveReason(move)"
+                    @onclick="() => this.Move(move)">
+                @glyph
+            </button>
+        }
+    </div>
+
+    <div class="controls">
+        <button type="button" disabled="@(this.Selected is null || this.Editor.IsLocked)"
+                title="@(this.Editor.SelectionReason ?? "Add a node under this one")"
+                @onclick="() => this.Editor.AddNodeAsync(this.Selected?.Id)">
+            + child
+        </button>
+
+        <button type="button" disabled="@(this.Selected is null || this.Editor.IsLocked)"
+                title="@(this.Editor.SelectionReason ?? "Add a node after this one")"
+                @onclick="() => this.Editor.AddNodeAsync(this.Selected?.ParentId)">
+            + sibling
+        </button>
+
+        <button type="button" disabled="@this.Editor.IsLocked"
+                title="@(this.Editor.LockedReason ?? "Add a node at the top level")"
+                @onclick="() => this.Editor.AddNodeAsync(null)">
+            + root
+        </button>
+    </div>
+
+    <div class="controls">
+        <button type="button" class="danger"
+                disabled="@(this.Selected is null || this.Editor.IsLocked)"
+                title="@(this.Editor.SelectionReason ?? "Delete this node and everything under it")"
+                @onclick="() => this.Editor.DeleteNodeAsync(this.Selected!.Id)">
+            @(this.Selected is { } doomed && this.Editor.IsConfirmingDelete(doomed.Id)
+                ? "Really delete?"
+                : "Delete")
+        </button>
+    </div>
+
+    <p class="fine selection-name">
+        @(this.Selected is { } node
+            ? node.Text is { Length: > 0 } text ? text : "(empty node)"
+            : "Nothing picked — click a node's text to pick it.")
+    </p>
+</div>

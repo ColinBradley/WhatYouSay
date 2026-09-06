@@ -85,6 +85,14 @@
     box-sizing: border-box;
 }
 
+/*
+ * An author `display` beats the user agent's [hidden] rule, so anything given one — every
+ * button here, for a start — stays on screen however hidden it claims to be.
+ */
+[hidden] {
+    display: none !important;
+}
+
 html {
     font-size: 100%;
 }
@@ -480,40 +488,43 @@ fieldset {
  * parent cannot reach a child's controls and a caret in a comment box cannot hold a node's
  * controls open.
  */
+/*
+ * Transparent rather than `display: none`, because a removed element leaves the tab order and
+ * then :focus-within can never fire to bring it back — the keyboard would have no way in at
+ * all. .node-actions is positioned out of the flow instead, so hiding it still costs no space.
+ */
 .on-demand,
 .node-actions {
-    display: none;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s ease-in-out;
 }
 
-/*
- * Restored explicitly rather than with `revert`, which rolls back past the author styles
- * and would leave a `.controls.on-demand` row as plain inline text.
- */
 .hoverable:hover .on-demand,
-.hoverable:focus-within .on-demand {
-    display: inline-flex;
-}
-
-.hoverable:hover .controls.on-demand,
-.hoverable:focus-within .controls.on-demand,
+.hoverable:focus-within .on-demand,
 .hoverable:hover .node-actions,
 .hoverable:focus-within .node-actions {
-    display: flex;
+    opacity: 1;
+    pointer-events: auto;
 }
 
 /* Where there is no hover there is no reveal, so everything stands visible instead. */
 @media (hover: none) {
-    .on-demand {
-        display: inline-flex;
-    }
-
-    .controls.on-demand {
-        display: flex;
+    .on-demand,
+    .node-actions {
+        opacity: 1;
+        pointer-events: auto;
     }
 
     .node-actions {
-        display: flex;
         position: static;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .on-demand,
+    .node-actions {
+        transition: none;
     }
 }
 
@@ -607,7 +618,7 @@ fieldset {
 .split {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: var(--section-gap);
+    gap: var(--stack-gap);
     align-items: start;
 }
 
@@ -868,6 +879,7 @@ fieldset {
     top: -0.35em;
     right: 0;
     z-index: 2;
+    display: flex;
     gap: 0.25em;
     padding: 0.2em;
     border: var(--hairline) solid var(--line);
@@ -972,4 +984,56 @@ details.comments.unasked:not([open]) {
     .flash {
         animation: none;
     }
+}
+
+/* ---- Summary editor toolbar ---------------------------------------------- */
+
+.edit-toolbar {
+    position: sticky;
+    top: calc(var(--header-height) + 0.5em);
+    z-index: 5;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--control-outer-gap) 1.25em;
+    padding: 0.6em 0.8em;
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--panel-radius);
+    background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
+    backdrop-filter: blur(8px);
+}
+
+.selection-name {
+    flex: 1 1 12em;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: end;
+}
+
+/* The picked node, marked without shouting: the toolbar above acts on this one. */
+.edit-tree li.is-picked > input {
+    border-color: var(--accent);
+    background: var(--accent-quiet);
+}
+
+.node-comment {
+    background: var(--warn-quiet);
+    border-color: transparent;
+    --panel-padding: 0.6em 0.75em;
+}
+
+.quote-selection {
+    position: absolute;
+    z-index: 20;
+    font-size: var(--fine-size);
+    box-shadow: 0 2px 8px light-dark(hsl(220 20% 40% / 0.3), hsl(220 40% 2% / 0.6));
+}
+
+/* Selecting inside a body is the whole interaction, so nothing there may swallow a drag. */
+.edit-tree ~ * [data-response],
+.pane [data-response] {
+    user-select: text;
+    cursor: text;
 }

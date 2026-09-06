@@ -39,7 +39,7 @@ Only the first of the four needs an agent at all, which is the other half of why
 |---|---|
 | AI integration | REST API hosted in the app. Agent authenticates with a topic-scoped token. No API key in the app. |
 | Summaries | Versioned. Each generation run creates a new one; public page shows the newest published. |
-| Secrets | Everything hashed. Summariser token shown once at creation; regenerate if lost. |
+| Secrets | Everything hashed. Summariser token shown only in admin, on regeneration. |
 | Summary structure | A tree of `SummaryNode`, depth uncapped. A node is text, references and children — [nothing types it](#node-kinds-tried-removed), and nothing records who wrote it, so grounding validates the shape of a branch rather than the sort or the author of a node. |
 | Who may assert without a quote | A person, yes. An agent, never. [Argued below](#why-a-person-may-assert-and-an-agent-may-not); enforced per node in the write contract, not per author in the schema. |
 | Summary editing | Explicit edit page with forms. Node ids are stable, so an agent revision preserves the nodes it isn't changing. |
@@ -308,7 +308,9 @@ Admin checks go through one service — `AdminSession.CanAdministerAsync(topicId
 
 **A class, not an interface.** The seam is the centralisation, not the abstraction. `Topic.CollectionId` is nullable in the deferred design, so a collection-aware check is a branch *inside* this class rather than a second implementation chosen at composition time — and nothing mocks it, because the tests reference the domain library and this lives in Web. An interface here would be ceremony over a single implementation that is never selected between.
 
-The summariser token is generated at topic creation and **displayed exactly once**, on the post-creation screen, with a copy button and a clear warning. Admins can regenerate it from settings, which invalidates the old one.
+The summariser token is generated at topic creation but **never shown there**. An admin gets one by regenerating from settings, which displays it once with a copy button and a clear warning, hands over a ready-made prompt alongside it, and invalidates the old one immediately.
+
+**Creating a topic and summarising it are different jobs, and the create screen used to do both.** The token was displayed once at creation on the grounds that generating it there and discarding it unseen is waste. It is: the token generated at creation can now only ever be thrown away. That is the cheaper waste. Most topics are made by someone who is not going to point an agent at anything, and every one of them met a warning about a secret they had no use for — while the person who *did* want one had to have kept it from a screen they saw before they knew they needed it. Regeneration always existed as the recovery path; making it the only path costs one click on the rare occasion and removes a step from every topic. It also puts the token in exactly one place, next to the prompt that carries it.
 
 ## Routes
 
@@ -316,16 +318,20 @@ Plural `/topics/{code}`, following the Rails-style resource convention that most
 
 ### Public
 ```
-/                                     home — publicly listed topics, "New topic", open-by-code box
+/                                    home — listed topics, split into open and closed
 /topics                              redirect to /
-/new                                  create a topic
-/topics/{code}                       the prompt, and whatever this topic is currently for
-/topics/{code}/summary               newest visible summary
+/new                                 create a topic
+/topics/{code}                       the notes, and the responses they were drawn from
+/topics/{code}/respond               the response form
+/topics/{code}/summary               redirect to /topics/{code}
 /topics/{code}/summary/{id}          a specific version
-/topics/{code}/responses             raw responses, only if AreResponsesPublic
 ```
 
-**`/topics/{code}` has to decide what it is.** It was the response form and can no longer assume that: a topic accepting responses leads with the form, one that is closed with a visible summary leads with the summary, and one that is closed with nothing published says so. Whichever it leads with, the other is a link rather than a hidden thing — the [disable-don't-hide rule](AGENTS.md) applied to a page instead of a control.
+**A page per job, rather than one page that works out which job it is on.** `/topics/{code}` was the response form back when a topic was a question you answered and nothing else. [Opening the flow up](#build-order) ended that — a topic may never collect a response, or be long closed — so the page was going to branch three ways on arrival: lead with the form while open, with the summary once closed, and with an apology when there was nothing to show. Whichever it led with, the other would have been a link.
+
+Giving responding its own URL removes the branch instead of arranging it. `/topics/{code}` is always the notes and `/topics/{code}/respond` is always the form, each with a link to the other, and neither has a state in which it is the wrong page to have landed on. The branch only ever existed because responding had nowhere else to live.
+
+**Raw responses never became a route.** `AreResponsesPublic` was going to open `/topics/{code}/responses`, and instead it puts the responses in a pane beside the notes on `/topics/{code}`, where a claim and the words behind it are side by side. A citation in the tree scrolls its quote into view and a quote scrolls back to the note it supports. Reading them apart from the notes was never the point; checking the notes against them is.
 
 ### Admin
 ```
@@ -392,7 +398,7 @@ The test for the left column: does violating it produce something that reads as 
 ### 1. Create a topic
 1. `/new` — title, prompt, admin password, the four toggles.
 2. Submit. Topic created, `Code` generated, admin cookie set immediately.
-3. Land on a confirmation screen showing: the share link, and the summariser token with a copy button and "this is the only time you'll see this".
+3. Land on a confirmation screen showing the share link, with a copy button.
 4. Continue to the admin dashboard.
 
 `ResponseIdentity` is immutable **once a response exists**, not from creation. The reasoning against changing it is entirely about responses already given: switching to `Anonymous` later can't retroactively unrecord timestamps or unsay names, and switching away from it mid-topic silently changes the deal earlier responders agreed to. At zero responses that argument is vacuous, and holding the rule anyway would trap a topic that started as hand-written notes with whatever default it was born under — the exact case [opening the flow up](#flows) exists to serve. Settings render it editable while the response count is zero and read-only forever after.

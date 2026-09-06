@@ -5,7 +5,7 @@ Blazor Server front end and the summariser REST API. General rules are in the ro
 ## UI
 
 - **Disable, don't hide.** A control someone cannot use stays on the page, disabled, with a `title` on the control itself saying why. Hiding it leaves people wondering whether the feature exists.
-- **The exception is a dense set of repeated controls**, where one control per item across a long list buries the content it acts on. Those get `.on-demand` inside a `.hoverable`, which reveals on hover *and* on focus-within, and unconditionally where hover does not exist. `.hoverable` wraps the item's own head and never its children or its comment box, or crossing the gap between two children lights the parent up and a caret in a box holds it open. Anything the group produced — a reaction count above zero — is data rather than a control, and stays visible.
+- **The exception is a dense set of repeated controls**, where one control per item across a long list buries the content it acts on. Those get `.on-demand` inside a `.hoverable`, which reveals on hover *and* on focus-within, and unconditionally where hover does not exist. Hidden means transparent, never `display: none` — a removed control leaves the tab order, and then focus-within can never fire to reveal it. Keep it out of the flow by position instead, so hiding still costs no space. `.hoverable` wraps the item's own head and never its children or its comment box, or crossing the gap between two children lights the parent up and a caret in a box holds it open. Anything the group produced — a reaction count above zero — is data rather than a control, and stays visible.
 - Component code lives in a `.razor.cs` partial class, not an `@code` block. Only leave code inline when it is a line or two.
 - Static SSR and form posts by default. `InteractiveServer` when refreshing the page is a bad idea.
 
@@ -26,6 +26,7 @@ No framework. `wwwroot/app.css` holds role-named tokens (`--control-padding`, `-
 - Redefining a token on a page wrapper inherits it into every nested scope. Where only the page's own rhythm is meant, set `gap` directly: that is what `.sections` is for.
 - Sizes are `em`, so a scope that sets `font-size` rescales everything inside it. Set `font-size` only at deliberate anchors — never on a container that can contain itself, or it compounds through the recursion.
 - Hairlines are `px`; a fractional `em` border rounds away at some zoom levels.
+- An author `display` outranks the user agent's `[hidden]` rule, so `app.css` forces it. Without that, `element.hidden = true` does nothing to anything styled here.
 - Light and dark come from `light-dark()` against `color-scheme: light dark`. One declaration per token, no media query, no second block.
 - Shared classes and tokens live in the global sheet. `.razor.css` is for genuinely component-private layout only, since scoped CSS cannot style a shared class without `::deep`.
 - `App.razor` sets `<base href="/">`, so a bare `#fragment` href resolves against the base URL and navigates away.

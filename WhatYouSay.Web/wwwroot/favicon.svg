@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+    <style>
+        .ground { fill: hsl(214 78% 43%); }
+        .mark { stroke: hsl(0 0% 100%); }
+
+        @media (prefers-color-scheme: dark) {
+            .ground { fill: hsl(212 84% 70%); }
+            .mark { stroke: hsl(220 30% 10%); }
+        }
+    </style>
+
+    <g class="ground">
+        <rect x="2" y="2" width="28" height="23" rx="6" />
+
+        <!-- Starts well inside the bubble so the two shapes merge rather than meet. -->
+        <path d="M9 21h8.5l-8.9 9.6A1.2 1.2 0 0 1 6.5 29.8L9 21Z" />
+    </g>
+
+    <g class="mark" fill="none" stroke-width="3" stroke-linecap="round">
+        <path d="M11.6 9.8a4.4 4.4 0 1 1 5.6 4.3c-1.2.35-1.9 1.25-1.9 2.5v.5" />
+        <path d="M15.3 20.6h.05" />
+    </g>
+</svg>

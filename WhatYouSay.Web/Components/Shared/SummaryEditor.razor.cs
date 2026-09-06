@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 using WhatYouSay.Data;
 using WhatYouSay.Services;
 
@@ -9,7 +10,7 @@ namespace WhatYouSay.Web.Components.Shared;
 /// change would reload the page under the person using it, which is the whole reason this
 /// page departs from the static SSR everything else uses.
 /// </summary>
-public partial class SummaryEditor
+public partial class SummaryEditor : IAsyncDisposable
 {
     private Topic? mTopic;
 
@@ -27,21 +28,27 @@ public partial class SummaryEditor
 
     private string? mNotice;
 
+    /// <summary>Handed to app.js so a selection in the response pane can reach this component.</summary>
+    private DotNetObjectReference<SummaryEditor>? mSelf;
+
     /// <summary>The node whose delete button is armed, so a subtree cannot go in one click.</summary>
     private int? mConfirmingDelete;
 
-    /// <summary>The node whose citation form is open, and what has been typed into it.</summary>
-    private int? mCiting;
-
-    private Guid mCiteResponseId;
-
-    private string mCiteQuote = string.Empty;
+    /// <summary>
+    /// What the toolbar acts on. Set when a node's text box takes focus and never cleared on
+    /// blur: reaching for a toolbar button blurs the box, and clearing there would take the
+    /// selection away a moment before the command needed it.
+    /// </summary>
+    private int? mSelected;
 
     [Inject]
     private IServiceScopeFactory Scopes { get; set; } = default!;
 
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
+
+    [Inject]
+    private IJSRuntime JS { get; set; } = default!;
 
     [Parameter]
     [EditorRequired]
@@ -62,29 +69,88 @@ public partial class SummaryEditor
     internal string? LockedReason =>
         this.IsLocked ? "Published, so it is read-only. Unpublish it to make changes." : null;
 
-    /// <summary>Live responses, for the citation picker.</summary>
     internal IReadOnlyList<Response> Responses =>
         mResponses;
 
-    /// <summary>Which response the open citation form is pointed at.</summary>
-    internal Guid CiteResponseId
+    /// <summary>What already quotes this response, so the pane can mark those runs.</summary>
+    private IEnumerable<SummaryNodeReference> ReferencesFor(Guid responseId)
     {
-        get => mCiteResponseId;
-        set => mCiteResponseId = value;
-    }
-
-    internal string CiteQuote
-    {
-        get => mCiteQuote;
-        set => mCiteQuote = value;
+        return mSummary is null
+            ? []
+            : mSummary.Nodes
+                .SelectMany(node => node.References)
+                .Where(reference => reference.ResponseId == responseId);
     }
 
     /// <summary>Whether this node ends a branch with nothing cited on it or above it.</summary>
     internal bool IsUngrounded(int nodeId) =>
         mUngrounded.Contains(nodeId);
 
-    internal bool IsCiting(int nodeId) =>
-        mCiting == nodeId;
+    internal bool IsSelected(int nodeId) =>
+        mSelected == nodeId;
+
+    internal SummaryNode? Selected =>
+        mSummary is null || mSelected is null
+            ? null
+            : mSummary.Nodes.FirstOrDefault(node => node.Id == mSelected);
+
+    /// <summary>Every toolbar command needs a node, so they all read the same reason.</summary>
+    internal string? SelectionReason =>
+        this.LockedReason ?? (this.Selected is null ? "Pick a node first." : null);
+
+    internal void Select(int nodeId)
+    {
+        if (mSelected == nodeId)
+        {
+            return;
+        }
+
+        mSelected = nodeId;
+
+        // The node's own handler re-renders the node. The toolbar is a sibling and hears
+        // nothing, so every command would stay disabled against a node that is plainly picked.
+        this.StateHasChanged();
+    }
+
+    /// <summary>Whether the selected node can go this way, for the toolbar's disabled state.</summary>
+    internal bool CanMove(NodeMove move)
+    {
+        if (this.Selected is not { } node || this.IsLocked)
+        {
+            return false;
+        }
+
+        var siblings = this.SiblingsOf(node);
+        var first = siblings is [var head, ..] && head.Id == node.Id;
+
+        return move switch
+        {
+            NodeMove.Up => !first,
+            NodeMove.Down => siblings is not [.., var last] || last.Id != node.Id,
+            NodeMove.Indent => !first,
+            NodeMove.Outdent => node.ParentId is not null,
+            _ => false,
+        };
+    }
+
+    internal string? MoveReason(NodeMove move)
+    {
+        if (this.SelectionReason is { } reason)
+        {
+            return reason;
+        }
+
+        return this.CanMove(move)
+            ? null
+            : move switch
+            {
+                NodeMove.Up => "Already first in its group.",
+                NodeMove.Down => "Already last in its group.",
+                NodeMove.Indent => "Nothing above it to sit under.",
+                NodeMove.Outdent => "Already at the top level.",
+                _ => null,
+            };
+    }
 
     internal bool IsConfirmingDelete(int nodeId) =>
         mConfirmingDelete == nodeId;
@@ -98,6 +164,25 @@ public partial class SummaryEditor
     protected override async Task OnInitializedAsync()
     {
         await this.LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        mSelf = DotNetObjectReference.Create(this);
+
+        await this.JS.InvokeVoidAsync("whatYouSayQuoting.attach", mSelf);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        mSelf?.Dispose();
+
+        await ValueTask.CompletedTask;
     }
 
     /// <summary>
@@ -154,11 +239,6 @@ public partial class SummaryEditor
                 mComments = await scope.ServiceProvider
                     .GetRequiredService<CommentService>()
                     .ListAsync(topic, this.SummaryId, null, includeHidden: true);
-
-                if (mCiteResponseId == Guid.Empty && mResponses.Count > 0)
-                {
-                    mCiteResponseId = mResponses[0].Id;
-                }
             }
         }
 
@@ -178,7 +258,7 @@ public partial class SummaryEditor
                 .SetBodyAsync(topic, this.SummaryId, mBody));
     }
 
-    private Task SetCommentHiddenAsync(int commentId, bool hidden)
+    internal Task SetCommentHiddenAsync(int commentId, bool hidden)
     {
         return this.RunAsync((services, topic) =>
             services.GetRequiredService<CommentService>()
@@ -221,23 +301,31 @@ public partial class SummaryEditor
         await this.RunAsync((services, topic) =>
             services.GetRequiredService<SummaryEditService>()
                 .DeleteNodeAsync(topic, this.SummaryId, nodeId));
+
+        if (mSelected == nodeId)
+        {
+            mSelected = null;
+        }
     }
 
-    internal async Task AddReferenceAsync(int nodeId)
+    /// <summary>
+    /// Turns a selection in the response pane into a quote on the picked node. The text comes
+    /// straight off the rendered body, so it matches what is stored and the locator finds it;
+    /// the service still checks, because nothing here is trusted to have.
+    /// </summary>
+    [JSInvokable]
+    public async Task QuoteSelectionAsync(string responseId, string quote)
     {
-        var quote = mCiteQuote;
+        if (this.Selected is not { } node || !Guid.TryParse(responseId, out var response))
+        {
+            return;
+        }
 
         await this.RunAsync((services, topic) =>
             services.GetRequiredService<SummaryEditService>()
-                .AddReferenceAsync(topic, this.SummaryId, nodeId, mCiteResponseId, quote));
+                .AddReferenceAsync(topic, this.SummaryId, node.Id, response, quote));
 
-        if (mError is null)
-        {
-            mCiteQuote = string.Empty;
-            mCiting = null;
-
-            this.StateHasChanged();
-        }
+        this.StateHasChanged();
     }
 
     internal Task DeleteReferenceAsync(int referenceId)
@@ -273,20 +361,6 @@ public partial class SummaryEditor
         {
             this.Navigation.NavigateTo($"/topics/{this.Code}/admin/summaries");
         }
-    }
-
-    internal void StartCiting(int nodeId)
-    {
-        mCiting = mCiting == nodeId ? null : nodeId;
-        mCiteQuote = string.Empty;
-
-        this.StateHasChanged();
-    }
-
-    /// <summary>The response the citation form is currently pointed at, for copying out of.</summary>
-    internal Response? CiteSource()
-    {
-        return mResponses.FirstOrDefault(response => response.Id == mCiteResponseId);
     }
 
     internal IReadOnlyList<NodeCommentView> CommentsFor(int nodeId)

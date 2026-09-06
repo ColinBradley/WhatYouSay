@@ -103,3 +103,95 @@ window.whatYouSayCopy = async (source, button) => {
             : document.getElementById(source.dataset.showsNode));
     });
 })();
+
+/**
+ * Select text in the editor's response pane and offer to quote it onto the picked node.
+ *
+ * The selected string is sent as it reads, because the pane renders each body as plain text
+ * and existing quotes as <mark> around it — neither adds a character — so what comes back
+ * from the selection is a substring of what is stored. The server checks anyway.
+ */
+window.whatYouSayQuoting = {
+    attach: (editor) => {
+        if (window.whatYouSayQuoting.button) {
+            window.whatYouSayQuoting.editor = editor;
+
+            return;
+        }
+
+        window.whatYouSayQuoting.editor = editor;
+
+        const button = document.createElement('button');
+
+        button.type = 'button';
+        button.className = 'primary quote-selection';
+        button.textContent = 'Quote this';
+        button.hidden = true;
+        document.body.append(button);
+        window.whatYouSayQuoting.button = button;
+
+        let pending = null;
+
+        const hide = () => {
+            pending = null;
+            button.hidden = true;
+        };
+
+        // mouseup rather than selectionchange: the latter fires per character while dragging,
+        // and the button would chase the cursor across the pane.
+        document.addEventListener('mouseup', () => {
+            const selection = window.getSelection();
+
+            if (!selection || selection.isCollapsed) {
+                hide();
+
+                return;
+            }
+
+            const body = selection.anchorNode?.parentElement?.closest('[data-response]');
+
+            // Both ends inside one body, or the string spans things that are not the response.
+            if (!body || body !== selection.focusNode?.parentElement?.closest('[data-response]')) {
+                hide();
+
+                return;
+            }
+
+            const quote = selection.toString();
+
+            if (quote.trim().length === 0) {
+                hide();
+
+                return;
+            }
+
+            pending = { response: body.dataset.response, quote };
+
+            const box = selection.getRangeAt(0).getBoundingClientRect();
+
+            button.hidden = false;
+            button.style.top = `${box.bottom + window.scrollY + 6}px`;
+            button.style.left = `${Math.max(8, box.left + window.scrollX)}px`;
+        });
+
+        button.addEventListener('click', async () => {
+            if (!pending) {
+                return;
+            }
+
+            const { response, quote } = pending;
+
+            hide();
+            window.getSelection()?.removeAllRanges();
+
+            await window.whatYouSayQuoting.editor.invokeMethodAsync(
+                'QuoteSelectionAsync', response, quote);
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                hide();
+            }
+        });
+    },
+};

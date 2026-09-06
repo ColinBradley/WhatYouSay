@@ -22,14 +22,12 @@ else
 
                 <a class="button" href="@($"/topics/{Code}/summary/{SummaryId}")">View</a>
 
-                <button @onclick="() => SetPublishedAsync(true)"
-                        disabled="@mSummary.IsVisibleToPublic"
+                <button @onclick="() => SetPublishedAsync(true)" disabled="@mSummary.IsVisibleToPublic"
                         title="@(mSummary.IsVisibleToPublic ? "Already published." : null)">
                     Publish
                 </button>
 
-                <button @onclick="() => SetPublishedAsync(false)"
-                        disabled="@(!mSummary.IsVisibleToPublic)"
+                <button @onclick="() => SetPublishedAsync(false)" disabled="@(!mSummary.IsVisibleToPublic)"
                         title="@(mSummary.IsVisibleToPublic ? null : "Not published, so there is nothing to take back.")">
                     Unpublish
                 </button>
@@ -67,62 +65,6 @@ else
             </div>
         }
 
-        @if (mComments.Count > 0)
-        {
-            <section class="stack wide">
-                <h2>
-                    @mComments.Count
-                    @(mComments.Count == 1 ? "comment" : "comments")
-                    on this summary
-                </h2>
-
-                <p class="fine">
-                    What the group said back, in their words. Where the commenter also responded to
-                    the topic, their own answer is one click away.
-                </p>
-
-                <div class="panels">
-                    @foreach (var comment in mComments)
-                    {
-                        <div class="panel stack wide">
-                            <div class="loud">
-                                @comment.NodeText
-
-                                @if (comment.IsHidden)
-                                {
-                                    <span class="tag">Hidden</span>
-                                }
-                            </div>
-
-                            <div>@comment.Body</div>
-
-                            @if (comment.ResponseBody is not null)
-                            {
-                                <details>
-                                    <summary class="fine">
-                                        What @(comment.Author ?? "they") actually wrote
-                                    </summary>
-
-                                    <p class="verbatim fine" style="margin-top: 0.5em">@comment.ResponseBody</p>
-                                </details>
-                            }
-                            else
-                            {
-                                <p class="fine">
-                                    @(comment.Author ?? "They") did not respond to this topic.
-                                </p>
-                            }
-
-                            <button type="button"
-                                    @onclick="() => this.SetCommentHiddenAsync(comment.Id, !comment.IsHidden)">
-                                @(comment.IsHidden ? "Show" : "Hide")
-                            </button>
-                        </div>
-                    }
-                </div>
-            </section>
-        }
-
         <section class="stack wide" style="max-width: 52em">
             <h2>Overview</h2>
 
@@ -133,34 +75,73 @@ else
 
             <textarea rows="8" @bind="mBody" disabled="@this.IsLocked" title="@this.LockedReason"></textarea>
 
-            <button class="primary" @onclick="SaveBodyAsync"
-                    disabled="@this.IsLocked" title="@this.LockedReason">
+            <button class="primary" @onclick="SaveBodyAsync" disabled="@this.IsLocked" title="@this.LockedReason">
                 Save overview
             </button>
         </section>
 
         <section class="stack wide">
             <div class="spread">
-                <h2>The tree</h2>
+                <h2>Note Tree</h2>
 
                 <span class="fine">
-                    @mSummary.Nodes.Count nodes, @SummaryTree.Depth(mSummary.Roots) deep
+                    @mSummary.Nodes.Count nodes, @SummaryTree.Depth(mSummary.Roots) deep@(mComments.Count > 0 ? $",    {mComments.Count} {(mComments.Count == 1 ? "comment" : "comments")}" : null)
                 </span>
             </div>
 
             <CascadingValue Value="this" IsFixed="true">
-                <ul class="tree">
-                    @foreach (var root in mSummary.Roots)
-                    {
-                        <SummaryEditNode Node="@root" Depth="0" />
-                    }
-                </ul>
-            </CascadingValue>
+                <SummaryEditToolbar Selected="@this.Selected" />
 
-            <button @onclick="() => AddNodeAsync(null)"
-                    disabled="@this.IsLocked" title="@this.LockedReason">
-                Add a root node
-            </button>
+                <div class="@(mResponses.Count > 0 ? "split" : null)">
+                    <div class="@(mResponses.Count > 0 ? "pane" : null)">
+                        <ul class="tree edit-tree">
+                            @foreach (var root in mSummary.Roots)
+                            {
+                                <SummaryEditNode Node="@root" Depth="0" />
+                            }
+                        </ul>
+                    </div>
+
+                    @if (mResponses.Count > 0)
+                    {
+                        <div class="pane">
+                            <div class="pane-head spread">
+                                <h3>Responses</h3>
+
+                                <span class="fine">
+                                    @(this.Selected is null
+                                        ? "Pick a node to quote into"
+                                        : "Select text to quote it")
+                                </span>
+                            </div>
+
+                            <div class="panels">
+                                @foreach (var response in mResponses)
+                                {
+                                    <article class="panel stack wide">
+                                        <p class="verbatim" data-response="@response.Id">
+                                            @foreach (var segment in ResponseHighlighting.Segment(response.Body,
+                                this.ReferencesFor(response.Id)))
+                                            {
+                                                @if (segment.ReferenceIds.Count == 0)
+                                                {
+                                                    @segment.Text
+                                                }
+                                                else
+                                                {
+                                                    <mark class="quoted">@segment.Text</mark>
+                                                }
+                                            }
+                                        </p>
+
+                                        <p class="fine">@(response.Author ?? "anonymous")</p>
+                                    </article>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </CascadingValue>
         </section>
     </div>
 }
