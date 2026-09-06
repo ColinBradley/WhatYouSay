@@ -6,13 +6,11 @@ using WhatYouSay.Web.Components.Shared;
 
 namespace WhatYouSay.Web.Components.Pages;
 
-public partial class TopicPage
+public partial class RespondPage
 {
     private Topic? mTopic;
 
     private Response? mOwnResponse;
-
-    private bool mHasVisibleSummary;
 
     private bool mFrozen;
 
@@ -25,9 +23,6 @@ public partial class TopicPage
 
     [Inject]
     private ResponseService Responses { get; set; } = default!;
-
-    [Inject]
-    private SummaryService Summaries { get; set; } = default!;
 
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
@@ -58,8 +53,12 @@ public partial class TopicPage
             return;
         }
 
-        mCrumbs = [Breadcrumb.Home(), new Crumb { Text = mTopic.Title }];
-        mHasVisibleSummary = await this.Summaries.FindLatestVisibleAsync(mTopic.Id) is not null;
+        mCrumbs =
+        [
+            Breadcrumb.Home(),
+            Breadcrumb.Topic(mTopic.Code, mTopic.Title),
+            new Crumb { Text = "Respond" },
+        ];
 
         var token = ResponderCookie.Read(this.HttpContext, mTopic.Id);
 
@@ -129,7 +128,7 @@ public partial class TopicPage
 
     private void Reload()
     {
-        this.Navigation.NavigateTo($"/topics/{this.Code}");
+        this.Navigation.NavigateTo($"/topics/{this.Code}/respond");
     }
 
     private bool Validate(Topic topic)

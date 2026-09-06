@@ -3,170 +3,164 @@
 
 @if (mSummary is null)
 {
-    <p class="text-body-secondary">Loading&hellip;</p>
+    <p class="quiet">Loading&hellip;</p>
 }
 else
 {
-    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
-        <div>
-            <h1 class="mb-1">Edit summary</h1>
-            <p class="lead mb-0">@mTopic?.Title</p>
-        </div>
+    <div class="stack wide" style="--stack-gap: var(--section-gap)">
+        <section class="spread">
+            <div class="stack">
+                <h1>Edit summary</h1>
 
-        <div class="d-flex gap-2 align-items-center">
-            @if (mSummary.IsVisibleToPublic)
-            {
-                <span class="badge text-bg-success">Published</span>
-            }
-            else
-            {
-                <span class="badge text-bg-secondary">Draft</span>
-            }
+                <p class="quiet">@mTopic?.Title</p>
+            </div>
 
-            <a class="btn btn-sm btn-outline-secondary"
-               href="@($"/topics/{Code}/summary/{SummaryId}")">
-                View
-            </a>
+            <div class="controls">
+                <span class="tag @(mSummary.IsVisibleToPublic ? "good" : "warn")">
+                    @(mSummary.IsVisibleToPublic ? "Published" : "Draft")
+                </span>
 
-            <button class="btn btn-sm btn-outline-primary" @onclick="() => SetPublishedAsync(true)"
-                    disabled="@mSummary.IsVisibleToPublic"
-                    title="@(mSummary.IsVisibleToPublic ? "Already published." : null)">
-                Publish
-            </button>
+                <a class="button" href="@($"/topics/{Code}/summary/{SummaryId}")">View</a>
 
-            <button class="btn btn-sm btn-outline-secondary" @onclick="() => SetPublishedAsync(false)"
-                    disabled="@(!mSummary.IsVisibleToPublic)"
-                    title="@(mSummary.IsVisibleToPublic ? null : "Not published, so there is nothing to take back.")">
-                Unpublish
-            </button>
+                <button @onclick="() => SetPublishedAsync(true)"
+                        disabled="@mSummary.IsVisibleToPublic"
+                        title="@(mSummary.IsVisibleToPublic ? "Already published." : null)">
+                    Publish
+                </button>
 
-            <button class="btn btn-sm btn-outline-danger" @onclick="DeleteSummaryAsync">
-                Delete version
-            </button>
-        </div>
-    </div>
+                <button @onclick="() => SetPublishedAsync(false)"
+                        disabled="@(!mSummary.IsVisibleToPublic)"
+                        title="@(mSummary.IsVisibleToPublic ? null : "Not published, so there is nothing to take back.")">
+                    Unpublish
+                </button>
 
-    @if (mError is not null)
-    {
-        <div class="alert alert-danger mt-3" role="alert">@mError</div>
-    }
+                <button class="danger" @onclick="DeleteSummaryAsync">Delete version</button>
+            </div>
+        </section>
 
-    @if (mNotice is not null)
-    {
-        <div class="alert alert-success mt-3" role="status">@mNotice</div>
-    }
+        @if (mError is not null)
+        {
+            <div class="notice danger" role="alert">@mError</div>
+        }
 
-    @if (this.IsLocked)
-    {
-        <div class="alert alert-warning mt-3">
-            This version is published, so it is read-only. Unpublish it to make changes &mdash;
-            people are reading it, and reactions are attached to the nodes as they stand.
-        </div>
-    }
+        @if (mNotice is not null)
+        {
+            <div class="notice good" role="status">@mNotice</div>
+        }
 
-    @if (mComments.Count > 0)
-    {
-        <section class="card border-warning mt-4">
-            <div class="card-header bg-warning-subtle">
-                <strong>
+        @if (this.IsLocked)
+        {
+            <div class="notice warn">
+                This version is published, so it is read-only. Unpublish it to make changes
+                &mdash; people are reading it, and reactions are attached to the nodes as they
+                stand.
+            </div>
+        }
+
+        @if (mUngrounded.Count > 0)
+        {
+            <div class="notice warn">
+                @mUngrounded.Count
+                @(mUngrounded.Count == 1 ? "node ends a branch" : "nodes end branches")
+                with nothing anybody wrote, marked below. That is worth knowing rather than
+                worth fixing: a point you are making yourself is allowed to stand on its own.
+            </div>
+        }
+
+        @if (mComments.Count > 0)
+        {
+            <section class="stack wide">
+                <h2>
                     @mComments.Count
                     @(mComments.Count == 1 ? "comment" : "comments")
                     on this summary
-                </strong>
-            </div>
+                </h2>
 
-            <div class="card-body">
-                <p class="small text-body-secondary">
-                    What the group said back, in their words. Where the commenter also
-                    responded to the topic, their own answer is one click away.
+                <p class="fine">
+                    What the group said back, in their words. Where the commenter also responded to
+                    the topic, their own answer is one click away.
                 </p>
 
-                @foreach (var comment in mComments)
-                {
-                    <div class="border-start border-warning border-3 ps-3 mb-3">
-                        <div class="fw-semibold">
-                            @comment.NodeText
+                <div class="panels">
+                    @foreach (var comment in mComments)
+                    {
+                        <div class="panel stack wide">
+                            <div class="loud">
+                                @comment.NodeText
 
-                            @if (comment.IsHidden)
-                            {
-                                <span class="badge text-bg-secondary ms-1">Hidden</span>
-                            }
-                        </div>
-
-                        <div class="mt-1">&ldquo;@comment.Body&rdquo;</div>
-
-                        @if (comment.ResponseBody is not null)
-                        {
-                            <details class="mt-2">
-                                <summary class="small text-body-secondary">
-                                    What @(comment.Author ?? "they") actually wrote
-                                </summary>
-
-                                <blockquote class="small mt-2 mb-0">@comment.ResponseBody</blockquote>
-                            </details>
-                        }
-                        else
-                        {
-                            <div class="small text-body-secondary mt-1">
-                                @(comment.Author ?? "They") did not respond to this topic.
+                                @if (comment.IsHidden)
+                                {
+                                    <span class="tag">Hidden</span>
+                                }
                             </div>
-                        }
 
-                        <button class="btn btn-sm btn-outline-secondary mt-2" type="button"
-                                @onclick="() => this.SetCommentHiddenAsync(comment.Id, !comment.IsHidden)">
-                            @(comment.IsHidden ? "Show" : "Hide")
-                        </button>
-                    </div>
-                }
-            </div>
+                            <div>@comment.Body</div>
+
+                            @if (comment.ResponseBody is not null)
+                            {
+                                <details>
+                                    <summary class="fine">
+                                        What @(comment.Author ?? "they") actually wrote
+                                    </summary>
+
+                                    <p class="verbatim fine" style="margin-top: 0.5em">@comment.ResponseBody</p>
+                                </details>
+                            }
+                            else
+                            {
+                                <p class="fine">
+                                    @(comment.Author ?? "They") did not respond to this topic.
+                                </p>
+                            }
+
+                            <button type="button"
+                                    @onclick="() => this.SetCommentHiddenAsync(comment.Id, !comment.IsHidden)">
+                                @(comment.IsHidden ? "Show" : "Hide")
+                            </button>
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+
+        <section class="stack wide" style="max-width: 52em">
+            <h2>Overview</h2>
+
+            <p class="fine">
+                Two or three paragraphs of markdown about what people said. Not a restatement of the
+                tree &mdash; that is what stops the two drifting apart.
+            </p>
+
+            <textarea rows="8" @bind="mBody" disabled="@this.IsLocked" title="@this.LockedReason"></textarea>
+
+            <button class="primary" @onclick="SaveBodyAsync"
+                    disabled="@this.IsLocked" title="@this.LockedReason">
+                Save overview
+            </button>
         </section>
-    }
-    @if (mUngrounded.Count > 0)
-    {
-        <div class="alert alert-warning mt-4">
-            @mUngrounded.Count
-            @(mUngrounded.Count == 1 ? "node ends a branch" : "nodes end branches")
-            with nothing anybody wrote, marked below. Publishing is blocked until each one is
-            cited, given something cited underneath, or deleted.
-        </div>
-    }
 
-    <section class="mt-4">
-        <h2 class="h5">Overview</h2>
+        <section class="stack wide">
+            <div class="spread">
+                <h2>The tree</h2>
 
-        <p class="small text-body-secondary">
-            Two or three paragraphs of markdown about what people said. Not a restatement of
-            the tree &mdash; that is what stops the two drifting apart.
-        </p>
+                <span class="fine">
+                    @mSummary.Nodes.Count nodes, @SummaryTree.Depth(mSummary.Roots) deep
+                </span>
+            </div>
 
-        <textarea class="form-control" rows="8" @bind="mBody" disabled="@this.IsLocked"
-                  title="@this.LockedReason"></textarea>
+            <CascadingValue Value="this" IsFixed="true">
+                <ul class="tree">
+                    @foreach (var root in mSummary.Roots)
+                    {
+                        <SummaryEditNode Node="@root" Depth="0" />
+                    }
+                </ul>
+            </CascadingValue>
 
-        <button class="btn btn-sm btn-primary mt-2" @onclick="SaveBodyAsync"
-                disabled="@this.IsLocked" title="@this.LockedReason">
-            Save overview
-        </button>
-    </section>
-
-    <section class="mt-4">
-        <h2 class="h5">The tree</h2>
-
-        <p class="small text-body-secondary">
-            @mSummary.Nodes.Count nodes, @SummaryTree.Depth(mSummary.Roots) deep.
-        </p>
-
-        <CascadingValue Value="this" IsFixed="true">
-            <ul class="list-unstyled">
-                @foreach (var root in mSummary.Roots)
-                {
-                    <SummaryEditNode Node="@root" Depth="0" />
-                }
-            </ul>
-        </CascadingValue>
-
-        <button class="btn btn-sm btn-outline-primary" @onclick="() => AddNodeAsync(null)"
-                disabled="@this.IsLocked" title="@this.LockedReason">
-            Add a root node
-        </button>
-    </section>
+            <button @onclick="() => AddNodeAsync(null)"
+                    disabled="@this.IsLocked" title="@this.LockedReason">
+                Add a root node
+            </button>
+        </section>
+    </div>
 }

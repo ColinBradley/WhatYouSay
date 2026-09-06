@@ -1,60 +1,926 @@
-html, body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+/*
+ * Tokens are named for the role they play, never for a size or a hue, so a component
+ * asks for --control-padding rather than --space-3. Sizes are em throughout: a scope
+ * that sets font-size rescales everything inside it for free.
+ *
+ * The one rule that keeps that safe: font-size is set only at deliberate anchors
+ * (:root, .panel, .fine). Never on a container that can contain itself, or em
+ * compounds through the recursion and the tree's indent shrinks as it nests.
+ */
+
+:root {
+    color-scheme: light dark;
+
+    /* Ground to figure. Panels sit above the page, sunken areas below it. */
+    --page-bg: light-dark(hsl(220 20% 97%), hsl(220 16% 11%));
+    --panel-bg: light-dark(hsl(0 0% 100%), hsl(220 14% 15%));
+    --sunken-bg: light-dark(hsl(220 18% 94%), hsl(220 16% 8%));
+
+    /* Never pure black on pure white; the faint blue cast is the whole palette. */
+    --text: light-dark(hsl(220 18% 16%), hsl(220 16% 89%));
+    --text-quiet: light-dark(hsl(220 10% 43%), hsl(220 10% 62%));
+    --text-loud: light-dark(hsl(220 24% 8%), hsl(220 20% 98%));
+
+    --line: light-dark(hsl(220 16% 87%), hsl(220 12% 26%));
+    --line-strong: light-dark(hsl(220 14% 72%), hsl(220 10% 38%));
+
+    --accent: light-dark(hsl(214 78% 43%), hsl(212 84% 70%));
+    --accent-bg: light-dark(hsl(214 78% 43%), hsl(212 70% 62%));
+    --accent-on: light-dark(hsl(0 0% 100%), hsl(220 30% 10%));
+    --accent-quiet: light-dark(hsl(214 78% 96%), hsl(214 32% 19%));
+
+    --danger: light-dark(hsl(2 68% 44%), hsl(2 78% 70%));
+    --danger-quiet: light-dark(hsl(2 70% 97%), hsl(2 26% 16%));
+    --warn: light-dark(hsl(38 80% 30%), hsl(38 80% 68%));
+    --warn-quiet: light-dark(hsl(44 90% 94%), hsl(38 26% 15%));
+    --good: light-dark(hsl(150 60% 27%), hsl(150 55% 62%));
+    --good-quiet: light-dark(hsl(150 55% 94%), hsl(150 24% 14%));
+
+    --focus-ring: var(--accent);
+
+    /* Type. One scale, ratio 1.2, anchored on the reader's own browser setting. */
+    --body-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    --mono-font: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+
+    --title-size: 1.75em;
+    --heading-size: 1.35em;
+    --subheading-size: 1.1em;
+    --body-size: 1em;
+    --fine-size: 0.86em;
+
+    /* Controls: things you operate. */
+    --control-padding: 0.4em 0.75em;
+    --control-inner-gap: 0.4em;
+    --control-outer-gap: 0.5em;
+    --control-radius: 0.35em;
+
+    /* Panels: bounded regions. */
+    --panel-padding: 1em 1.15em;
+    --panel-gap: 1em;
+    --panel-radius: 0.5em;
+
+    /* Fields: a label, its input and its help text as one unit. */
+    --field-gap: 0.35em;
+    --field-stack-gap: 1em;
+
+    /* Generic vertical rhythm. */
+    --stack-gap: 0.75em;
+    --section-gap: 2em;
+
+    /* Reading. */
+    --prose-measure: 68ch;
+    --prose-line-height: 1.65;
+    --prose-para-gap: 0.9em;
+
+    /* The recursive tree. Read at every depth, so nothing here may compound. */
+    --tree-indent: 1.15em;
+    --tree-node-gap: 0.9em;
+
+    /* Chrome that has to be constant regardless of nesting. */
+    --hairline: 1px;
+    --header-height: 3.25em;
 }
 
-a, .btn-link {
-    color: #006bb7;
+*, *::before, *::after {
+    box-sizing: border-box;
 }
 
-.btn-primary {
-    color: #fff;
-    background-color: #1b6ec2;
-    border-color: #1861ac;
+html {
+    font-size: 100%;
 }
 
-.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+body {
+    margin: 0;
+    background: var(--page-bg);
+    color: var(--text);
+    font-family: var(--body-font);
+    font-size: var(--body-size);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
 }
 
-.content {
-    padding-top: 1.1rem;
+/* An in-page anchor must not land underneath the sticky header. */
+:target {
+    scroll-margin-top: calc(var(--header-height) + 1em);
 }
 
-h1:focus {
-    outline: none;
+h1, h2, h3, h4 {
+    margin: 0;
+    color: var(--text-loud);
+    font-weight: 600;
+    line-height: 1.25;
+    text-wrap: balance;
 }
 
-.valid.modified:not([type=checkbox]) {
-    outline: 1px solid #26b050;
+h1 { font-size: var(--title-size); }
+h2 { font-size: var(--heading-size); }
+h3 { font-size: var(--subheading-size); }
+h4 { font-size: var(--body-size); }
+
+p, ul, ol, blockquote, figure, dl, pre {
+    margin: 0;
 }
 
-.invalid {
-    outline: 1px solid #e50000;
+a {
+    color: var(--accent);
+    text-decoration-thickness: from-font;
+    text-underline-offset: 0.15em;
 }
 
-.validation-message {
-    color: #e50000;
+a:hover {
+    text-decoration-thickness: 2px;
 }
 
-.blazor-error-boundary {
-    background: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTYiIGhlaWdodD0iNDkiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIG92ZXJmbG93PSJoaWRkZW4iPjxkZWZzPjxjbGlwUGF0aCBpZD0iY2xpcDAiPjxyZWN0IHg9IjIzNSIgeT0iNTEiIHdpZHRoPSI1NiIgaGVpZ2h0PSI0OSIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNjbGlwMCkiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0yMzUgLTUxKSI+PHBhdGggZD0iTTI2My41MDYgNTFDMjY0LjcxNyA1MSAyNjUuODEzIDUxLjQ4MzcgMjY2LjYwNiA1Mi4yNjU4TDI2Ny4wNTIgNTIuNzk4NyAyNjcuNTM5IDUzLjYyODMgMjkwLjE4NSA5Mi4xODMxIDI5MC41NDUgOTIuNzk1IDI5MC42NTYgOTIuOTk2QzI5MC44NzcgOTMuNTEzIDI5MSA5NC4wODE1IDI5MSA5NC42NzgyIDI5MSA5Ny4wNjUxIDI4OS4wMzggOTkgMjg2LjYxNyA5OUwyNDAuMzgzIDk5QzIzNy45NjMgOTkgMjM2IDk3LjA2NTEgMjM2IDk0LjY3ODIgMjM2IDk0LjM3OTkgMjM2LjAzMSA5NC4wODg2IDIzNi4wODkgOTMuODA3MkwyMzYuMzM4IDkzLjAxNjIgMjM2Ljg1OCA5Mi4xMzE0IDI1OS40NzMgNTMuNjI5NCAyNTkuOTYxIDUyLjc5ODUgMjYwLjQwNyA1Mi4yNjU4QzI2MS4yIDUxLjQ4MzcgMjYyLjI5NiA1MSAyNjMuNTA2IDUxWk0yNjMuNTg2IDY2LjAxODNDMjYwLjczNyA2Ni4wMTgzIDI1OS4zMTMgNjcuMTI0NSAyNTkuMzEzIDY5LjMzNyAyNTkuMzEzIDY5LjYxMDIgMjU5LjMzMiA2OS44NjA4IDI1OS4zNzEgNzAuMDg4N0wyNjEuNzk1IDg0LjAxNjEgMjY1LjM4IDg0LjAxNjEgMjY3LjgyMSA2OS43NDc1QzI2Ny44NiA2OS43MzA5IDI2Ny44NzkgNjkuNTg3NyAyNjcuODc5IDY5LjMxNzkgMjY3Ljg3OSA2Ny4xMTgyIDI2Ni40NDggNjYuMDE4MyAyNjMuNTg2IDY2LjAxODNaTTI2My41NzYgODYuMDU0N0MyNjEuMDQ5IDg2LjA1NDcgMjU5Ljc4NiA4Ny4zMDA1IDI1OS43ODYgODkuNzkyMSAyNTkuNzg2IDkyLjI4MzcgMjYxLjA0OSA5My41Mjk1IDI2My41NzYgOTMuNTI5NSAyNjYuMTE2IDkzLjUyOTUgMjY3LjM4NyA5Mi4yODM3IDI2Ny4zODcgODkuNzkyMSAyNjcuMzg3IDg3LjMwMDUgMjY2LjExNiA4Ni4wNTQ3IDI2My41NzYgODYuMDU0N1oiIGZpbGw9IiNGRkU1MDAiIGZpbGwtcnVsZT0iZXZlbm9kZCIvPjwvZz48L3N2Zz4=) no-repeat 1rem/1.8rem, #b32121;
-    padding: 1rem 1rem 1rem 3.7rem;
-    color: white;
+:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+    border-radius: var(--control-radius);
 }
 
-    .blazor-error-boundary::after {
-        content: "An error has occurred."
+code, kbd, samp, pre {
+    font-family: var(--mono-font);
+    font-size: 0.92em;
+}
+
+code {
+    background: var(--sunken-bg);
+    border-radius: 0.25em;
+    padding: 0.1em 0.35em;
+}
+
+pre {
+    background: var(--sunken-bg);
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--panel-radius);
+    padding: var(--panel-padding);
+    overflow-x: auto;
+    white-space: pre-wrap;
+}
+
+pre code {
+    background: none;
+    padding: 0;
+}
+
+mark {
+    background: var(--warn-quiet);
+    color: inherit;
+    border-radius: 0.15em;
+    padding: 0.05em 0.1em;
+}
+
+hr {
+    border: 0;
+    border-top: var(--hairline) solid var(--line);
+    margin: 0;
+}
+
+blockquote {
+    border-left: 2px solid var(--line-strong);
+    padding-left: 0.9em;
+    color: var(--text);
+}
+
+figcaption {
+    color: var(--text-quiet);
+    font-size: var(--fine-size);
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+th, td {
+    text-align: left;
+    padding: 0.5em 0.75em;
+    border-bottom: var(--hairline) solid var(--line);
+}
+
+th {
+    color: var(--text-quiet);
+    font-size: var(--fine-size);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* ---- Controls ------------------------------------------------------------ */
+
+button, .button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--control-inner-gap);
+    padding: var(--control-padding);
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--control-radius);
+    background: var(--panel-bg);
+    color: var(--text);
+    font: inherit;
+    line-height: 1.3;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+button:hover:not(:disabled), .button:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+button.primary, .button.primary {
+    background: var(--accent-bg);
+    border-color: var(--accent-bg);
+    color: var(--accent-on);
+    font-weight: 500;
+}
+
+button.primary:hover:not(:disabled), .button.primary:hover {
+    filter: brightness(1.1);
+    color: var(--accent-on);
+}
+
+button.danger:hover:not(:disabled) {
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+/* A control that is only a verb, carrying no chrome of its own. */
+button.bare {
+    border-color: transparent;
+    background: none;
+    padding: 0.1em 0.2em;
+    color: var(--accent);
+}
+
+button.bare:hover:not(:disabled) {
+    text-decoration: underline;
+}
+
+input, textarea, select {
+    width: 100%;
+    padding: var(--control-padding);
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--control-radius);
+    background: var(--panel-bg);
+    color: var(--text);
+    font: inherit;
+}
+
+input::placeholder, textarea::placeholder {
+    color: var(--text-quiet);
+}
+
+input:disabled, textarea:disabled, select:disabled {
+    background: var(--sunken-bg);
+    color: var(--text-quiet);
+    cursor: not-allowed;
+}
+
+textarea {
+    line-height: 1.5;
+    resize: vertical;
+}
+
+input[type="checkbox"], input[type="radio"] {
+    width: auto;
+    accent-color: var(--accent-bg);
+}
+
+label {
+    color: var(--text);
+}
+
+legend {
+    padding: 0;
+    font-weight: 600;
+}
+
+fieldset {
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+/* ---- Layout primitives ---------------------------------------------------
+ *
+ * Each reads a token rather than a literal, so a scope that redefines the token
+ * recomposes everything inside it. That variable override is the composition
+ * mechanism; there is no @apply and none is needed.
+ */
+
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--control-outer-gap);
+}
+
+/* A field in a row of controls takes the slack; the buttons keep their own width. */
+.controls > input,
+.controls > textarea,
+.controls > select {
+    flex: 1;
+    min-width: 6em;
+}
+
+.stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--stack-gap);
+    align-items: start;
+}
+
+/* A button keeps its natural width; everything else fills the column. */
+.stack.wide > *:not(button):not(.button) {
+    width: 100%;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--field-gap);
+    width: 100%;
+}
+
+.fields {
+    display: flex;
+    flex-direction: column;
+    align-items: start;
+    gap: var(--field-stack-gap);
+    width: 100%;
+}
+
+.fields > *:not(button):not(.button) {
+    width: 100%;
+}
+
+.panel {
+    padding: var(--panel-padding);
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--panel-radius);
+    background: var(--panel-bg);
+}
+
+.panels {
+    display: flex;
+    flex-direction: column;
+    gap: var(--panel-gap);
+}
+
+.prose {
+    max-width: var(--prose-measure);
+    line-height: var(--prose-line-height);
+}
+
+.prose {
+    display: flex;
+    flex-direction: column;
+    gap: var(--prose-para-gap);
+}
+
+/* Someone's own words, rendered exactly as typed. */
+.verbatim {
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    line-height: var(--prose-line-height);
+}
+
+.quiet {
+    color: var(--text-quiet);
+}
+
+.fine {
+    font-size: var(--fine-size);
+    color: var(--text-quiet);
+}
+
+.loud {
+    color: var(--text-loud);
+    font-weight: 600;
+}
+
+.spread {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--control-outer-gap);
+}
+
+.push-end {
+    margin-left: auto;
+}
+
+/* ---- Notices and tags ---------------------------------------------------- */
+
+.notice {
+    padding: var(--panel-padding);
+    border: var(--hairline) solid var(--line);
+    border-left: 3px solid var(--line-strong);
+    border-radius: var(--panel-radius);
+    background: var(--panel-bg);
+}
+
+.notice.warn { border-left-color: var(--warn); background: var(--warn-quiet); }
+.notice.danger { border-left-color: var(--danger); background: var(--danger-quiet); }
+.notice.good { border-left-color: var(--good); background: var(--good-quiet); }
+.notice.accent { border-left-color: var(--accent); background: var(--accent-quiet); }
+
+.tag {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--control-inner-gap);
+    padding: 0.15em 0.5em;
+    border: var(--hairline) solid var(--line);
+    border-radius: 100em;
+    background: var(--sunken-bg);
+    color: var(--text-quiet);
+    font-size: var(--fine-size);
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.tag.good { background: var(--good-quiet); color: var(--good); border-color: transparent; }
+.tag.warn { background: var(--warn-quiet); color: var(--warn); border-color: transparent; }
+.tag.accent { background: var(--accent-quiet); color: var(--accent); border-color: transparent; }
+
+/* ---- Dense repeated controls --------------------------------------------
+ *
+ * The exception to disable-don't-hide: where a control repeats per item across a
+ * long list, showing every one at rest buries the content it acts on. Revealed by
+ * hover and by focus-within, so the keyboard reaches everything the mouse does,
+ * and unconditionally visible where hover does not exist.
+ */
+
+/*
+ * Hidden rather than transparent, so nothing reserves a gap while it waits. Scoping is the
+ * hoverable's own job: it wraps a node's head and never a whole subtree, so hovering a
+ * parent cannot reach a child's controls and a caret in a comment box cannot hold a node's
+ * controls open.
+ */
+.on-demand,
+.node-actions {
+    display: none;
+}
+
+/*
+ * Restored explicitly rather than with `revert`, which rolls back past the author styles
+ * and would leave a `.controls.on-demand` row as plain inline text.
+ */
+.hoverable:hover .on-demand,
+.hoverable:focus-within .on-demand {
+    display: inline-flex;
+}
+
+.hoverable:hover .controls.on-demand,
+.hoverable:focus-within .controls.on-demand,
+.hoverable:hover .node-actions,
+.hoverable:focus-within .node-actions {
+    display: flex;
+}
+
+/* Where there is no hover there is no reveal, so everything stands visible instead. */
+@media (hover: none) {
+    .on-demand {
+        display: inline-flex;
     }
 
-.darker-border-checkbox.form-check-input {
-    border-color: #929292;
+    .controls.on-demand {
+        display: flex;
+    }
+
+    .node-actions {
+        display: flex;
+        position: static;
+    }
 }
 
-.form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
-    color: var(--bs-secondary-color);
-    text-align: end;
+/* ---- App shell ----------------------------------------------------------- */
+
+.app-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--control-outer-gap) 1em;
+    min-height: var(--header-height);
+    padding: 0.5em clamp(1em, 4vw, 2em);
+    border-bottom: var(--hairline) solid var(--line);
+    background: color-mix(in srgb, var(--page-bg) 85%, transparent);
+    backdrop-filter: blur(8px);
 }
 
-.form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
-    text-align: start;
+.app-header .brand {
+    color: var(--text-loud);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.app-header .brand:hover {
+    color: var(--accent);
+}
+
+.app-main {
+    padding: clamp(1em, 4vw, 2em);
+}
+
+/* Breadcrumb sits in the header, so it must degrade rather than wrap forever. */
+.crumbs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4em;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--fine-size);
+    color: var(--text-quiet);
+}
+
+.crumbs li {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    min-width: 0;
+}
+
+.crumbs li + li::before {
+    content: "/";
+    color: var(--line-strong);
+}
+
+.crumbs a {
+    color: var(--text-quiet);
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.crumbs a:hover {
+    color: var(--accent);
+    text-decoration: underline;
+}
+
+.crumbs [aria-current="page"] {
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ---- The split: a tree beside the words it was drawn from -----------------
+ *
+ * Each column scrolls independently so neither moves the other, and an in-page
+ * anchor scrolls the nearest scrollable ancestor -- which is the column. Below
+ * the breakpoint the columns stack, the panes stop scrolling themselves, and the
+ * same anchor scrolls the page instead. No JS in either case.
+ */
+
+.split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--section-gap);
+    align-items: start;
+}
+
+.split > .pane {
+    min-width: 0;
+    max-height: calc(100vh - var(--header-height) - 2em);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    position: sticky;
+    top: calc(var(--header-height) + 1em);
+}
+
+.split > .pane > .pane-head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding-bottom: 0.5em;
+    background: var(--page-bg);
+}
+
+@media (max-width: 60em) {
+    .split {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .split > .pane {
+        max-height: none;
+        overflow-y: visible;
+        position: static;
+    }
+}
+
+/* ---- The tree -----------------------------------------------------------
+ *
+ * Recursive, so nothing here sets font-size: an em that compounded through the
+ * recursion would shrink the indent at exactly the depths that need it most.
+ */
+
+.tree,
+.tree ul,
+.tree li {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tree-node-gap);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.tree ul {
+    padding-left: var(--tree-indent);
+    border-left: var(--hairline) solid var(--line);
+}
+
+.node-text {
+    color: var(--text-loud);
+}
+
+/* ---- Reaction bar -------------------------------------------------------- */
+
+.reactions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25em;
+    align-items: center;
+}
+
+.reaction {
+    padding: 0.15em 0.5em;
+    border-radius: 100em;
+    font-size: var(--fine-size);
+    line-height: 1.4;
+}
+
+.reaction.mine {
+    border-color: var(--accent);
+    background: var(--accent-quiet);
+    color: var(--accent);
+}
+
+.swatch {
+    height: 2.5em;
+    width: 100%;
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--control-radius);
+}
+
+/* ---- Framework chrome ----------------------------------------------------
+ * Blazor renders these two itself and neither is reachable from a component, so
+ * they are styled here rather than anywhere nearer.
+ */
+
+#blazor-error-ui {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    z-index: 100;
+    display: none;
+    width: 100%;
+    padding: 0.7em clamp(1em, 4vw, 2em);
+    border-top: var(--hairline) solid var(--line);
+    background: var(--warn-quiet);
+    color: var(--text);
+    font-size: var(--fine-size);
+}
+
+#blazor-error-ui .dismiss {
+    position: absolute;
+    top: 0.5em;
+    right: 0.75em;
+    cursor: pointer;
+}
+
+#components-reconnect-modal {
+    max-width: 22em;
+    padding: var(--panel-padding);
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--panel-radius);
+    background: var(--panel-bg);
+    color: var(--text);
+}
+
+#components-reconnect-modal::backdrop {
+    background: light-dark(hsl(220 20% 40% / 0.35), hsl(220 30% 4% / 0.6));
+}
+
+/* ---- Page shapes --------------------------------------------------------- */
+
+.columns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--section-gap);
+    align-items: start;
+}
+
+.columns > * {
+    flex: 1 1 var(--column-min, 22em);
+    min-width: 0;
+}
+
+.listing {
+    display: flex;
+    flex-direction: column;
+    gap: var(--panel-gap);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.listing a.panel {
+    color: inherit;
+    text-decoration: none;
+}
+
+.listing a.panel:hover {
+    border-color: var(--accent);
+}
+
+.listing a.panel .loud {
+    color: var(--accent);
+}
+
+/* ---- Summary nodes ------------------------------------------------------- */
+
+.citations {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 0.5em;
+}
+
+.comments > summary {
+    display: inline-block;
+    cursor: pointer;
+    color: var(--text-quiet);
+}
+
+.comments > summary:hover {
+    color: var(--accent);
+}
+
+.comments > .panel {
+    background: var(--sunken-bg);
+}
+
+.comment {
+    padding: 0.5em 0.65em;
+    border-radius: var(--control-radius);
+    background: var(--panel-bg);
+}
+
+.comment.is-hidden {
+    opacity: 0.55;
+}
+
+/* An open thread is not a dense repeated control any more; keep it visible. */
+.comments[open] {
+    opacity: 1;
+}
+
+/* ---- Admin --------------------------------------------------------------- */
+
+.facts {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.35em 1em;
+}
+
+.facts dt {
+    color: var(--text-quiet);
+    font-size: var(--fine-size);
+}
+
+.facts dd {
+    margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+/* A checkbox and its words are one target, so the label wraps the input. */
+.check {
+    display: flex;
+    align-items: baseline;
+    gap: var(--control-inner-gap);
+    cursor: pointer;
+}
+
+.check:has(input:disabled) {
+    cursor: not-allowed;
+}
+
+/* Wide content scrolls inside its own box rather than widening the page. */
+.scroll-x {
+    overflow-x: auto;
+    max-width: 100%;
+}
+
+/* ---- Summary editor ------------------------------------------------------ */
+
+.is-ungrounded {
+    border-color: var(--warn);
+}
+
+.is-hidden {
+    opacity: 0.55;
+}
+
+.grow {
+    flex: 1;
+    min-width: 0;
+}
+
+/*
+ * Out of the flow entirely: a control that appears on hover must not resize the row it
+ * appears in, or the text under the pointer moves as you reach for it.
+ */
+.node-actions {
+    position: absolute;
+    top: -0.35em;
+    right: 0;
+    z-index: 2;
+    gap: 0.25em;
+    padding: 0.2em;
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--control-radius);
+    background: var(--panel-bg);
+}
+
+.node-head {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2em;
+}
+
+/* Reaction rows collapse to nothing rather than leaving a gap under every quiet node. */
+.reactions:empty {
+    display: none;
+}
+
+.citations button.bare {
+    color: var(--text-quiet);
+}
+
+.citations button.bare:hover {
+    color: var(--accent);
+}
+
+/*
+ * A quote is marked because it was quoted; it is *lit* only when something just pointed at
+ * it. Same class in both panes, so the jump reads the same in either direction.
+ */
+.is-hit {
+    animation: hit 2s ease-out;
+}
+
+@keyframes hit {
+    from { background: var(--accent-bg); color: var(--accent-on); }
+    to { background: transparent; color: inherit; }
+}
+
+mark.is-hit {
+    animation: hit-mark 2s ease-out;
+}
+
+@keyframes hit-mark {
+    from { background: var(--accent-bg); color: var(--accent-on); }
+    to { background: var(--warn-quiet); color: inherit; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .is-hit, mark.is-hit {
+        animation: none;
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+    }
+}
+
+mark.quoted {
+    cursor: pointer;
+}
+
+/* A form that cannot be used says so as a whole, not one control at a time. */
+.is-disabled {
+    background: var(--sunken-bg);
+}
+
+/*
+ * A thread nobody has written in is not worth a line of its own. It stays out of the flow
+ * until someone opens it from the floating cluster, and once open it stays.
+ */
+details.comments.unasked:not([open]) {
+    display: none;
 }

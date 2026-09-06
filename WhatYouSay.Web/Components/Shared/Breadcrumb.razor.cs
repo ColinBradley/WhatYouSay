@@ -12,6 +12,9 @@ public record Crumb
 
 public partial class Breadcrumb
 {
+    /// <summary>Where <see cref="MainLayout"/> renders whatever trail the page declared.</summary>
+    public static readonly object HeaderSection = new();
+
     [Parameter]
     public IReadOnlyList<Crumb> Items { get; set; } = [];
 

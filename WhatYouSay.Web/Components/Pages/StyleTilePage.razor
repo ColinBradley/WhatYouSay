@@ -1,0 +1,199 @@
+@page "/style"
+
+@* Development only: the token vocabulary rendered as something you can look at. *@
+
+<PageTitle>Style</PageTitle>
+
+<Breadcrumb Items="@mCrumbs" />
+
+<div class="stack wide" style="--stack-gap: var(--section-gap)">
+
+    <section class="stack wide">
+        <h1>Style</h1>
+
+        <p class="prose quiet">
+            Every size below is an <code>em</code> off a role-named token. Nothing here names
+            a hue or a t-shirt size. Switch your OS between light and dark &mdash; there is no
+            toggle and no second token block, just <code>light-dark()</code>.
+        </p>
+    </section>
+
+    <section class="stack wide">
+        <h2>Ground and figure</h2>
+
+        <div class="controls">
+            @foreach (var swatch in Grounds)
+            {
+                <div class="panel stack" style="--panel-padding: 0.6em; min-width: 8em">
+                    <div class="swatch" style="@($"background: var({swatch.Token})")"></div>
+                    <div class="fine">@swatch.Name<br /><code>@swatch.Token</code></div>
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="stack wide">
+        <h2>Type</h2>
+
+        <div class="panel stack wide">
+            <h1>Title &mdash; the prompt a group answers</h1>
+            <h2>Heading &mdash; a section of the page</h2>
+            <h3>Subheading &mdash; a root node</h3>
+
+            <p class="prose">
+                Body text at the reader&rsquo;s own browser size, on a
+                <code>--prose-measure</code> of 68ch with <code>--prose-line-height</code> of
+                1.65. Responses are the precious data, so they get the generous setting rather
+                than the compact one.
+            </p>
+
+            <p class="fine">Fine print &mdash; counts, timestamps, and what is stored.</p>
+        </div>
+    </section>
+
+    <section class="stack wide">
+        <h2>Controls</h2>
+
+        <div class="panel stack wide">
+            <div class="controls">
+                <button class="primary" type="button">Publish</button>
+                <button type="button">Unpublish</button>
+                <button class="danger" type="button">Delete version</button>
+                <button type="button" disabled title="Not published, so there is nothing to take back.">Disabled</button>
+                <button class="bare" type="button">Cite a response</button>
+            </div>
+
+            <p class="fine">
+                A row of controls is <code>.controls</code>, which reads
+                <code>--control-outer-gap</code>. Redefine that token in a scope and every row
+                inside it recomposes &mdash; same markup, below:
+            </p>
+
+            <div class="controls" style="--control-outer-gap: 1.75em">
+                <button type="button">Same markup</button>
+                <button type="button">Wider gap token</button>
+            </div>
+        </div>
+    </section>
+
+    <section class="stack wide">
+        <h2>Fields</h2>
+
+        <div class="panel">
+            <div class="fields" style="max-width: 30em">
+                <div class="field">
+                    <label for="tile-title">Title</label>
+                    <input id="tile-title" placeholder="Sprint 47 retro" />
+                </div>
+
+                <div class="field">
+                    <label for="tile-body">The question</label>
+                    <textarea id="tile-body" rows="3" placeholder="What went well, and what should we change?"></textarea>
+                    <span class="fine">Title and question together are the whole topic.</span>
+                </div>
+
+                <div class="field">
+                    <label for="tile-off">Disabled, not hidden</label>
+                    <input id="tile-off" disabled value="Frozen when the topic closed"
+                           title="This topic is closed, so every response in it is frozen." />
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="stack wide">
+        <h2>Notices and tags</h2>
+
+        <div class="panels">
+            <div class="notice">Plain &mdash; a statement of fact about this page.</div>
+            <div class="notice accent">Accent &mdash; react to anything below.</div>
+            <div class="notice warn">Warn &mdash; two nodes end branches with nothing anybody wrote.</div>
+            <div class="notice danger">Danger &mdash; that quote does not occur in the response.</div>
+            <div class="notice good">Good &mdash; published. Everyone with the link can read it.</div>
+        </div>
+
+        <div class="controls">
+            <span class="tag">Anonymous</span>
+            <span class="tag good">Open</span>
+            <span class="tag warn">Draft</span>
+            <span class="tag accent">Summary published</span>
+        </div>
+    </section>
+
+    <section class="stack wide">
+        <h2>Tree, and controls on demand</h2>
+
+        <p class="fine">
+            Hover a node, or tab into it. Reaction counts above zero always render because they
+            are data; empty chips and the row&rsquo;s controls arrive on demand, floating clear of
+            the flow so nothing moves as the pointer arrives. The hover target is a node&rsquo;s
+            own text, never its subtree, so exactly one node lights up.
+        </p>
+
+        <div class="panel">
+            <ul class="tree">
+                <li>
+                    <div class="node-head hoverable">
+                        <div class="node-text">The build feedback loop</div>
+
+                        <div class="node-actions">
+                            <button class="reaction" type="button">&#128078;</button>
+                            <button class="reaction" type="button">&#10067;</button>
+                            <button class="bare" type="button">Comment</button>
+                        </div>
+
+                        <div class="reactions">
+                            <button class="reaction mine" type="button">&#128077; 4</button>
+                            <button class="reaction" type="button">&#10071; 2</button>
+                        </div>
+                    </div>
+
+                    <ul>
+                        <li>
+                            <div class="node-head hoverable">
+                                <div class="node-text">A full CI run takes 22 minutes.</div>
+
+                                <div class="fine citations">
+                                    <button class="bare" type="button">Anna</button>
+                                    <button class="bare" type="button">Marcus</button>
+                                </div>
+
+                                <div class="node-actions">
+                                    <button class="reaction" type="button">&#128077;</button>
+                                    <button class="bare" type="button">Comment</button>
+                                </div>
+
+                                <div class="reactions"></div>
+                            </div>
+
+                            <ul>
+                                <li>
+                                    <div class="node-head hoverable">
+                                        <div class="node-text">People batch their commits to avoid it.</div>
+
+                                        <div class="node-actions">
+                                            <button class="bare" type="button">Comment</button>
+                                        </div>
+
+                                        <div class="reactions"></div>
+                                    </div>
+                                </li>
+                            </ul>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    </section>
+
+    <section class="stack wide">
+        <h2>A response, and the quote taken from it</h2>
+
+        <div class="panel">
+            <p class="verbatim">Standing up<mark class="quoted">, a full CI run takes 22 minutes and fails often enough that a green build is not a reliable gate</mark>. So I batch commits, which makes my pull requests larger than they should be.</p>
+
+            <p class="fine">Anna &middot; 3 Sep 2026</p>
+        </div>
+    </section>
+
+</div>

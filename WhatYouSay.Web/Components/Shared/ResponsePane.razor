@@ -1,0 +1,56 @@
+@using WhatYouSay.Data
+
+@*
+    The words a summary was drawn from, beside the notes drawn from them. A quoted run
+    names the node it supports, and a citation in the tree names the run; app.js moves
+    whichever pane the other one lives in, in either direction.
+*@
+
+<div class="pane" id="responses">
+    <div class="pane-head spread">
+        <h2>Responses</h2>
+        <span class="fine">@Responses.Count @(Responses.Count == 1 ? "response" : "responses")</span>
+    </div>
+
+    @if (Responses.Count == 0)
+    {
+        <p class="quiet">Nobody answered this one.</p>
+    }
+    else
+    {
+        <div class="panels">
+            @foreach (var response in Responses)
+            {
+                <article class="panel stack wide">
+                    <p class="verbatim">
+                        @foreach (var segment in ResponseHighlighting.Segment(response.Body, this.ReferencesFor(response.Id)))
+                        {
+                            @if (segment.ReferenceIds.Count == 0)
+                            {
+                                @segment.Text
+                            }
+                            else
+                            {
+                                @* Every reference selecting this run is named here, rather than
+                                   the extras getting empty anchors of their own: an empty span
+                                   was a place to scroll to but nothing to light up. *@
+                                <mark class="quoted" data-refs="@ResponseHighlighting.Refs(segment)"
+                                      data-shows-node="@this.NodeOf(segment.ReferenceIds[0])"
+                                      title="Show the note this supports">@segment.Text</mark>
+                            }
+                        }
+                    </p>
+
+                    <p class="fine">
+                        @(response.Author ?? "anonymous")
+
+                        @if (response.CreatedAt is { } created)
+                        {
+                            <text>&middot; @created.ToLocalTime().ToString("d MMM yyyy")</text>
+                        }
+                    </p>
+                </article>
+            }
+        </div>
+    }
+</div>

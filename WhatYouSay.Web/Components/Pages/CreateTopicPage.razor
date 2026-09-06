@@ -7,89 +7,111 @@
 
 @if (mCreated is not null)
 {
-    <h1>Topic created</h1>
+    <div class="stack wide" style="--stack-gap: var(--section-gap); max-width: 40em">
+        <section class="stack">
+            <h1>Topic created</h1>
 
-    <p class="lead">@mCreated.Topic.Title</p>
+            <p class="quiet">@mCreated.Topic.Title</p>
+        </section>
 
-    <h2 class="h5 mt-4">Share this link</h2>
-    <p><code>@mShareLink</code></p>
+        <section class="stack wide">
+            <h2>Share this link</h2>
 
-    <h2 class="h5 mt-4">Summariser token</h2>
-    <div class="alert alert-warning">
-        <div class="fw-semibold">Copy this now — it is not shown again.</div>
-        <code>@mCreated.SummariserToken</code>
-        <div class="small mt-2">
-            Give it to an agent along with the topic code to let it draft summaries. It
-            cannot read your admin password, edit responses, or publish anything.
-        </div>
+            <textarea id="share-link" rows="1" readonly>@mShareLink</textarea>
+
+            <button type="button" onclick="whatYouSayCopy(document.getElementById('share-link'), this)">
+                Copy link
+            </button>
+        </section>
+
+        <section class="stack wide">
+            <h2>Summariser token</h2>
+
+            <div class="notice warn stack wide">
+                <div class="loud">Copy this now &mdash; it is not shown again.</div>
+
+                <textarea id="new-token" rows="2" readonly>@mCreated.SummariserToken</textarea>
+
+                <button type="button" onclick="whatYouSayCopy(document.getElementById('new-token'), this)">
+                    Copy token
+                </button>
+
+                <p class="fine">
+                    Give it to an agent along with the topic code to let it draft summaries. It
+                    cannot read your admin password, edit responses, or publish anything.
+                </p>
+            </div>
+        </section>
+
+        <a class="button primary" href="@($"/topics/{mCreated.Topic.Code}/admin")">Go to admin</a>
     </div>
-
-    <a class="btn btn-primary" href="@($"/topics/{mCreated.Topic.Code}/admin")">Go to admin</a>
 }
 else
 {
-    <h1>New topic</h1>
+    <div class="stack wide" style="max-width: 40em">
+        <h1>New topic</h1>
 
-    <p class="lead">One open question. Everything else is a setting.</p>
+        <p class="quiet">One open question. Everything else is a setting.</p>
 
-    <form method="post" @formname="create-topic" @onsubmit="CreateAsync" style="max-width: 40rem">
-        <AntiforgeryToken />
+        <form method="post" @formname="create-topic" @onsubmit="CreateAsync" class="fields">
+            <AntiforgeryToken />
 
-        <div class="mb-3">
-            <label class="form-label" for="title">Title</label>
-            <input class="form-control" id="title" name="Title" value="@Title"
-                   placeholder="@mExample.Title" />
-        </div>
+            <div class="field">
+                <label for="title">Title</label>
+                <input id="title" name="Title" value="@Title" placeholder="@mExample.Title" autofocus />
+            </div>
 
-        <div class="mb-3">
-            <label class="form-label" for="prompt">The question</label>
-            <textarea class="form-control" id="prompt" name="Prompt" rows="3"
-                      placeholder="@mExample.Prompt">@Prompt</textarea>
-            <div class="form-text">Title and question together are the whole topic.</div>
-        </div>
+            <div class="field">
+                <label for="prompt">The question</label>
+                <textarea id="prompt" name="Prompt" rows="3" placeholder="@mExample.Prompt">@Prompt</textarea>
+                <span class="fine">Title and question together are the whole topic.</span>
+            </div>
 
-        <div class="mb-3">
-            <label class="form-label" for="password">Admin password</label>
-            <input class="form-control" id="password" name="Password" type="password" value="@Password" />
-            <div class="form-text">Only its hash is stored, so it cannot be recovered.</div>
-        </div>
+            <div class="field">
+                <label for="password">Admin password</label>
+                <input id="password" name="Password" type="password" value="@Password" />
+                <span class="fine">Only its hash is stored, so it cannot be recovered.</span>
+            </div>
 
-        <fieldset class="mb-3">
-            <legend class="form-label">Who has to say who they are?</legend>
+            <fieldset class="stack wide">
+                <legend>Who has to say who they are?</legend>
 
-            @foreach (var identity in Enum.GetValues<ResponseIdentity>())
-            {
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="Identity"
-                           id="@($"identity-{identity}")" value="@identity"
-                           checked="@(Identity == identity)" />
-                    <label class="form-check-label" for="@($"identity-{identity}")">
-                        <span class="fw-semibold">@identity</span>
-                        <span class="text-body-secondary small"> — @Explain(identity)</span>
+                @foreach (var identity in Enum.GetValues<ResponseIdentity>())
+                {
+                    <label class="check">
+                        <input type="radio" name="Identity" id="@($"identity-{identity}")"
+                               value="@identity" checked="@(Identity == identity)" />
+
+                        <span>
+                            <span class="loud">@identity</span>
+                            <span class="fine"> &mdash; @Explain(identity)</span>
+                        </span>
                     </label>
-                </div>
+                }
+
+                <span class="fine">Fixed once the first response arrives, so choose carefully.</span>
+            </fieldset>
+
+            <div class="stack wide">
+                <label class="check">
+                    <input type="checkbox" id="listed" name="IsPubliclyListed" value="true"
+                           checked="@IsPubliclyListed" />
+                    Show on the home page
+                </label>
+
+                <label class="check">
+                    <input type="checkbox" id="responsesPublic" name="AreResponsesPublic" value="true"
+                           checked="@AreResponsesPublic" />
+                    Show the raw responses beside the summary
+                </label>
+            </div>
+
+            @if (mError is not null)
+            {
+                <p style="color: var(--danger)">@mError</p>
             }
 
-            <div class="form-text">Fixed once the topic exists, so choose carefully.</div>
-        </fieldset>
-
-        <div class="form-check">
-            <input class="form-check-input" type="checkbox" id="listed"
-                   name="IsPubliclyListed" value="true" checked="@IsPubliclyListed" />
-            <label class="form-check-label" for="listed">Show on the home page</label>
-        </div>
-
-        <div class="form-check mb-3">
-            <input class="form-check-input" type="checkbox" id="responsesPublic"
-                   name="AreResponsesPublic" value="true" checked="@AreResponsesPublic" />
-            <label class="form-check-label" for="responsesPublic">Let anyone read the raw responses</label>
-        </div>
-
-        @if (mError is not null)
-        {
-            <p class="text-danger">@mError</p>
-        }
-
-        <button class="btn btn-primary" type="submit">Create topic</button>
-    </form>
+            <button class="primary" type="submit">Create topic</button>
+        </form>
+    </div>
 }

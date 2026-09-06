@@ -19,6 +19,12 @@ public partial class SummaryPage
 
     private IReadOnlyList<SummaryNode> mRoots = [];
 
+    /// <summary>Empty unless the topic publishes its responses; the pane is what reads it.</summary>
+    private IReadOnlyList<Response> mResponses = [];
+
+    private ILookup<Guid, SummaryNodeReference> mReferences =
+        Array.Empty<SummaryNodeReference>().ToLookup(r => r.ResponseId);
+
     private bool mIsAdmin;
 
     /// <summary>Only ever non-zero for an admin, since only they list unpublished versions.</summary>
@@ -40,6 +46,9 @@ public partial class SummaryPage
 
     [Inject]
     private SummaryService Summaries { get; set; } = default!;
+
+    [Inject]
+    private ResponseService Responses { get; set; } = default!;
 
     [Inject]
     private ReactionService Reactions { get; set; } = default!;
@@ -78,12 +87,14 @@ public partial class SummaryPage
 
         using var activity = WebTelemetry.Source.Start().SetTopic(mTopic);
 
-        mCrumbs =
-        [
-            Breadcrumb.Home(),
-            Breadcrumb.Topic(mTopic.Code, mTopic.Title),
-            new Crumb { Text = "Summary" },
-        ];
+        mCrumbs = this.SummaryId is null
+            ? [Breadcrumb.Home(), new Crumb { Text = mTopic.Title }]
+            :
+            [
+                Breadcrumb.Home(),
+                Breadcrumb.Topic(mTopic.Code, mTopic.Title),
+                new Crumb { Text = "Version" },
+            ];
 
         mIsAdmin = await this.Session.CanAdministerAsync(mTopic.Id);
 
@@ -128,6 +139,14 @@ public partial class SummaryPage
                 mReactorToken,
                 includeHidden: mIsAdmin),
         };
+
+        if (mTopic.AreResponsesPublic)
+        {
+            mResponses = await this.Responses.ListAsync(mTopic);
+            mReferences = mSummary.Nodes
+                .SelectMany(n => n.References)
+                .ToLookup(r => r.ResponseId);
+        }
 
         WhatYouSayTelemetry.SummaryViewed(mTopic);
     }

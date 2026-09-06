@@ -1,87 +1,124 @@
-@page "/topics/{Code}/summary"
+@page "/topics/{Code}"
 @page "/topics/{Code}/summary/{SummaryId:guid}"
 @using WhatYouSay.Data
 @using WhatYouSay.Services
 @using WhatYouSay.Web.Markdown
 
-<PageTitle>@(mTopic is null ? "Summary" : $"Summary — {mTopic.Title}")</PageTitle>
+<PageTitle>@(mTopic?.Title ?? "Topic")</PageTitle>
 
 <Breadcrumb Items="@mCrumbs" />
 
 @if (mTopic is null)
 {
-    <h1>Topic not found</h1>
-    <p class="text-body-secondary">No topic has the code &ldquo;@Code&rdquo;.</p>
-    <a href="/">Back to the list</a>
+    <div class="stack">
+        <h1>Topic not found</h1>
+
+        <p class="quiet">No topic has the code &ldquo;@Code&rdquo;. Codes are case-sensitive.</p>
+
+        <a href="/">Back to the list</a>
+    </div>
 }
 else
 {
-    <h1>Summary</h1>
+    <div class="stack wide" style="--stack-gap: var(--section-gap)">
+        <section class="stack wide">
+            <div class="spread">
+                <div class="controls">
+                    <h1>@mTopic.Title</h1>
 
-    @if (mSummary is null)
-    {
-        @if (SummaryId is null)
-        {
-            <div class="alert alert-secondary mt-3">
-                No summary has been published for this topic yet.
-            </div>
-        }
-        else
-        {
-            <div class="alert alert-secondary mt-3">
-                That version isn&rsquo;t available.
-                <a href="@($"/topics/{Code}/summary")">See the current summary</a>.
-            </div>
-        }
+                    <span class="tag @(mTopic.IsAcceptingResponses ? "good" : null)">
+                        @(mTopic.IsAcceptingResponses ? "Open" : "Closed")
+                    </span>
+                </div>
 
-        @if (mIsAdmin && mUnpublished > 0)
+                <div class="controls">
+                    <a class="button @(mTopic.IsAcceptingResponses ? "primary" : null)"
+                       href="@($"/topics/{Code}/respond")">
+                        @(mTopic.IsAcceptingResponses ? "Respond" : "Your response")
+                    </a>
+
+                    <a class="button" href="@($"/topics/{Code}/admin")">Admin</a>
+                </div>
+            </div>
+
+            <p class="prose quiet">@mTopic.Description</p>
+        </section>
+
+        @if (mSummary is null)
         {
-            <p>
-                @mUnpublished unpublished
-                @(mUnpublished == 1 ? "version is" : "versions are") waiting for you.
-                <a href="@($"/topics/{Code}/admin/summaries")">Review them</a>.
-            </p>
-        }
-    }
-    else
-    {
-        @if (mVersions.Count > 1)
-        {
-            <p class="small text-body-secondary">
-                Version @this.VersionNumber() of @mVersions.Count
-                @foreach (var version in mVersions.Where(v => v.Id != mSummary.Id))
+            <div class="stack wide" style="max-width: 44em">
+                @if (SummaryId is null)
                 {
-                    <text> · </text>
-                    <a href="@($"/topics/{Code}/summary/{version.Id}")">@version.CreatedAt.ToString("d MMM yyyy")</a>
-                    @(version.IsVisibleToPublic ? null : " (unpublished)")
+                    <div class="notice">Nothing has been published for this topic yet.</div>
                 }
-            </p>
-        }
+                else
+                {
+                    <div class="notice">
+                        That version isn&rsquo;t available.
+                        <a href="@($"/topics/{Code}")">See the current one</a>.
+                    </div>
+                }
 
-        <div class="mb-4">@((MarkupString)SummaryMarkdown.ToHtml(mSummary.Body))</div>
-
-        @if (!mSummary.IsVisibleToPublic)
-        {
-            <div class="alert alert-warning small">
-                This version has not been published. You can see it because you administer
-                this topic; nobody else can, and nobody can react to it yet.
-                <a href="@($"/topics/{Code}/admin/summaries")">Publish it</a> to open it up.
+                @if (mIsAdmin && mUnpublished > 0)
+                {
+                    <p>
+                        @mUnpublished unpublished @(mUnpublished == 1 ? "version is" : "versions are")
+                        waiting for you. <a href="@($"/topics/{Code}/admin/summaries")">Review them</a>.
+                    </p>
+                }
             </div>
         }
         else
         {
-            <div class="alert alert-light border small">
-                React to anything below, and comment on anything you want to say more about
-                &mdash; including where the summary has misread you.
-            </div>
+            @if (mVersions.Count > 1)
+            {
+                <p class="fine">
+                    Version @this.VersionNumber() of @mVersions.Count
+                    @foreach (var version in mVersions.Where(v => v.Id != mSummary.Id))
+                    {
+                        <text> &middot; </text>
+                        <a href="@($"/topics/{Code}/summary/{version.Id}")">@version.CreatedAt.ToString("d MMM yyyy")</a>
+                        @(version.IsVisibleToPublic ? null : " (unpublished)")
+                    }
+                </p>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(mSummary.Body))
+            {
+                <div class="prose">@((MarkupString)SummaryMarkdown.ToHtml(mSummary.Body))</div>
+            }
+
+            @if (!mSummary.IsVisibleToPublic)
+            {
+                <div class="notice warn" style="max-width: 44em">
+                    This version has not been published. You can see it because you administer this
+                    topic; nobody else can, and nobody can react to it yet.
+                    <a href="@($"/topics/{Code}/admin/summaries")">Publish it</a> to open it up.
+                </div>
+            }
+
+            <form method="post" @formname="react" @onsubmit="ReactAsync"
+                  class="@(mResponses.Count > 0 ? "split" : null)">
+                <AntiforgeryToken />
+
+                <div class="@(mResponses.Count > 0 ? "pane" : null)">
+                    @if (mResponses.Count > 0)
+                    {
+                        <div class="pane-head">
+                            <h2>Note tree</h2>
+                        </div>
+                    }
+
+                    <CascadingValue Value="@mReading" IsFixed="true">
+                        <SummaryNodeList Nodes="@mRoots" />
+                    </CascadingValue>
+                </div>
+
+                @if (mResponses.Count > 0)
+                {
+                    <ResponsePane Responses="@mResponses" References="@mReferences" />
+                }
+            </form>
         }
-
-        <form method="post" @formname="react" @onsubmit="ReactAsync">
-            <AntiforgeryToken />
-
-            <CascadingValue Value="@mReading" IsFixed="true">
-                <SummaryNodeList Nodes="@mRoots" />
-            </CascadingValue>
-        </form>
-    }
+    </div>
 }

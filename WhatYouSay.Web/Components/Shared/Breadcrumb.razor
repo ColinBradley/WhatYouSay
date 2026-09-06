@@ -1,22 +1,28 @@
-@if (Items.Count > 0)
-{
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb small">
-            @foreach (var item in Items)
-            {
-                var last = item == Items[^1];
+@*
+    Renders into the header rather than in place, so a page keeps declaring its own
+    trail next to the data it built it from.
+*@
+<SectionContent SectionId="Breadcrumb.HeaderSection">
+    @if (Items.Count > 0)
+    {
+        <nav aria-label="Breadcrumb">
+            <ol class="crumbs">
+                @foreach (var item in Items)
+                {
+                    var last = item == Items[^1];
 
-                <li class="breadcrumb-item @(last ? "active" : "")" aria-current="@(last ? "page" : null)">
-                    @if (last || item.Href is null)
-                    {
-                        @item.Text
-                    }
-                    else
-                    {
-                        <a href="@item.Href">@item.Text</a>
-                    }
-                </li>
-            }
-        </ol>
-    </nav>
-}
+                    <li aria-current="@(last ? "page" : null)">
+                        @if (last || item.Href is null)
+                        {
+                            @item.Text
+                        }
+                        else
+                        {
+                            <a href="@item.Href">@item.Text</a>
+                        }
+                    </li>
+                }
+            </ol>
+        </nav>
+    }
+</SectionContent>

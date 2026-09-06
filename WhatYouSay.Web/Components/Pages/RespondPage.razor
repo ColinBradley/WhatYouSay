@@ -1,0 +1,87 @@
+@page "/topics/{Code}/respond"
+
+<PageTitle>@(mTopic is null ? "Respond" : $"Respond — {mTopic.Title}")</PageTitle>
+
+<Breadcrumb Items="@mCrumbs" />
+
+@if (mTopic is null)
+{
+    <div class="stack">
+        <h1>Topic not found</h1>
+
+        <p class="prose quiet">No topic has the code &ldquo;@Code&rdquo;. Codes are case-sensitive.</p>
+
+        <a href="/">Back to the list</a>
+    </div>
+}
+else
+{
+    <div class="stack wide" style="--stack-gap: var(--section-gap); max-width: 44em">
+        <section class="stack wide">
+            <div class="controls">
+                <h1>@mTopic.Title</h1>
+
+                <span class="tag @(mTopic.IsAcceptingResponses ? "good" : null)">
+                    @(mTopic.IsAcceptingResponses ? "Open" : "Closed")
+                </span>
+            </div>
+
+            <p class="prose quiet">@mTopic.Description</p>
+        </section>
+
+        @* The whole form reads as unavailable when it is, rather than a live-looking box
+           above a sentence explaining that it isn't. *@
+        <form method="post" @formname="respond" @onsubmit="SubmitAsync"
+              class="panel fields @(mFrozen ? "is-disabled" : null)">
+            <AntiforgeryToken />
+
+            @if (mFrozen)
+            {
+                <p class="fine">@this.FrozenReason()</p>
+            }
+            else if (mOwnResponse is not null)
+            {
+                <p class="fine">
+                    This is your response. @(mOwnResponse.UpdatedAt is not null ? "You have edited it." : "")
+                </p>
+            }
+
+            @if (!mTopic.IsAnonymous)
+            {
+                <div class="field">
+                    <label for="author">@this.NameLabel()</label>
+
+                    <input id="author" name="Author" value="@Author"
+                           disabled="@mFrozen" title="@this.FrozenReason()" />
+                </div>
+            }
+
+            <div class="field">
+                <label for="body">Your answer</label>
+
+                <textarea id="body" name="Body" rows="8" autofocus="@(!mFrozen)"
+                          disabled="@mFrozen" title="@this.FrozenReason()">@Body</textarea>
+            </div>
+
+            @if (mError is not null)
+            {
+                <p style="color: var(--danger)">@mError</p>
+            }
+
+            <div class="controls">
+                <button class="primary" type="submit" name="Intent" value="save"
+                        disabled="@mFrozen" title="@this.FrozenReason()">
+                    @(mOwnResponse is null ? "Submit" : "Save changes")
+                </button>
+
+                <button class="danger" type="submit" name="Intent" value="withdraw"
+                        disabled="@(mFrozen || mOwnResponse is null)"
+                        title="@(mOwnResponse is null ? "You have not answered this topic yet." : this.FrozenReason())">
+                    Withdraw my response
+                </button>
+            </div>
+
+            <p class="fine">@this.StorageNotice()</p>
+        </form>
+    </div>
+}

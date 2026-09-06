@@ -63,6 +63,14 @@ app.MapStaticAssets();
 
 app.MapSummariserApi();
 
+// Listed in the routes but never built: /topics is the collection, and the collection is
+// what the home page shows.
+app.MapGet("/topics", () => Results.Redirect("/", permanent: true));
+
+// The topic page leads with the notes, so /summary is the same page under an older name.
+app.MapGet("/topics/{code}/summary", (string code) =>
+    Results.Redirect($"/topics/{code}", permanent: true));
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

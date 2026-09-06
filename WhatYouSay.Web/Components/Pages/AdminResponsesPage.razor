@@ -6,38 +6,44 @@
 
 @if (mTopic is null)
 {
-    <h1>Topic not found</h1>
-    <a href="/">Back to the list</a>
+    <div class="stack">
+        <h1>Topic not found</h1>
+
+        <a href="/">Back to the list</a>
+    </div>
 }
 else
 {
-    <h1>Responses</h1>
-    <p class="lead">@mTopic.Title</p>
+    <div class="stack wide" style="--stack-gap: var(--section-gap); max-width: 52em">
+        <section class="stack">
+            <h1>Responses</h1>
 
-    @if (mTopic.IsAnonymous)
-    {
-        <p class="small text-body-secondary">
-            This topic is anonymous, so no names or times were recorded and the order below
-            is meaningless by design.
-        </p>
-    }
+            <p class="quiet">@mTopic.Title</p>
 
-    @if (mResponses.Count == 0)
-    {
-        <div class="alert alert-secondary">Nobody has answered yet.</div>
-    }
-    else
-    {
-        <form method="post" @formname="delete-response" @onsubmit="DeleteAsync">
-            <AntiforgeryToken />
-
-            @foreach (var response in mResponses)
+            @if (mTopic.IsAnonymous)
             {
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <p style="white-space: pre-wrap" class="mb-2">@response.Body</p>
+                <p class="fine">
+                    This topic is anonymous, so no names or times were recorded and the order below
+                    is meaningless by design.
+                </p>
+            }
+        </section>
 
-                        <div class="d-flex gap-3 align-items-center small text-body-secondary">
+        @if (mResponses.Count == 0)
+        {
+            <div class="notice">Nobody has answered yet.</div>
+        }
+        else
+        {
+            <form method="post" @formname="delete-response" @onsubmit="DeleteAsync" class="panels">
+                <AntiforgeryToken />
+
+                @foreach (var response in mResponses)
+                {
+                    <article class="panel stack wide hoverable">
+                        <p class="verbatim">@response.Body</p>
+
+                        <div class="controls fine">
                             <span>@(response.Author ?? "anonymous")</span>
 
                             @if (response.CreatedAt is { } created)
@@ -50,19 +56,19 @@ else
                                 <span>edited</span>
                             }
 
-                            <button class="btn btn-sm btn-outline-danger ms-auto" type="submit"
+                            <button class="danger push-end on-demand" type="submit"
                                     name="ResponseId" value="@response.Id">
                                 Delete
                             </button>
                         </div>
-                    </div>
-                </div>
-            }
-        </form>
+                    </article>
+                }
+            </form>
 
-        <p class="small text-body-secondary">
-            Deleting hides a response and drops it from any summary that quotes it. You cannot
-            edit what someone wrote — that is the one power an admin does not get.
-        </p>
-    }
+            <p class="fine">
+                Deleting hides a response and drops it from any summary that quotes it. You cannot
+                edit what someone wrote &mdash; that is the one power an admin does not get.
+            </p>
+        }
+    </div>
 }

@@ -6,13 +6,19 @@
 
 @if (mTopic is null)
 {
-    <h1>Topic not found</h1>
-    <a href="/">Back to the list</a>
+    <div class="stack">
+        <h1>Topic not found</h1>
+
+        <a href="/">Back to the list</a>
+    </div>
 }
 else if (mMissing)
 {
-    <h1>Summary not found</h1>
-    <a href="@($"/topics/{Code}/admin/summaries")">Back to the versions</a>
+    <div class="stack">
+        <h1>Summary not found</h1>
+
+        <a href="@($"/topics/{Code}/admin/summaries")">Back to the versions</a>
+    </div>
 }
 else
 {

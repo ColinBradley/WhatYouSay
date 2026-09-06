@@ -7,122 +7,109 @@
 
 @if (mTopic is null)
 {
-    <h1>Topic not found</h1>
-    <a href="/">Back to the list</a>
+    <div class="stack">
+        <h1>Topic not found</h1>
+
+        <a href="/">Back to the list</a>
+    </div>
 }
 else
 {
-    <h1>Summaries</h1>
-    <p class="lead">@mTopic.Title</p>
+    <div class="stack wide" style="--stack-gap: var(--section-gap)">
+        <section class="stack">
+            <h1>Summaries</h1>
 
-    @if (mError is not null)
-    {
-        <div class="alert alert-danger" role="alert">@mError</div>
-    }
+            <p class="quiet">@mTopic.Title</p>
+        </section>
 
-    <form method="post" @formname="summary-action" @onsubmit="ActAsync">
-        <AntiforgeryToken />
-
-        @if (mSummaries.Count == 0)
+        @if (mError is not null)
         {
-            <div class="alert alert-secondary">
-                No summaries yet. Write one by hand, or close the topic and point an agent
-                at <code>/mcp</code> with this topic's summariser token.
-            </div>
+            <div class="notice danger" role="alert">@mError</div>
         }
 
-        <button class="btn btn-primary mb-3" type="submit" name="Action" value="new">
-            New empty summary
-        </button>
+        <form method="post" @formname="summary-action" @onsubmit="ActAsync" class="stack wide">
+            <AntiforgeryToken />
 
-        @if (mSummaries.Count > 0)
-        {
+            <button class="primary" type="submit" name="Action" value="new">New empty summary</button>
 
-            <table class="table align-middle">
-                <thead>
-                    <tr>
-                        <th>Created</th>
-                        <th>By</th>
-                        <th>Size</th>
-                        <th>State</th>
-                        <th class="text-end">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var summary in mSummaries)
-                    {
-                        <tr>
-                            <td>@summary.CreatedAt.ToLocalTime().ToString("d MMM yyyy HH:mm")</td>
-                            <td>@(summary.CreatedBy ?? "unknown")</td>
-                            <td class="small text-body-secondary">
-                                @summary.Nodes.Count nodes,
-                                @SummaryTree.Depth(summary.Roots) deep
-                            </td>
-                            <td>
-                                @if (summary.IsVisibleToPublic)
-                                {
-                                    <span class="badge text-bg-success">Published</span>
-                                }
-                                else
-                                {
-                                    <span class="badge text-bg-secondary">Draft</span>
-                                }
+            @if (mSummaries.Count == 0)
+            {
+                <div class="notice">
+                    No summaries yet. Write one by hand, or close the topic and point an agent at
+                    <code>/mcp</code> with this topic&rsquo;s summariser token.
+                </div>
+            }
+            else
+            {
+                <div class="scroll-x">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Created</th>
+                                <th>By</th>
+                                <th>Size</th>
+                                <th>State</th>
+                                <th style="text-align: end">Actions</th>
+                            </tr>
+                        </thead>
 
-                                @if (summary.IsAgentEditable)
-                                {
-                                    <span class="badge text-bg-info" title="The summariser token can write to this version.">Agent</span>
-                                }
+                        <tbody>
+                            @foreach (var summary in mSummaries)
+                            {
+                                <tr>
+                                    <td>@summary.CreatedAt.ToLocalTime().ToString("d MMM yyyy HH:mm")</td>
 
-                                @if (this.IsOutdated(summary))
-                                {
-                                    <span class="badge text-bg-warning"
-                                          title="@($"Drawn over {summary.ResponseCountAtWrite} responses; there are {mLiveResponses} now.")">
-                                        Outdated
-                                    </span>
-                                }
-                            </td>
-                            <td class="text-end">
-                                <div class="d-flex gap-2 justify-content-end">
-                                    <a class="btn btn-sm btn-outline-secondary"
-                                       href="@($"/topics/{Code}/summary/{summary.Id}")">
-                                        View
-                                    </a>
+                                    <td>@summary.CreatedBy</td>
 
-                                    <a class="btn btn-sm btn-outline-secondary"
-                                       href="@($"/topics/{Code}/admin/summaries/{summary.Id}")">
-                                        Edit
-                                    </a>
+                                    <td class="fine">
+                                        @summary.Nodes.Count nodes,
+                                        @SummaryTree.Depth(summary.Roots) deep
+                                    </td>
 
-                                    <button class="btn btn-sm btn-outline-primary" type="submit"
-                                            name="Action" value="@($"{summary.Id}:publish")"
-                                            disabled="@summary.IsVisibleToPublic"
-                                            title="@(summary.IsVisibleToPublic ? "Already published." : null)">
-                                        Publish
-                                    </button>
+                                    <td>
+                                        <span class="tag @(summary.IsVisibleToPublic ? "good" : "warn")">
+                                            @(summary.IsVisibleToPublic ? "Published" : "Draft")
+                                        </span>
+                                    </td>
 
-                                    <button class="btn btn-sm btn-outline-secondary" type="submit"
-                                            name="Action" value="@($"{summary.Id}:unpublish")"
-                                            disabled="@(!summary.IsVisibleToPublic)"
-                                            title="@(summary.IsVisibleToPublic ? null : "Not published, so there is nothing to take back.")">
-                                        Unpublish
-                                    </button>
+                                    <td>
+                                        <div class="controls" style="justify-content: end">
+                                            <a class="button" href="@($"/topics/{Code}/summary/{summary.Id}")">View</a>
 
-                                    <button class="btn btn-sm btn-outline-danger" type="submit"
-                                            name="Action" value="@($"{summary.Id}:delete")">
-                                        Delete
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        }
-    </form>
+                                            <a class="button" href="@($"/topics/{Code}/admin/summaries/{summary.Id}")">Edit</a>
 
-    <p class="small text-body-secondary">
-        Publishing makes a summary visible to everyone with the link and lets anyone react to
-        it and comment on it. It also takes the agent off that version; you can hand it back
-        from the editor.
-    </p>
+                                            <button type="submit" name="Action"
+                                                    value="@($"{summary.Id}:publish")"
+                                                    disabled="@summary.IsVisibleToPublic"
+                                                    title="@(summary.IsVisibleToPublic ? "Already published." : null)">
+                                                Publish
+                                            </button>
+
+                                            <button type="submit" name="Action"
+                                                    value="@($"{summary.Id}:unpublish")"
+                                                    disabled="@(!summary.IsVisibleToPublic)"
+                                                    title="@(summary.IsVisibleToPublic ? null : "Not published, so there is nothing to take back.")">
+                                                Unpublish
+                                            </button>
+
+                                            <button class="danger" type="submit" name="Action"
+                                                    value="@($"{summary.Id}:delete")">
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </form>
+
+        <p class="fine" style="max-width: 52em">
+            Publishing makes a summary visible to everyone with the link and lets anyone react to it
+            and comment on it. It also takes the agent off that version; you can hand it back from
+            the editor.
+        </p>
+    </div>
 }

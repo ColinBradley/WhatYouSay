@@ -7,38 +7,38 @@ public partial class Home
 {
     private IReadOnlyList<TopicListing>? mListings;
 
-    private string? mNotFound;
-
     [Inject]
     private TopicService Topics { get; set; } = default!;
-
-    [Inject]
-    private NavigationManager Navigation { get; set; } = default!;
-
-    [SupplyParameterFromForm]
-    public string? Code { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
         mListings = await this.Topics.ListPubliclyListedAsync();
     }
 
-    private async Task OpenByCodeAsync()
+    /// <summary>Open first, and an empty half is dropped rather than headed.</summary>
+    private IEnumerable<TopicGroup> Groups()
     {
-        var code = this.Code?.Trim();
-
-        if (string.IsNullOrEmpty(code))
+        foreach (var accepting in (bool[])[true, false])
         {
-            return;
+            var listings = mListings!
+                .Where(l => l.Topic.IsAcceptingResponses == accepting)
+                .ToList();
+
+            if (listings.Count > 0)
+            {
+                yield return new TopicGroup()
+                {
+                    Heading = accepting ? "Open" : "Closed",
+                    Listings = listings,
+                };
+            }
         }
+    }
 
-        if (await this.Topics.FindByCodeAsync(code) is null)
-        {
-            mNotFound = code;
+    private sealed record TopicGroup
+    {
+        public required string Heading { get; init; }
 
-            return;
-        }
-
-        this.Navigation.NavigateTo($"/topics/{code}");
+        public required IReadOnlyList<TopicListing> Listings { get; init; }
     }
 }

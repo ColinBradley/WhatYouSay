@@ -2,77 +2,47 @@
 
 <PageTitle>What You Say</PageTitle>
 
-<h1>What You Say</h1>
-
-<p class="lead">Ask a group one open question, then make sense of what comes back.</p>
-
-<div class="row g-4 mt-1">
-    <div class="col-md-7">
-        <h2 class="h5">Listed topics</h2>
-
-        @if (mListings is { Count: 0 })
+@if (mListings is { Count: 0 })
+{
+    <p class="quiet">Nothing listed publicly yet. Topics shared by link don&rsquo;t appear here.</p>
+}
+else if (mListings is not null)
+{
+    <div class="columns">
+        @foreach (var group in Groups())
         {
-            <p class="text-body-secondary">
-                Nothing listed publicly yet. Topics shared by link don't appear here.
-            </p>
-        }
-        else if (mListings is not null)
-        {
-            <div class="list-group">
-                @foreach (var listing in mListings)
-                {
-                    <a class="list-group-item list-group-item-action"
-                       href="@($"/topics/{listing.Topic.Code}")">
-                        <div class="d-flex justify-content-between align-items-start gap-3">
-                            <div>
-                                <div class="fw-semibold">@listing.Topic.Title</div>
-                                <div class="small text-body-secondary">@listing.Topic.Description</div>
-                            </div>
-                            <span class="badge text-bg-light flex-shrink-0">
-                                @listing.ResponseCount responses
-                            </span>
-                        </div>
+            <section class="stack wide">
+                <h2>@group.Heading</h2>
 
-                        <div class="mt-2 d-flex gap-2">
-                            <span class="badge @(listing.Topic.IsAcceptingResponses ? "text-bg-success" : "text-bg-secondary")">
-                                @(listing.Topic.IsAcceptingResponses ? "Open" : "Closed")
-                            </span>
+                <ul class="listing">
+                    @foreach (var listing in group.Listings)
+                    {
+                        <li>
+                            <a class="panel stack wide" href="@($"/topics/{listing.Topic.Code}")">
+                                <span class="spread">
+                                    <span class="loud">@listing.Topic.Title</span>
 
-                            @if (listing.HasVisibleSummary)
-                            {
-                                <span class="badge text-bg-info">Summary published</span>
-                            }
+                                    <span class="controls fine">
+                                        @if (listing.Topic.IsAnonymous)
+                                        {
+                                            <span class="tag">Anonymous</span>
+                                        }
 
-                            @if (listing.Topic.IsAnonymous)
-                            {
-                                <span class="badge text-bg-light border">Anonymous</span>
-                            }
-                        </div>
-                    </a>
-                }
-            </div>
+                                        @if (listing.HasVisibleSummary)
+                                        {
+                                            <span class="tag accent">Summary</span>
+                                        }
+
+                                        <span>@listing.ResponseCount responses</span>
+                                    </span>
+                                </span>
+
+                                <span class="fine">@listing.Topic.Description</span>
+                            </a>
+                        </li>
+                    }
+                </ul>
+            </section>
         }
     </div>
-
-    <div class="col-md-5">
-        <h2 class="h5">Have a code?</h2>
-
-        <form method="post" @formname="open-by-code" @onsubmit="OpenByCodeAsync" class="d-flex gap-2">
-            <AntiforgeryToken />
-            <input class="form-control" name="Code" value="@Code" placeholder="e.g. 7fk2p9a"
-                   aria-label="Topic code" />
-            <button class="btn btn-primary" type="submit">Open</button>
-        </form>
-
-        @if (mNotFound is not null)
-        {
-            <p class="text-danger small mt-2">No topic with the code &ldquo;@mNotFound&rdquo;.</p>
-        }
-
-        <p class="small text-body-secondary mt-2">
-            Every topic has a short code at the end of its link.
-        </p>
-
-        <a class="btn btn-outline-primary mt-2" href="/new">Start a new topic</a>
-    </div>
-</div>
+}

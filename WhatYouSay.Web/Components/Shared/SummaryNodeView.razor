@@ -1,129 +1,129 @@
 @using WhatYouSay.Data
 @using WhatYouSay.Services
 
-<li class="@this.ItemClass()">
-    @if (this.Depth == 0)
-    {
-        <h2 class="h4 mb-1">@this.Node.Text</h2>
-    }
-    else
-    {
-        <div>@this.Node.Text</div>
-    }
+@{
+    var comments = this.Reading.CommentsFor(this.Node.Id);
+}
 
-    @if (this.Node.References.Count > 0)
-    {
-        <details class="mt-1">
-            <summary class="small text-body-secondary">
-                @this.Node.References.Count
-                @(this.Node.References.Count == 1 ? "quote" : "quotes")
-            </summary>
+<li id="@($"node-{this.Node.Id}")">
+    @*
+        The hover target is the node's own text and nothing else. It used to be the whole
+        <li>, which swallowed the gaps between children and the comment box: crossing a gap
+        lit the parent up, and a caret in the box held its controls open indefinitely.
+    *@
+    <div class="node-head hoverable">
+        <div class="node-text">@this.Node.Text</div>
 
-            @foreach (var reference in this.Node.References)
-            {
-                <figure class="mt-2 mb-2 ps-3 border-start">
-                    @if (this.Reading.ResponsesArePublic && Highlight(reference) is { } context)
+        @if (this.Node.References.Count > 0)
+        {
+            <div class="fine citations">
+                @foreach (var reference in this.Node.References)
+                {
+                    @if (this.Reading.ResponsesArePublic)
                     {
-                        <blockquote class="mb-1 small">
-                            <span class="text-body-secondary">@context.Before</span><mark>@context.Quote</mark><span class="text-body-secondary">@context.After</span>
-                        </blockquote>
+                        @* A button, not a link: app.js scrolls the pane on its own, where an
+                           href moves the page under it as well. *@
+                        <button type="button" class="bare" data-shows-quote="@reference.Id"
+                                title="@($"“{reference.Quote}”")">
+                            @(reference.Response.Author ?? "anonymous")
+                        </button>
                     }
                     else
                     {
-                        <blockquote class="mb-1">&ldquo;@reference.Quote&rdquo;</blockquote>
+                        <span title="@($"“{reference.Quote}”")">
+                            @(reference.Response.Author ?? "anonymous")
+                        </span>
                     }
-
-                    <figcaption class="small text-body-secondary">
-                        @(reference.Response.Author ?? "anonymous")
-                    </figcaption>
-                </figure>
-            }
-        </details>
-    }
-    else if (this.Inherited)
-    {
-        <div class="small text-body-secondary fst-italic mt-1">
-            Rests on the quotes above rather than any of its own.
-        </div>
-    }
-    else
-    {
-        <div class="small text-warning-emphasis fst-italic mt-1">
-            Nobody is quoted for this, here or above it.
-        </div>
-    }
-
-    <div class="d-flex gap-1 align-items-center mt-2 flex-wrap">
-        @foreach (var kind in SummaryReading.Reactions)
-        {
-            <button type="submit" name="Action" class="btn btn-sm @Pressed(this.Tally, kind)"
-                    value="@($"{this.Node.Id}:{kind}")" title="@Label(kind)">
-                @Emoji(kind)@(this.Tally.CountOf(kind) > 0 ? $" {this.Tally.CountOf(kind)}" : "")
-            </button>
+                }
+            </div>
         }
+
+        <div class="node-actions">
+            @foreach (var kind in SummaryReading.Reactions)
+            {
+                @if (this.Tally.CountOf(kind) == 0 && !this.Tally.Mine.Contains(kind))
+                {
+                    <button type="submit" name="Action" class="reaction" title="@Label(kind)"
+                            value="@($"{this.Node.Id}:{kind}")">
+                        @Emoji(kind)
+                    </button>
+                }
+            }
+
+            @if (comments.Count == 0)
+            {
+                @* Opens the thread below. In the floating cluster rather than beside it, so
+                   nothing on the page moves as the pointer arrives. *@
+                <button type="button" class="bare" data-opens="@($"comments-{this.Node.Id}")">
+                    Comment
+                </button>
+            }
+        </div>
+
+        <div class="reactions">
+            @foreach (var kind in SummaryReading.Reactions)
+            {
+                var count = this.Tally.CountOf(kind);
+                var mine = this.Tally.Mine.Contains(kind);
+
+                @if (count > 0 || mine)
+                {
+                    <button type="submit" name="Action" class="reaction @(mine ? "mine" : null)"
+                            title="@Label(kind)" value="@($"{this.Node.Id}:{kind}")">
+                        @Emoji(kind)@(count > 0 ? $" {count}" : "")
+                    </button>
+                }
+            }
+        </div>
     </div>
 
-    @{
-        var comments = this.Reading.CommentsFor(this.Node.Id);
-    }
-
-    <details class="mt-2" open="@(comments.Count > 0)">
-        <summary class="small text-body-secondary">
+    @* Closed by default either way: the count is the news, the thread is the follow-up. *@
+    <details class="comments @(comments.Count == 0 ? "unasked" : null)"
+             id="@($"comments-{this.Node.Id}")">
+        <summary class="fine">
             @(comments.Count == 0
                 ? "Comment"
                 : $"{comments.Count} {(comments.Count == 1 ? "comment" : "comments")}")
         </summary>
 
-        @foreach (var comment in comments)
-        {
-            <div class="border-start ps-3 mt-2 @(comment.IsHidden ? "opacity-50" : null)">
-                <div class="small">&ldquo;@comment.Body&rdquo;</div>
+        @* The box sits above the thread: saying something is the reason to open this. *@
+        <div class="panel stack wide">
+            <textarea rows="2" name="@SummaryReading.CommentField(this.Node.Id)"
+                      placeholder="Say something about this"></textarea>
 
-                <div class="small text-body-secondary">
-                    @(comment.Author ?? "anonymous")
+            <button type="submit" name="Action" value="@($"comment:{this.Node.Id}:add")">
+                Add comment
+            </button>
 
-                    @if (comment.IsHidden)
-                    {
-                        <span class="badge text-bg-secondary ms-1">Hidden</span>
-                    }
+            @foreach (var comment in comments)
+            {
+                <div class="comment @(comment.IsHidden ? "is-hidden" : null)">
+                    <div>@comment.Body</div>
 
-                    @if (comment.IsMine)
-                    {
-                        <button type="submit" name="Action" class="btn btn-sm btn-link p-0 ms-1 align-baseline"
-                                value="@($"comment:{comment.Id}:{(comment.IsHidden ? "show" : "hide")}")">
-                            @(comment.IsHidden ? "Show" : "Hide")
-                        </button>
-                    }
+                    <div class="fine">
+                        @(comment.Author ?? "anonymous")
+
+                        @if (comment.IsHidden)
+                        {
+                            <span class="tag">Hidden</span>
+                        }
+
+                        @if (comment.IsMine)
+                        {
+                            <button class="bare" type="submit" name="Action"
+                                    value="@($"comment:{comment.Id}:{(comment.IsHidden ? "show" : "hide")}")">
+                                @(comment.IsHidden ? "Show" : "Hide")
+                            </button>
+                        }
+                    </div>
                 </div>
-            </div>
-        }
-
-        <textarea class="form-control form-control-sm mt-2" rows="2"
-                  name="@SummaryReading.CommentField(this.Node.Id)"
-                  placeholder="Say something about this"></textarea>
-
-        <button type="submit" name="Action" class="btn btn-sm btn-outline-secondary mt-2"
-                value="@($"comment:{this.Node.Id}:add")">
-            Add comment
-        </button>
+            }
+        </div>
     </details>
+
     @if (this.Node.Children.Count > 0)
     {
-        @if (this.Collapse())
-        {
-            <details class="mt-2">
-                <summary class="small text-body-secondary">
-                    @this.Node.Children.Count more below
-                </summary>
-
-                <SummaryNodeList Nodes="@this.Node.Children" Depth="@(this.Depth + 1)"
-                                 Inherited="@this.PassesSupportDown()" />
-            </details>
-        }
-        else
-        {
-            <SummaryNodeList Nodes="@this.Node.Children" Depth="@(this.Depth + 1)"
-                             Inherited="@this.PassesSupportDown()" />
-        }
+        <SummaryNodeList Nodes="@this.Node.Children" Depth="@(this.Depth + 1)"
+                         Inherited="@this.PassesSupportDown()" />
     }
 </li>

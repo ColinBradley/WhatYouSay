@@ -1,6 +1,7 @@
 @using WhatYouSay.Data
 
-<ul class="list-unstyled @(this.Depth == 0 ? null : "ps-4 border-start")">
+@* The tree's indent and rule are structural CSS, so only the root needs a class. *@
+<ul class="@(this.Depth == 0 ? "tree" : null)">
     @foreach (var node in this.Nodes)
     {
         <SummaryNodeView Node="@node" Depth="@this.Depth" Inherited="@this.Inherited" />

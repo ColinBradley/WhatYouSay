@@ -7,164 +7,182 @@
 
 @if (mTopic is null)
 {
-    <h1>Topic not found</h1>
-    <p class="text-body-secondary">No topic has the code &ldquo;@Code&rdquo;.</p>
-    <a href="/">Back to the list</a>
+    <div class="stack">
+        <h1>Topic not found</h1>
+
+        <p class="quiet">No topic has the code &ldquo;@Code&rdquo;.</p>
+
+        <a href="/">Back to the list</a>
+    </div>
 }
 else if (!mIsAdmin)
 {
-    <h1>Admin</h1>
-    <p class="lead">@mTopic.Title</p>
+    <div class="stack wide" style="max-width: 24em">
+        <h1>Admin</h1>
 
-    <form method="post" @formname="admin-signin" @onsubmit="SignInAsync" class="mt-3" style="max-width: 24rem">
-        <AntiforgeryToken />
+        <p class="quiet">@mTopic.Title</p>
 
-        <div class="mb-3">
-            <label class="form-label" for="password">Admin password</label>
-            <input class="form-control" id="password" name="Password" type="password" autofocus />
-        </div>
+        <form method="post" @formname="admin-signin" @onsubmit="SignInAsync" class="fields">
+            <AntiforgeryToken />
 
-        @if (mError is not null)
-        {
-            <p class="text-danger">@mError</p>
-        }
+            <div class="field">
+                <label for="password">Admin password</label>
+                <input id="password" name="Password" type="password" autofocus />
+            </div>
 
-        <button class="btn btn-primary" type="submit">Sign in</button>
-    </form>
+            @if (mError is not null)
+            {
+                <p style="color: var(--danger)">@mError</p>
+            }
+
+            <button class="primary" type="submit">Sign in</button>
+        </form>
+    </div>
 }
 else
 {
-    <h1>Admin</h1>
-    <p class="lead">@mTopic.Title</p>
+    <div class="stack wide" style="--stack-gap: var(--section-gap)">
+        <section class="stack">
+            <h1>Admin</h1>
 
-    <div class="row g-4">
-        <div class="col-md-7">
-            <h2 class="h5">This topic</h2>
+            <p class="quiet">@mTopic.Title</p>
+        </section>
 
-            <dl class="row mb-3">
-                <dt class="col-sm-4">Share link</dt>
-                <dd class="col-sm-8"><code>@mShareLink</code></dd>
+        <div class="columns">
+            <section class="stack wide">
+                <h2>This topic</h2>
 
-                <dt class="col-sm-4">Responses</dt>
-                <dd class="col-sm-8">@mResponseCount</dd>
+                <dl class="facts">
+                    <dt>Share link</dt>
+                    <dd><code>@mShareLink</code></dd>
 
-                <dt class="col-sm-4">Summaries</dt>
-                <dd class="col-sm-8">@mSummaryCount</dd>
+                    <dt>Responses</dt>
+                    <dd>@mResponseCount</dd>
 
-                <dt class="col-sm-4">Identity</dt>
-                <dd class="col-sm-8">@mTopic.ResponseIdentity</dd>
-            </dl>
+                    <dt>Summaries</dt>
+                    <dd>@mSummaryCount</dd>
 
-            <div class="d-flex gap-2 mb-4">
-                <a class="btn btn-outline-secondary" href="@($"/topics/{Code}/admin/responses")">Responses</a>
-                <a class="btn btn-outline-secondary" href="@($"/topics/{Code}/admin/summaries")">Summaries</a>
-                <a class="btn btn-outline-secondary" href="@($"/topics/{Code}")">View as responder</a>
-            </div>
+                    <dt>Identity</dt>
+                    <dd>@mTopic.ResponseIdentity</dd>
+                </dl>
 
-            <h2 class="h5">Collecting</h2>
-
-            @if (mTopic.IsAcceptingResponses)
-            {
-                <p class="small text-body-secondary">
-                    Closing freezes every response so the quotes in a summary stay accurate.
-                    You can reopen until a summary exists, then it is closed for good.
-                </p>
-
-                <form method="post" @formname="admin-close" @onsubmit="CloseAsync">
-                    <AntiforgeryToken />
-                    <button class="btn btn-primary" type="submit">Close and summarise</button>
-                </form>
-            }
-            else
-            {
-                <p class="small text-body-secondary">
-                    This topic is closed, and every response in it is frozen. Reopening lets
-                    new answers arrive; the frozen ones stay that way, so nothing already
-                    quoted can move.
-                </p>
-
-                <form method="post" @formname="admin-reopen" @onsubmit="ReopenAsync">
-                    <AntiforgeryToken />
-                    <button class="btn btn-outline-primary" type="submit">Reopen</button>
-                </form>
-            }
-        </div>
-
-        <div class="col-md-5">
-            <h2 class="h5">Settings</h2>
-
-            <form method="post" @formname="admin-settings" @onsubmit="SaveSettingsAsync">
-                <AntiforgeryToken />
-
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="listed"
-                           name="IsPubliclyListed" value="true" checked="@mTopic.IsPubliclyListed" />
-                    <label class="form-check-label" for="listed">Show on the home page</label>
+                <div class="controls">
+                    <a class="button" href="@($"/topics/{Code}/admin/responses")">Responses</a>
+                    <a class="button" href="@($"/topics/{Code}/admin/summaries")">Summaries</a>
+                    <a class="button" href="@($"/topics/{Code}")">View as responder</a>
                 </div>
 
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="responsesPublic"
-                           name="AreResponsesPublic" value="true" checked="@mTopic.AreResponsesPublic" />
-                    <label class="form-check-label" for="responsesPublic">Let anyone read the raw responses</label>
-                </div>
+                <h2>Collecting</h2>
 
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="identity"
-                           name="IsAnonymous" value="true" checked="@mTopic.IsAnonymous"
-                           disabled="@(!mCanChangeIdentity)" title="@mIdentityReason" />
-                    <label class="form-check-label @(mCanChangeIdentity ? null : "text-body-secondary")" for="identity">
+                @if (mTopic.IsAcceptingResponses)
+                {
+                    <p class="fine">
+                        Closing freezes every response so the quotes in a summary stay accurate.
+                        You can reopen whenever you like; what is already frozen stays frozen.
+                    </p>
+
+                    <form method="post" @formname="admin-close" @onsubmit="CloseAsync">
+                        <AntiforgeryToken />
+                        <button class="primary" type="submit">Close and summarise</button>
+                    </form>
+                }
+                else
+                {
+                    <p class="fine">
+                        This topic is closed, and every response in it is frozen. Reopening lets
+                        new answers arrive; the frozen ones stay that way, so nothing already
+                        quoted can move.
+                    </p>
+
+                    <form method="post" @formname="admin-reopen" @onsubmit="ReopenAsync">
+                        <AntiforgeryToken />
+                        <button type="submit">Reopen</button>
+                    </form>
+                }
+            </section>
+
+            <section class="stack wide">
+                <h2>Settings</h2>
+
+                <form method="post" @formname="admin-settings" @onsubmit="SaveSettingsAsync" class="stack wide">
+                    <AntiforgeryToken />
+
+                    <label class="check">
+                        <input type="checkbox" id="listed" name="IsPubliclyListed" value="true"
+                               checked="@mTopic.IsPubliclyListed" />
+                        Show on the home page
+                    </label>
+
+                    <label class="check">
+                        <input type="checkbox" id="responsesPublic" name="AreResponsesPublic" value="true"
+                               checked="@mTopic.AreResponsesPublic" />
+                        Show the raw responses beside the summary
+                    </label>
+
+                    <label class="check @(mCanChangeIdentity ? null : "quiet")" title="@mIdentityReason">
+                        <input type="checkbox" id="identity" name="IsAnonymous" value="true"
+                               checked="@mTopic.IsAnonymous" disabled="@(!mCanChangeIdentity)"
+                               title="@mIdentityReason" />
                         Anonymous
                     </label>
-                </div>
 
-                <button class="btn btn-primary btn-sm mt-3" type="submit">Save settings</button>
-            </form>
+                    <button class="primary" type="submit">Save settings</button>
+                </form>
 
-            <h2 class="h5 mt-4">Summariser token</h2>
+                <h2>Summariser token</h2>
 
-            @if (mNewToken is not null)
-            {
-                <div class="alert alert-warning small">
-                    <div class="fw-semibold">Copy this now — it is not shown again.</div>
-                    <code class="user-select-all">@mNewToken</code>
-                </div>
-            }
-            else
-            {
-                <p class="small text-body-secondary">
-                    Only its hash is stored, so it cannot be shown again. Regenerating gives you
-                    a fresh token and a ready-made prompt, and stops the old token working
-                    immediately.
-                </p>
-            }
+                @if (mNewToken is not null)
+                {
+                    <div class="notice warn stack wide">
+                        <div class="loud">Copy this now &mdash; it is not shown again.</div>
 
-            <form method="post" @formname="admin-token" @onsubmit="RegenerateTokenAsync">
-                <AntiforgeryToken />
-                <button class="btn btn-outline-secondary btn-sm" type="submit">Regenerate token</button>
-            </form>
+                        <textarea id="new-token" rows="2" readonly>@mNewToken</textarea>
 
-            <form method="post" @formname="admin-signout" @onsubmit="SignOut" class="mt-4">
-                <AntiforgeryToken />
-                <button class="btn btn-link text-body-secondary p-0" type="submit">Sign out of admin</button>
-            </form>
+                        <button type="button"
+                                onclick="whatYouSayCopy(document.getElementById('new-token'), this)">
+                            Copy token
+                        </button>
+                    </div>
+                }
+                else
+                {
+                    <p class="fine">
+                        Only its hash is stored, so it cannot be shown again. Regenerating gives you
+                        a fresh token and a ready-made prompt, and stops the old token working
+                        immediately.
+                    </p>
+                }
+
+                <form method="post" @formname="admin-token" @onsubmit="RegenerateTokenAsync">
+                    <AntiforgeryToken />
+                    <button type="submit">Regenerate token</button>
+                </form>
+
+                <form method="post" @formname="admin-signout" @onsubmit="SignOut">
+                    <AntiforgeryToken />
+                    <button class="bare" type="submit">Sign out of admin</button>
+                </form>
+            </section>
         </div>
+
+        @if (mPrompt is not null)
+        {
+            <section class="stack wide" style="max-width: 52em">
+                <h2>Prompt to hand to an assistant</h2>
+
+                <p class="fine">
+                    Points at a URL that explains the whole job, and carries the token. Paste it into
+                    any chat whose assistant can make an HTTP request. Treat it like the token itself.
+                </p>
+
+                <textarea id="summariser-prompt" rows="9" readonly
+                          style="font-family: var(--mono-font); font-size: var(--fine-size)">@mPrompt</textarea>
+
+                <button type="button"
+                        onclick="whatYouSayCopy(document.getElementById('summariser-prompt'), this)">
+                    Copy prompt
+                </button>
+            </section>
+        }
     </div>
-
-    @if (mPrompt is not null)
-    {
-        <h2 class="h5 mt-4">Prompt to hand to an assistant</h2>
-
-        <p class="small text-body-secondary">
-            Points at a URL that explains the whole job, and carries the token. Paste it into
-            any chat whose assistant can make an HTTP request. Treat it like the token itself.
-        </p>
-
-        <textarea class="form-control font-monospace small" id="summariser-prompt"
-                  rows="9" readonly>@mPrompt</textarea>
-
-        <button class="btn btn-outline-secondary btn-sm mt-2" type="button"
-                onclick="whatYouSayCopy(document.getElementById('summariser-prompt'), this)">
-            Copy prompt
-        </button>
-    }
 }
