@@ -84,7 +84,8 @@ public static class SummariserBriefing
         moved, reparented and reordered freely.
 
         Keep the id of every node whose point still holds, even when you move it or reword
-        it. Reactions and comments belong to the node id, so a node rebuilt without its id
+        it. Each id appears at most once: when you split a node, the id stays with one
+        part and the others are new. Reactions and comments belong to the node id, so a node rebuilt without its id
         loses them. Leave settled wording alone: a summary that changes everywhere on each
         update is hard to follow.
 

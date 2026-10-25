@@ -622,7 +622,9 @@ public class SummaryService
                 {
                     Path = $"{path}/id",
                     Reason = "duplicate_node_id",
-                    Message = $"Node {id} appears more than once. A node has one place in the tree.",
+                    Message = $"Node {id} appears more than once. A node has one place in the "
+                        + "tree: keep the id on one of them and leave it off the rest, which "
+                        + "makes those new nodes.",
                 });
 
                 return null;
