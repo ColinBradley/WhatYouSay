@@ -5,6 +5,7 @@ using WhatYouSay.Data;
 using WhatYouSay.Services;
 using WhatYouSay.Web.Auth;
 using WhatYouSay.Web.Components.Shared;
+using WhatYouSay.Web.Presentation;
 
 namespace WhatYouSay.Web.Components.Pages;
 
@@ -76,6 +77,9 @@ public partial class CreateTopicPage
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
 
+    [Inject]
+    private PublicAddress Address { get; set; } = default!;
+
     [SupplyParameterFromForm]
     public string? Title { get; set; }
 
@@ -130,8 +134,6 @@ public partial class CreateTopicPage
         // Straight into admin without asking for the password just set.
         this.Session.Grant(mCreated.Topic.Id);
 
-        mShareLink = this.Navigation
-            .ToAbsoluteUri($"/topics/{mCreated.Topic.Code}")
-            .ToString();
+        mShareLink = this.Address.Resolve($"topics/{mCreated.Topic.Code}", this.Navigation.BaseUri).AbsoluteUri;
     }
 }

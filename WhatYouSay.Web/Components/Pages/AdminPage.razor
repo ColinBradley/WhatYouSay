@@ -1,6 +1,7 @@
 @page "/topics/{Code}/admin"
 @using WhatYouSay.Data
 @using WhatYouSay.Services
+@using WhatYouSay.Web.Presentation
 
 <PageTitle>@(mTopic is null ? "Admin" : $"Admin — {mTopic.Title}")</PageTitle>
 
@@ -80,6 +81,40 @@ else
                     <a class="button" href="@($"/topics/{Code}/admin/summaries")">Summaries</a>
                     <a class="button" href="@($"/topics/{Code}")">View as responder</a>
                 </div>
+
+                <h2>Presenting</h2>
+
+                <p class="fine">
+                    The presentation page is one page to project for the whole session. It shows a
+                    QR code that takes phones to the respond page, the responses, and the summary,
+                    all updating live. It shows only what the public can see.
+                </p>
+
+                <dl class="facts">
+                    <dt>Join link</dt>
+                    <dd><code>@mJoinLink</code></dd>
+
+                    <dt>Responses</dt>
+                    <dd>
+                        @(mTopic.AreResponsesPublic
+                            ? "Shown beside the summary"
+                            : "Not shown, because they are not public. The summary is shown alone.")
+                    </dd>
+                </dl>
+
+                @if (!this.Address.IsConfigured)
+                {
+                    <div class="notice warn fine">
+                        No public address is configured, so links and the QR code use the address
+                        this browser opened the site at. Phones in the room cannot reach
+                        <code>localhost</code>. Set <code>@PublicAddress.SettingName</code> to the
+                        address they use, such as <code>https://feedback.example.com</code>, in
+                        <code>appsettings.json</code> or as an environment variable, and restart
+                        the site.
+                    </div>
+                }
+
+                <a class="button" href="@($"/topics/{Code}/present")">Open the presentation page</a>
 
                 <h2>Collecting</h2>
 

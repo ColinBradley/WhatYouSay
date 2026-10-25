@@ -1,0 +1,40 @@
+@using WhatYouSay.Web.Presentation
+
+<section class="join">
+    <svg class="qr" viewBox="@($"0 0 {mSide} {mSide}")" role="img" aria-label="@($"QR code for {this.Url}")">
+        <rect width="@mSide" height="@mSide" />
+        <path d="@mPath" />
+    </svg>
+
+    <div class="stack">
+        <h2>Scan to respond</h2>
+
+        <p>
+            Or go to
+            <span class="join-url" dir="ltr">
+                @foreach (var part in mUrlParts)
+                {
+                    @part<wbr />
+                }
+            </span>
+        </p>
+
+        <p>Topic code <strong class="join-code" dir="ltr">@this.Code</strong></p>
+
+        @if (!this.IsAcceptingResponses)
+        {
+            <p class="tag">Closed to new responses</p>
+        }
+
+        @if (this.ShowsFallbackWarning)
+        {
+            <div class="notice warn fine" role="alert">
+                <strong>Phones may not reach this address.</strong>
+                No public address is configured, so the code points where this browser opened the
+                site. Set <code>@PublicAddress.SettingName</code> to an address that phones in the
+                room can reach, in <code>appsettings.json</code> or as an environment variable,
+                and restart the site. Only admins see this.
+            </div>
+        }
+    </div>
+</section>

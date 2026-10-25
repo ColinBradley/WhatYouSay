@@ -17,6 +17,8 @@
                         @(view.Topic.IsAcceptingResponses ? "Respond" : "Your responses")
                     </a>
 
+                    <a class="button" href="@($"/topics/{view.Topic.Code}/present")">Present</a>
+
                     <a class="button" href="@($"/topics/{view.Topic.Code}/admin")">Admin</a>
                 </div>
             </div>

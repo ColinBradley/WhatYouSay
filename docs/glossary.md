@@ -29,6 +29,8 @@ Terms marked *planned* come from the [live feedback plan](plans/live-feedback-pl
 | Node | One assertion in a summary tree: a few words to a sentence. Nodes are untyped. |
 | Note tree | The tree of nodes in a summary, as readers see it. |
 | Overview | A summary's markdown body: two or three paragraphs that complement the tree rather than restate it. |
+| Presentation page | The public page at `/topics/{code}/present`, to project for a whole session: a QR code for joining, the responses and the summary, all live. |
+| Public address | The `PublicBaseUrl` setting: the address that phones in the room use to reach the site. The QR code and shared links are built on it. |
 | Publish | Make a summary readable by everyone with the link. Publishing ends its draft state. |
 | Quote | The exact span of a response revision that a reference cites. |
 | Reaction | A fixed emoji kind toggled on a node or a response: Agree, Disagree, Important, Question, Celebrate or Laugh. |

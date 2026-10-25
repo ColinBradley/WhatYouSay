@@ -5,6 +5,7 @@ using WhatYouSay.Web.Auth;
 using WhatYouSay.Web.Components.Shared;
 using WhatYouSay.Web.Api;
 using WhatYouSay.Web.Live;
+using WhatYouSay.Web.Presentation;
 
 namespace WhatYouSay.Web.Components.Pages;
 
@@ -21,6 +22,8 @@ public partial class AdminPage
     private string? mPrompt;
 
     private string? mShareLink;
+
+    private string? mJoinLink;
 
     private bool mCanChangeIdentityAndTiming;
 
@@ -53,6 +56,9 @@ public partial class AdminPage
 
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
+
+    [Inject]
+    private PublicAddress Address { get; set; } = default!;
 
     [Parameter]
     public string Code { get; set; } = string.Empty;
@@ -150,7 +156,8 @@ public partial class AdminPage
 
     private async Task LoadDashboardAsync()
     {
-        mShareLink = this.Navigation.ToAbsoluteUri($"/topics/{this.Code}").ToString();
+        mShareLink = this.Address.Resolve($"topics/{this.Code}", this.Navigation.BaseUri).AbsoluteUri;
+        mJoinLink = this.Address.Resolve($"topics/{this.Code}/respond", this.Navigation.BaseUri).AbsoluteUri;
         mResponseCount = await this.Topics.CountResponsesAsync(mTopic!.Id);
         mFrozenCount = await this.Topics.CountFrozenResponsesAsync(mTopic.Id);
         mSummaryCount = (await this.Summaries.ListAllAsync(mTopic.Id)).Count;

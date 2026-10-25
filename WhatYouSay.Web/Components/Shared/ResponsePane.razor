@@ -3,15 +3,30 @@
 @* A quoted run names the node it supports, and a citation names the run. app.js moves
    whichever pane the other end lives in. *@
 
-<div class="pane" id="responses">
+<div class="pane stack wide" @ref="mPane">
+    @this.Lead
+
     <div class="pane-head spread">
         <h2>Responses</h2>
+
+        @if (this.View.Topic.RecordsTiming)
+        {
+            @* app.js shows this, with a count, when responses arrive above a pane scrolled away
+               from its start. *@
+            <button type="button" class="primary" data-new-arrivals hidden></button>
+        }
+
         <span class="fine">@this.View.Responses.Count @(this.View.Responses.Count == 1 ? "response" : "responses")</span>
     </div>
 
+    @if (!this.View.Topic.RecordsTiming)
+    {
+        <p class="fine">This topic does not record when responses arrive, so they are in no particular order.</p>
+    }
+
     @if (this.View.Responses.Count == 0)
     {
-        <p class="quiet">No responses yet.</p>
+        <p class="quiet">No responses yet. Each one appears here as soon as it arrives.</p>
     }
     else
     {

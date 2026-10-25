@@ -1,23 +1,60 @@
+@using WhatYouSay.Data
 @using WhatYouSay.Web.Markdown
 
-<div class="pane">
-    <div class="pane-head">
-        <h2>Summary</h2>
+<div class="pane" @ref="mPane">
+    <div class="pane-head stack">
+        <div class="controls">
+            <h2>Summary</h2>
+
+            @if (this.View.Summary is { IsLive: true })
+            {
+                <span class="tag accent"
+                      title="An AI summariser writes this from the responses and updates it as they arrive. Nobody reviews an update before it appears.">
+                    Live AI summary
+                </span>
+            }
+        </div>
+
+        @if (this.View.Summary is { IsLive: true } live)
+        {
+            <p class="fine">
+                Last updated @this.WhenUpdated(live).
+                @if (!live.IsAgentEditable)
+                {
+                    <text> AI updates are paused.</text>
+                }
+                @if (live.AppliedInputRevision < this.View.Topic.InputRevision)
+                {
+                    <text> Newer feedback has arrived since.</text>
+                }
+                else if (live.AppliedInputRevision == this.View.Topic.InputRevision)
+                {
+                    <text> It includes all the feedback so far.</text>
+                }
+            </p>
+        }
     </div>
 
     <div class="stack wide">
         @if (this.View.Summary is not { } summary)
         {
-            @if (this.Feed.SummaryId is null)
-            {
-                <div class="notice">Nothing has been published for this topic yet.</div>
-            }
-            else
+            @if (this.Feed.SummaryId is not null)
             {
                 <div class="notice">
                     That version isn&rsquo;t available.
                     <a href="@($"/topics/{this.View.Topic.Code}")">See the current one</a>.
                 </div>
+            }
+            else if (this.View.Topic.SummaryPolicy == SummaryPolicy.Live)
+            {
+                <div class="notice">
+                    No summary yet. An AI summary appears here once the summariser first writes one,
+                    and then updates as feedback arrives.
+                </div>
+            }
+            else
+            {
+                <div class="notice">Nothing has been published for this topic yet.</div>
             }
 
             @if (this.Unpublished > 0)

@@ -38,6 +38,11 @@
 
     --focus-ring: var(--accent);
 
+    /* A QR code's modules and ground. Dark on light in either scheme, because that is what
+       scanners read most reliably. */
+    --qr-dark: hsl(0 0% 0%);
+    --qr-light: hsl(0 0% 100%);
+
     /* Type. One scale, ratio 1.2, anchored on the reader's own browser setting. */
     --body-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
     --mono-font: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
@@ -625,16 +630,23 @@ fieldset {
     align-items: start;
 }
 
-.split > .pane {
+/* app.js keeps a scrolling pane's place, so the browser's own scroll anchoring is off there. */
+.split > .pane,
+.present > .pane {
     min-width: 0;
-    max-height: calc(100vh - var(--header-height) - 2em);
     overflow-y: auto;
     overscroll-behavior: contain;
+    overflow-anchor: none;
+}
+
+.split > .pane {
+    max-height: calc(100vh - var(--header-height) - 2em);
     position: sticky;
     inset-block-start: calc(var(--header-height) + 1em);
 }
 
-.split > .pane > .pane-head {
+.split > .pane > .pane-head,
+.present > .pane > .pane-head {
     position: sticky;
     inset-block-start: 0;
     z-index: 1;
@@ -647,11 +659,84 @@ fieldset {
         grid-template-columns: minmax(0, 1fr);
     }
 
+    .split > .pane,
+    .present > .pane {
+        overflow-y: visible;
+        overflow-anchor: auto;
+    }
+
     .split > .pane {
         max-height: none;
-        overflow-y: visible;
         position: static;
     }
+}
+
+/* ---- Presentation --------------------------------------------------------
+ *
+ * One screen to project for a whole session: the topic across the block start, then the
+ * responses and the summary side by side, each scrolling inside the viewport. Below the
+ * breakpoint the columns stack and the page scrolls instead, as on the topic page.
+ */
+
+.present {
+    /* A deliberate anchor: large enough to read from the back of a room on a projector, and
+       never below the reader's own setting on a small screen. */
+    font-size: clamp(1rem, 0.5rem + 0.9vw, 1.75rem);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: var(--stack-gap) var(--section-gap);
+    height: 100dvh;
+    padding: clamp(0.5em, 1.5vw, 1.25em);
+}
+
+.present > header {
+    grid-column: 1 / -1;
+}
+
+.present > .pane {
+    min-height: 0;
+}
+
+@media (max-width: 60em) {
+    .present {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: none;
+        height: auto;
+    }
+}
+
+.join {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--panel-gap);
+}
+
+.join > .stack {
+    flex: 1 1 12em;
+    min-width: 0;
+}
+
+.qr {
+    flex: none;
+    inline-size: 11em;
+    block-size: 11em;
+}
+
+.qr rect {
+    fill: var(--qr-light);
+}
+
+.qr path {
+    fill: var(--qr-dark);
+}
+
+.join-url,
+.join-code {
+    font-family: var(--mono-font);
+    color: var(--text-loud);
+    overflow-wrap: anywhere;
 }
 
 /* ---- The tree -----------------------------------------------------------

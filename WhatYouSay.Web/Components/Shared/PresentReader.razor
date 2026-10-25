@@ -1,0 +1,40 @@
+@* Never an admin feed, whoever is signed in: the projector shows what the public sees. *@
+<TopicFeed TopicId="@this.TopicId" Code="@this.Code" ReactorToken="@this.ReactorToken" Context="view">
+    <div class="present">
+        <header class="stack">
+            <div class="controls">
+                <h1>@view.Topic.Title</h1>
+
+                <span class="tag @(view.Topic.IsAcceptingResponses ? "good" : null)">
+                    @(view.Topic.IsAcceptingResponses ? "Open" : "Closed")
+                </span>
+            </div>
+
+            <p class="prose quiet">@view.Topic.Description</p>
+        </header>
+
+        @* Responses first in reading order, so they take the inline start. *@
+        @if (view.ResponsesArePublic)
+        {
+            <ResponsePane>
+                <Lead>
+                    <JoinPanel Url="@this.JoinUrl" Code="@view.Topic.Code"
+                               IsAcceptingResponses="@view.Topic.IsAcceptingResponses"
+                               ShowsFallbackWarning="@this.ShowsFallbackWarning" />
+                </Lead>
+            </ResponsePane>
+        }
+        else
+        {
+            <div class="pane stack wide">
+                <JoinPanel Url="@this.JoinUrl" Code="@view.Topic.Code"
+                           IsAcceptingResponses="@view.Topic.IsAcceptingResponses"
+                           ShowsFallbackWarning="@this.ShowsFallbackWarning" />
+
+                <p class="quiet">This topic does not show its responses publicly, so only the summary appears here.</p>
+            </div>
+        }
+
+        <SummaryPane />
+    </div>
+</TopicFeed>

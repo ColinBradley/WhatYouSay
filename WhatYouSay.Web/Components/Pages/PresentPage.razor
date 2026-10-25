@@ -1,0 +1,23 @@
+@page "/topics/{Code}/present"
+@layout Layout.PresentLayout
+
+<PageTitle>@(mTopic?.Title ?? "Topic")</PageTitle>
+
+@if (mTopic is null)
+{
+    <div class="app-main stack">
+        <h1>Topic not found</h1>
+
+        <p class="quiet">No topic has the code &ldquo;@Code&rdquo;. Codes are case-sensitive.</p>
+
+        <a href="/">Back to the list</a>
+    </div>
+}
+else
+{
+    @* Static SSR ends here, so the responder cookie is written while there is still a
+       response to write it to. *@
+    <PresentReader TopicId="@mTopic.Id" Code="@Code" ReactorToken="@mReactorToken"
+                   JoinUrl="@mJoinUrl" ShowsFallbackWarning="@mShowsFallbackWarning"
+                   @rendermode="InteractiveServer" />
+}

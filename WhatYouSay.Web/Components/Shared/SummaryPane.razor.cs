@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 using WhatYouSay.Data;
 
 namespace WhatYouSay.Web.Components.Shared;
@@ -9,11 +10,34 @@ namespace WhatYouSay.Web.Components.Shared;
 /// </summary>
 public partial class SummaryPane
 {
+    private ElementReference mPane;
+
+    [Inject]
+    private IJSRuntime JS { get; set; } = default!;
+
     [CascadingParameter]
     public TopicFeed Feed { get; set; } = default!;
 
     [CascadingParameter]
     public TopicView View { get; set; } = default!;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await this.JS.InvokeVoidAsync("whatYouSayPanes.keep", mPane, "li, .prose");
+        }
+    }
+
+    /// <summary>When a summary last changed, with its date only when that was not today.</summary>
+    private string WhenUpdated(Summary summary)
+    {
+        var updated = summary.UpdatedAt.ToLocalTime();
+
+        return updated.Date == DateTime.Today
+            ? updated.ToString("HH:mm")
+            : updated.ToString("d MMM yyyy HH:mm");
+    }
 
     /// <summary>Only ever non-zero for an admin, since only an admin's versions include drafts.</summary>
     private int Unpublished =>

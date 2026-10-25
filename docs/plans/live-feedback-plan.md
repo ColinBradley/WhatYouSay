@@ -110,7 +110,7 @@ Each work item is independently reviewable and leaves the current application us
 | LF-4 | ✅ Emoji reactions on responses | LF-3 |
 | LF-5 | ✅ Consistent summariser inputs and safe live writes | LF-1 to LF-4 |
 | LF-6 | ✅ Topic-wide live updates and response-first readers | LF-2 to LF-5 |
-| LF-7 | Presentation page and QR join flow | LF-6 |
+| LF-7 | ✅ Presentation page and QR join flow | LF-6 |
 | LF-8 | Local Claude Code runner and ready-to-use setup | LF-5 to LF-7 |
 | LF-9 | Codex runner adapter | LF-8 |
 
@@ -310,6 +310,19 @@ Label the automatically updated summary as live AI output, rather than presentin
 
 **Note from LF-2:** `Summary.IsLive` identifies the live summariser output to label, and `UpdatedAt` its last write. New topics are live by default and the create page does not say so, so the presentation setup should.
 
+**Implementation notes:**
+
+- `/topics/{code}/present` is a static shell (`PresentPage`) around an interactive `PresentReader`, in `PresentLayout`, which has no app header. The shell writes the responder cookie, because the response cards still take reactions. The reader's `TopicFeed` is never an admin feed, so the projector shows what the public sees even when an admin opens it. Private responses never load, and turning them private clears them live.
+- The layout is a grid sized to the viewport: the topic across the block start, then responses at the inline start and the summary at the inline end, each scrolling on its own. `.present` is a font-size anchor, scaled with the viewport for projection. Below 60em the columns stack and the page scrolls. No arrival is animated, and the only motion, a smooth scroll, is instant under `prefers-reduced-motion`.
+- `ResponsePane` takes a `Lead` slot at its block start, which the reader fills with a `JoinPanel`. The `id="responses"` is gone. Where responses are private, the join panel sits in a pane of its own with a note that only the summary is shown.
+- `JoinPanel` encodes `/topics/{code}/respond` with Net.Codecrete.QrCodeGenerator, in process, and draws it as an inline SVG path, dark on light in both schemes. It shows the URL and the topic code beside it, and a "Closed to new responses" tag when the topic is closed.
+- The public address is the `PublicBaseUrl` setting, read once at startup by `PublicAddress`. A malformed value stops the site starting. Empty, links fall back to the address the browser used, and admins see a warning on the presentation page and the admin page. The admin page's share link, the new join link and the create page's share link all use it. The summariser prompt still uses the request's address, because the runner may be on the presenter's own machine.
+- The admin page has a Presenting section: the join link, whether responses will be shown, the setting's instructions when it is empty, and a link to the page. The topic page has a Present button. `appsettings.json` documents the setting.
+- `app.js` `whatYouSayPanes.keep` keeps a scrolling pane's place through live updates, on the topic page as well as the presentation page. A pane at its start stays there, so it follows new responses. A pane scrolled further keeps its first visible item in place, measured in content coordinates so it works without scroll events. The response pane's head has a button that counts responses arriving while the pane is scrolled back, and returns to the start. Browser scroll anchoring is off on scrolling panes, because it would move them a second time. Where the page scrolls instead, nothing changes.
+- Untimed topics show no new-response button, because their arrivals land anywhere in the list. The response pane says their responses are in no particular order.
+- `SummaryPane` labels the live summary "Live AI summary", says when it was last updated, says when AI updates are paused, and says whether newer feedback has arrived since (`AppliedInputRevision < InputRevision`) or it includes everything (equal). A null applied revision says neither. Nothing claims a runner is connected or generating. A live topic with no summary says one appears once the summariser first writes it.
+- Nothing in the domain changed, so there are no new tests.
+
 ### LF-8 — Local Claude Code runner and ready-to-use setup
 
 **Change:** Supply the local script, the Claude Code invocation, startup configuration and an admin-copyable setup prompt/instructions. The script performs conditional polls, starts bounded `claude -p` calls only for changed inputs, validates the returned structure, and posts via the new live-write contract. The script owns the 10-second cadence; no agent scheduling feature is involved. Start with one maintained runtime, selected before coding this item from the actual presenter machines, and document installation requirements.
@@ -321,6 +334,8 @@ Include preflight, cancellation/end time, checkpoint/resume, bounded retries, pr
 **Validation:** Run against the actual site with Claude Code authenticated to a work account. Exercise a 10-second poll, idle periods with no model invocation, sustained arrivals, model generation longer than the poll interval, withdrawal during generation, reaction-only changes, malformed output, network interruption, token rotation, provider limits, Ctrl+C and restart. Measure submit-to-feed latency separately from submit-to-summary latency. Rehearse a 50-person topic and representative concurrent sessions against the one server, measuring SQLite contention and notification fan-out.
 
 **Finish when:** A presenter can prepare once and complete a session using Claude without touching the owner workflow during normal feedback collection.
+
+**Note from LF-7:** The setup instructions should have the presenter set `PublicBaseUrl` and open the presentation page before the session, because the page warns an admin when the setting is empty. The page shows only update age and pending feedback, so any runner status would need the heartbeat protocol in the failure-visibility decision. The summariser prompt's URL still comes from the request, not `PublicBaseUrl`.
 
 **Note from LF-6:** Every accepted `PUT /live` makes each open view of the topic reload in full. Reloads are coalesced per circuit and limited by processor count, so the rehearsal should measure that fan-out with the runner writing every 10 seconds.
 
@@ -346,7 +361,7 @@ These do not block the plan. Resolve them before their work item starts and reco
 | Snapshot size | One coherent snapshot of current input for normal event topics. Measure larger topics before choosing paging/chunking; never silently omit feedback. **Chosen:** as suggested. The snapshot always carries every live response whole, with no server limit. A runner refuses loudly when the input is too large for its model, and chunking waits for measurements. | LF-5 |
 | Input revision mechanism | Not in the original plan. **Chosen:** SQLite triggers on the input tables, so every write path moves the revision in the same statement, raw SQL included. Tests cover each input path, because a migration that rebuilds a table drops its triggers. | LF-5 |
 | Older summariser writes to the live summary | Not in the original plan. **Chosen:** `PUT /summaries/{id}` keeps revising the live summary, as LF-2 left it, but stores a null applied input revision, so the summary shows as pending. Old clients cite current revisions frozen or not, as LF-2 already allowed, rather than going back to frozen-only citations. | LF-5 |
-| QR rendering | Use a small local QR encoder, with the public base URL supplied through site configuration. Verify its current package/license when choosing it. | LF-7 |
+| QR rendering | Use a small local QR encoder, with the public base URL supplied through site configuration. Verify its current package/license when choosing it. **Chosen:** Net.Codecrete.QrCodeGenerator 3.2.1, MIT, with no dependencies. It renders an SVG path, so nothing goes through System.Drawing. The address is the `PublicBaseUrl` setting, falling back to the request's address with a warning to admins. | LF-7 |
 | Runner runtime/platforms | Confirm the work presenters' operating systems. Prefer a small supplied script in a runtime already installed there; add another platform when actually needed. | LF-8 |
 | Model/timeouts | Choose a fast available model using a rehearsal; do not hard-code a model name or promise 10-second generation from a polling interval. | LF-8 |
 | Failure visibility | Begin with summary update age/pending feedback on the site and actionable runner console errors. Add an explicit expiring heartbeat/status protocol if rehearsal shows presenters need clearer connection/error status on the projector. | LF-8 |
@@ -370,6 +385,7 @@ Provider eligibility and limits still come from the presenter's plan and workpla
 | 2026-10-25 15:03 | LF-4 implemented on top of LF-2, pending review. Build clean, all domain tests pass, and model matches migrations. The migration was checked on a fresh database and on a copy of the development database. Toggling, counts, keyboard use and reacting without having responded were exercised in the running app with two cookie jars. |
 | 2026-10-25 15:36 | LF-5 implemented on top of LF-4, pending review. Build clean, all domain tests pass, and model matches migrations. The migration was checked on a fresh database and on a copy of the development database. Authentication, errors, a 304 conditional read, live writes, stale and older-input writes, and the older endpoints were exercised with curl against the running app. |
 | 2026-10-25 16:07 | LF-6 implemented on top of LF-5, pending review. Build clean, all domain tests pass. In several tabs of the running app, without refreshing: a submission, edit and withdrawal, a response reaction, the first summary and later revisions through `PUT /live`, a draft through `POST /summaries`, manual edits, visibility in both directions, closing the topic, making another summary live and a deletion. A refused `PUT /live` changed nothing, typed drafts survived, a version URL stayed pinned, and a paused and resumed circuit caught up. RTL and 375px layouts were checked. |
+| 2026-10-25 19:57 | LF-7 implemented on top of LF-6, pending review. Build clean, all domain tests pass. In the running app at 1920×1080: responses followed at the pane's start, a scrolled-back pane kept its place and counted a new response, the summary kept its place through a `PUT /live` that inserted a node, the live label and pending state changed with input, and turning responses private cleared them live. Also checked at 375px, at 960×540 as a stand-in for zoom, in RTL, with reduced motion simulated, on a new live topic with no responses or summary, and with `PublicBaseUrl` set and malformed. The QR was not decoded or scanned with a phone. |
 
 ## Provider guidance checked during planning
 

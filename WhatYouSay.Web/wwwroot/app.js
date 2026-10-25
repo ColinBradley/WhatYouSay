@@ -34,6 +34,31 @@ window.whatYouSayCopy = async (source, button) => {
  * scroll is the right one to use.
  */
 (() => {
+    /** The scroll behaviour: smooth, unless the viewer has asked for less motion. */
+    const behavior = () =>
+        matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+
+    /**
+     * Scrolls a pane to a block offset.
+     *
+     * @param {HTMLElement} pane The scrolling pane.
+     * @param {number} wanted The offset from the pane's block start, in pixels.
+     */
+    const scrollPane = (pane, wanted) => {
+        const before = pane.scrollTop;
+
+        pane.scrollTo({ top: wanted, behavior: behavior() });
+
+        // A smooth scroll can be accepted and then never performed, which loses the
+        // movement the click was for rather than degrading to a jump. A timer rather
+        // than requestAnimationFrame, because a hidden tab runs one and not the other.
+        setTimeout(() => {
+            if (pane.scrollTop === before && Math.round(wanted) !== Math.round(before)) {
+                pane.scrollTo({ top: wanted, behavior: 'auto' });
+            }
+        }, 300);
+    };
+
     const show = (target) => {
         if (!target) {
             return;
@@ -53,21 +78,9 @@ window.whatYouSayCopy = async (source, button) => {
                 + pane.scrollTop;
 
             // A third of the way down reads as "here" without pinning it to the very edge.
-            const wanted = offset - pane.clientHeight / 3;
-            const before = pane.scrollTop;
-
-            pane.scrollTo({ top: wanted, behavior: 'smooth' });
-
-            // A smooth scroll can be accepted and then never performed, which loses the
-            // movement the click was for rather than degrading to a jump. A timer rather
-            // than requestAnimationFrame, because a hidden tab runs one and not the other.
-            setTimeout(() => {
-                if (pane.scrollTop === before && Math.round(wanted) !== Math.round(before)) {
-                    pane.scrollTo({ top: wanted, behavior: 'auto' });
-                }
-            }, 300);
+            scrollPane(pane, offset - pane.clientHeight / 3);
         } else {
-            target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            target.scrollIntoView({ block: 'center', behavior: behavior() });
         }
 
         for (const previous of document.querySelectorAll('.is-hit')) {
@@ -108,6 +121,102 @@ window.whatYouSayCopy = async (source, button) => {
             ? document.querySelector(`mark[data-refs~="${source.dataset.showsQuote}"]`)
             : document.getElementById(source.dataset.showsNode));
     });
+
+    /**
+     * Keeps a pane's place while live updates change its content. Without it, anything that
+     * changed above the part being read would move that part.
+     *
+     * A pane scrolled to its start stays there, so it follows responses arriving at the top.
+     * A pane scrolled further keeps its first visible item where it was. A pane holding a
+     * [data-new-arrivals] button counts on it the items that arrive while the pane is scrolled
+     * away from its start. Pressing the button returns the pane to its start.
+     *
+     * Browser scroll anchoring does the same in some browsers but not all. It would also move
+     * the pane a second time after this script, so app.css turns it off on the panes that scroll.
+     */
+    window.whatYouSayPanes = {
+        /**
+         * @param {HTMLElement} pane The pane. Where the page scrolls instead of the pane, the
+         *     page's own scroll anchoring keeps the place.
+         * @param {string} items A selector for the items to keep in place.
+         */
+        keep: (pane, items) => {
+            const arrivals = pane.querySelector('[data-new-arrivals]');
+            let anchor = null;
+            let anchorOffset = 0;
+            let unseen = 0;
+
+            // Scroll anchoring is off, so a change to the pane's content leaves scrollTop as it
+            // was. A mutation callback therefore reads it as it stood before the change.
+            const isAtStart = () => pane.scrollTop < 2;
+
+            // An element's offset from the start of the pane's content. Measured from the
+            // content rather than the visible edge, so a remembered anchor stays valid after a
+            // scroll whose event has not arrived yet. A hidden tab delivers no scroll events.
+            const offsetOf = (element) =>
+                element.getBoundingClientRect().top - pane.getBoundingClientRect().top + pane.scrollTop;
+
+            // Takes the first item that starts inside the visible part as the anchor. An item
+            // starting above the visible part is no use, because something nested in it can
+            // change without moving the item's start.
+            const remember = () => {
+                anchor = [...pane.querySelectorAll(items)].find(item => offsetOf(item) >= pane.scrollTop - 1) ?? null;
+                anchorOffset = anchor ? offsetOf(anchor) : 0;
+            };
+
+            const count = () => {
+                if (!arrivals) {
+                    return;
+                }
+
+                const text = `${unseen} new ${unseen === 1 ? 'response' : 'responses'}`;
+
+                // Writing even the same text is a mutation, which would call the observer again
+                // without end.
+                if (arrivals.textContent !== text) {
+                    arrivals.textContent = text;
+                }
+
+                arrivals.hidden = unseen === 0;
+            };
+
+            pane.addEventListener('scroll', () => {
+                remember();
+
+                if (isAtStart() && unseen > 0) {
+                    unseen = 0;
+                    count();
+                }
+            }, { passive: true });
+
+            arrivals?.addEventListener('click', () => scrollPane(pane, 0));
+
+            new MutationObserver((records) => {
+                // A pane at its start stays there unaided.
+                if (!isAtStart()) {
+                    if (arrivals) {
+                        unseen += records
+                            .flatMap(record => [...record.addedNodes])
+                            .filter(node => node instanceof Element && node.matches(items))
+                            .length;
+                        count();
+                    }
+
+                    const moved = anchor?.isConnected ? offsetOf(anchor) - anchorOffset : 0;
+
+                    // Assigning scrollTop stops a smooth scroll in progress, even when the value
+                    // is unchanged.
+                    if (moved !== 0) {
+                        pane.scrollTop += moved;
+                    }
+                }
+
+                remember();
+            }).observe(pane, { childList: true, subtree: true, characterData: true });
+
+            remember();
+        },
+    };
 })();
 
 /**

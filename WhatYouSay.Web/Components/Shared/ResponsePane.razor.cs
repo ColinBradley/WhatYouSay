@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 using WhatYouSay.Data;
 
 namespace WhatYouSay.Web.Components.Shared;
@@ -14,11 +15,28 @@ public sealed record EarlierRevision
 /// <summary>Every public response on a topic, as cards that take reactions. Sits inside a <see cref="TopicFeed"/>.</summary>
 public partial class ResponsePane
 {
+    private ElementReference mPane;
+
+    [Inject]
+    private IJSRuntime JS { get; set; } = default!;
+
     [CascadingParameter]
     public TopicFeed Feed { get; set; } = default!;
 
     [CascadingParameter]
     public TopicView View { get; set; } = default!;
+
+    /// <summary>Content at the pane's block start, above its heading and responses.</summary>
+    [Parameter]
+    public RenderFragment? Lead { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await this.JS.InvokeVoidAsync("whatYouSayPanes.keep", mPane, "article");
+        }
+    }
 
     private IReadOnlyList<SummaryNodeReference> CurrentReferencesFor(Response response)
     {

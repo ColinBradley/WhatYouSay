@@ -7,6 +7,7 @@ using WhatYouSay.Web.Auth;
 using WhatYouSay.Web.Api;
 using WhatYouSay.Web.Telemetry;
 using WhatYouSay.Web.Live;
+using WhatYouSay.Web.Presentation;
 using WhatYouSay.Data.Seed;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -28,6 +29,9 @@ builder.Services.AddScoped<TopicAdminService>();
 builder.Services.AddScoped<AdminSession>();
 
 builder.Services.AddSingleton<TopicLiveUpdates>();
+
+// Read here rather than on first use, so a malformed address stops the site starting.
+builder.Services.AddSingleton(PublicAddress.From(builder.Configuration));
 
 // One instance per circuit. The framework calls it as a circuit handler, and live views
 // subscribe to it.
