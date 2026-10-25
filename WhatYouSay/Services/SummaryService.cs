@@ -105,6 +105,8 @@ public class SummaryService
     /// The live summary is published from the start. Any other new summary is a draft.
     /// Stored nodes that the draft leaves out are archived rather than deleted, so the
     /// reactions and comments on them survive.
+    /// The draft's input revision becomes the summary's applied input revision, which is null
+    /// when the draft gives none.
     /// </remarks>
     public async Task<Summary> SaveDraftAsync(
         Topic topic,
@@ -117,10 +119,7 @@ public class SummaryService
         using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
 
         var summary = replacing is { } id
-            ? await mDb.Summaries
-                .Include(s => s.Nodes.Where(n => n.ArchivedAt == null))
-                    .ThenInclude(n => n.References)
-                .FirstOrDefaultAsync(s => s.Id == id && s.TopicId == topic.Id, cancellationToken)
+            ? await this.CurrentTrees().FirstOrDefaultAsync(s => s.Id == id && s.TopicId == topic.Id, cancellationToken)
             : null;
 
         if (replacing is not null && summary is null)
@@ -128,21 +127,111 @@ public class SummaryService
             throw this.Reject(topic, "unknown_summary", "/", $"No summary {replacing} on this topic.");
         }
 
+        var live = summary is null
+            && topic.SummaryPolicy == SummaryPolicy.Live
+            && !await mDb.Summaries.AnyAsync(s => s.TopicId == topic.Id && s.IsLive, cancellationToken);
+
+        return await this.SaveAsync(topic, draft, createdBy, summary, live, false, cancellationToken);
+    }
+
+    /// <summary>
+    /// Creates the topic's live summary, or revises it, for a summariser running unattended.
+    /// Rejects the whole call rather than applying it partially, as <see cref="SaveDraftAsync"/> does.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="SummaryDraft.BasedOnRevision"/> is null to create the live summary, and the
+    /// revision read to revise it. A write that expected no live summary is refused when one
+    /// exists, so two first writes cannot both land.
+    /// <see cref="SummaryDraft.InputRevision"/> and every reference's revision are required.
+    /// An input revision older than the topic's current one is accepted, so newer input stays pending.
+    /// </remarks>
+    public async Task<Summary> SaveLiveAsync(
+        Topic topic,
+        SummaryDraft draft,
+        CancellationToken cancellationToken = default
+    )
+    {
+        using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
+
+        if (topic.SummaryPolicy != SummaryPolicy.Live)
+        {
+            throw this.Reject(
+                topic,
+                "summaries_reviewed",
+                "/",
+                "This topic has review switched on, so it has no live summary and nothing was "
+                + "saved. Write a draft for the admin to review instead.");
+        }
+
+        if (draft.InputRevision is null)
+        {
+            throw this.Reject(
+                topic,
+                "input_revision_required",
+                "/inputRevision",
+                "A live write says which input it was generated from. Send the inputRevision of "
+                + "the snapshot you read.");
+        }
+
+        var summary = await this.CurrentTrees()
+            .FirstOrDefaultAsync(s => s.TopicId == topic.Id && s.IsLive, cancellationToken);
+
+        if (summary is null && draft.BasedOnRevision is { } basedOn)
+        {
+            throw this.Reject(
+                topic,
+                "stale_revision",
+                "/basedOnRevision",
+                $"This draft is based on revision {basedOn} of the live summary, but the topic has "
+                + "no live summary now, so nothing was saved. Read the topic again.");
+        }
+
+        if (summary is not null && draft.BasedOnRevision is null)
+        {
+            throw this.Reject(
+                topic,
+                "live_summary_exists",
+                "/basedOnRevision",
+                $"The topic already has live summary {summary.Id}, at revision {summary.Revision}, "
+                + "so nothing was saved. Read the topic again and revise that summary, sending its "
+                + "revision as basedOnRevision.");
+        }
+
+        return await this.SaveAsync(topic, draft, "agent", summary, true, true, cancellationToken);
+    }
+
+    /// <summary>
+    /// Validates a draft and writes it over <paramref name="summary"/>, or into a new summary
+    /// when that is null. A new summary is the live summary when <paramref name="live"/> is true,
+    /// and a private draft otherwise.
+    /// </summary>
+    private async Task<Summary> SaveAsync(
+        Topic topic,
+        SummaryDraft draft,
+        string createdBy,
+        Summary? summary,
+        bool live,
+        bool requireNamedRevisions,
+        CancellationToken cancellationToken
+    )
+    {
         if (summary is not null)
         {
             this.RequireWritable(topic, summary, draft);
         }
 
+        await this.RequireInputRevisionAsync(topic, draft, summary, cancellationToken);
+
         var stored = summary?.Nodes.ToDictionary(node => node.Id) ?? [];
-        var revisions = await this.ValidateAsync(topic, draft, stored, cancellationToken);
+        var evidence = await this.ValidateAsync(topic, draft, stored, requireNamedRevisions, cancellationToken);
+        var responseCount = await mDb.Responses.CountAsync(
+            r => r.TopicId == topic.Id && !r.IsDeleted,
+            cancellationToken);
         var now = DateTimeOffset.UtcNow;
         var creating = summary is null;
 
         if (summary is null)
         {
-            var live = topic.SummaryPolicy == SummaryPolicy.Live
-                && !await mDb.Summaries.AnyAsync(s => s.TopicId == topic.Id && s.IsLive, cancellationToken);
-
             summary = new Summary()
             {
                 Id = Guid.CreateVersion7(),
@@ -153,7 +242,8 @@ public class SummaryService
                 IsDraft = !live,
                 IsPublic = live,
                 IsAgentEditable = true,
-                ResponseCountAtWrite = revisions.Count,
+                ResponseCountAtWrite = responseCount,
+                AppliedInputRevision = draft.InputRevision,
                 CreatedAt = now,
                 UpdatedAt = now,
             };
@@ -164,7 +254,8 @@ public class SummaryService
         {
             summary.Body = draft.Body;
             summary.UpdatedAt = now;
-            summary.ResponseCountAtWrite = revisions.Count;
+            summary.ResponseCountAtWrite = responseCount;
+            summary.AppliedInputRevision = draft.InputRevision;
             summary.Revision++;
         }
 
@@ -207,7 +298,7 @@ public class SummaryService
                 "live_summary_exists",
                 "/",
                 "Another write created this topic's live summary first, so nothing was saved. "
-                + "GET /summaries to find it, and revise that one instead.");
+                + "Read the topic again to find it, and revise that summary instead.");
         }
 
         Forget(archived);
@@ -284,7 +375,8 @@ public class SummaryService
         {
             foreach (var referenceDraft in draftNode.References ?? [])
             {
-                var revision = revisions[referenceDraft.ResponseId];
+                // Validation has already refused a reference that names no live revision.
+                var revision = evidence.Find(referenceDraft)!;
                 var location = QuoteLocator.Locate(revision.Body, referenceDraft.Quote)!.Value;
 
                 node.References.Add(new SummaryNodeReference()
@@ -354,14 +446,52 @@ public class SummaryService
     }
 
     /// <summary>
-    /// Runs before anything is written, so a failure leaves nothing behind.
-    /// Returns the current revision of every live response, keyed by response id.
-    /// New citations are located in these.
+    /// Refuses an input revision that the topic has not reached yet.
+    /// Also refuses one older than the input that the summary already reflects, which only a
+    /// caller mixing up two reads could send.
     /// </summary>
-    private async Task<Dictionary<Guid, ResponseRevision>> ValidateAsync(
+    private async Task RequireInputRevisionAsync(
+        Topic topic,
+        SummaryDraft draft,
+        Summary? summary,
+        CancellationToken cancellationToken
+    )
+    {
+        if (draft.InputRevision is not { } claimed)
+        {
+            return;
+        }
+
+        var current = await mDb.Topics
+            .Where(t => t.Id == topic.Id)
+            .Select(t => t.InputRevision)
+            .SingleAsync(cancellationToken);
+
+        var applied = summary?.AppliedInputRevision ?? 1;
+
+        if (claimed >= applied && claimed <= current)
+        {
+            return;
+        }
+
+        throw this.Reject(
+            topic,
+            "input_revision_out_of_range",
+            "/inputRevision",
+            $"Input revision {claimed} is outside {applied} to {current}. The summary already "
+            + $"reflects input revision {applied}, and the topic is at {current}. Send the "
+            + "inputRevision of the snapshot you generated from.");
+    }
+
+    /// <summary>
+    /// Runs before anything is written, so a failure leaves nothing behind.
+    /// Returns the revisions that the draft's references can be located in.
+    /// </summary>
+    private async Task<Evidence> ValidateAsync(
         Topic topic,
         SummaryDraft draft,
         Dictionary<int, SummaryNode> stored,
+        bool requireNamedRevisions,
         CancellationToken cancellationToken
     )
     {
@@ -370,8 +500,7 @@ public class SummaryService
             throw this.Reject(topic, "empty_summary", "/nodes", "A summary needs at least one node.");
         }
 
-        var revisions = await CurrentRevisions(mDb, topic)
-            .ToDictionaryAsync(v => v.ResponseId, cancellationToken);
+        var evidence = await this.EvidenceAsync(topic, draft, cancellationToken);
 
         // Every problem is collected rather than thrown on, so one retry can fix the lot.
         var failures = new List<GroundingFailure>();
@@ -387,7 +516,7 @@ public class SummaryService
             throw this.Reject(topic, failures);
         }
 
-        return revisions;
+        return evidence;
 
         // Nothing on a node says what sort of thing it is, so the rule cannot ask which nodes
         // are obliged to cite. What it can ask is that every path down the tree ends somewhere
@@ -504,14 +633,42 @@ public class SummaryService
 
         void CheckReference(NodeDraft node, ReferenceDraft reference, string path)
         {
-            if (!revisions.TryGetValue(reference.ResponseId, out var revision))
+            if (!evidence.CurrentNumbers.ContainsKey(reference.ResponseId))
             {
                 failures.Add(new GroundingFailure()
                 {
                     Path = $"{path}/responseId",
                     Reason = "unknown_response",
                     Message = $"\"{Trim(node.Text!)}\" cites response {reference.ResponseId}, which "
-                        + "is not a live response on this topic.",
+                        + "is not a live response on this topic. It may have been withdrawn, or "
+                        + "hidden by the admin.",
+                });
+
+                return;
+            }
+
+            if (reference.Revision is null && requireNamedRevisions)
+            {
+                failures.Add(new GroundingFailure()
+                {
+                    Path = $"{path}/revision",
+                    Reason = "revision_required",
+                    Message = $"\"{Trim(node.Text!)}\" cites response {reference.ResponseId} without "
+                        + "saying which revision the quote is copied from. Send the revision the "
+                        + "response had in the input you read.",
+                });
+
+                return;
+            }
+
+            if (evidence.Find(reference) is not { } revision)
+            {
+                failures.Add(new GroundingFailure()
+                {
+                    Path = $"{path}/revision",
+                    Reason = "unknown_revision",
+                    Message = $"\"{Trim(node.Text!)}\" cites revision {reference.Revision} of response "
+                        + $"{reference.ResponseId}, which has no such revision.",
                 });
 
                 return;
@@ -529,11 +686,72 @@ public class SummaryService
                 Path = $"{path}/quote",
                 Reason = "quote_not_found",
                 Message = $"\"{Trim(node.Text!)}\" quotes \"{Trim(reference.Quote)}\", which does "
-                    + $"not occur in response {reference.ResponseId}. Quotes must be copied "
-                    + "exactly from the response text.",
+                    + $"not occur in revision {revision.Number} of response {reference.ResponseId}. "
+                    + "Quotes must be copied exactly from the response text.",
                 Nearest = mismatch.Nearest,
                 Detail = mismatch.Detail,
             });
+        }
+    }
+
+    /// <summary>
+    /// Loads every revision of each live response that the draft cites.
+    /// A cited response that is withdrawn, hidden or on another topic is left out.
+    /// </summary>
+    private async Task<Evidence> EvidenceAsync(
+        Topic topic,
+        SummaryDraft draft,
+        CancellationToken cancellationToken
+    )
+    {
+        var cited = draft.Nodes
+            .SelectMany(Walk)
+            .SelectMany(node => node.References ?? [])
+            .Select(reference => reference.ResponseId)
+            .Distinct()
+            .ToList();
+
+        var rows = await mDb.ResponseRevisions
+            .Where(v => v.Response.TopicId == topic.Id
+                && !v.Response.IsDeleted
+                && cited.Contains(v.ResponseId))
+            .Select(v => new { Revision = v, Current = v.Response.RevisionNumber })
+            .ToListAsync(cancellationToken);
+
+        return new Evidence()
+        {
+            Revisions = rows.ToDictionary(row => (row.Revision.ResponseId, row.Revision.Number), row => row.Revision),
+            CurrentNumbers = rows
+                .GroupBy(row => row.Revision.ResponseId)
+                .ToDictionary(group => group.Key, group => group.First().Current),
+        };
+
+        static IEnumerable<NodeDraft> Walk(NodeDraft node)
+        {
+            return node.Children.SelectMany(Walk).Prepend(node);
+        }
+    }
+
+    /// <summary>The revisions of live responses that a draft cites, keyed so each reference finds the one it names.</summary>
+    private sealed record Evidence
+    {
+        public required IReadOnlyDictionary<(Guid ResponseId, int Number), ResponseRevision> Revisions { get; init; }
+
+        /// <summary>The current revision number of each cited live response.</summary>
+        public required Dictionary<Guid, int> CurrentNumbers { get; init; }
+
+        /// <summary>
+        /// The revision a reference names, or the current one when it names none.
+        /// Null when the response is not live on the topic, or has no such revision.
+        /// </summary>
+        public ResponseRevision? Find(ReferenceDraft reference)
+        {
+            if (!this.CurrentNumbers.TryGetValue(reference.ResponseId, out var current))
+            {
+                return null;
+            }
+
+            return this.Revisions.GetValueOrDefault((reference.ResponseId, reference.Revision ?? current));
         }
     }
 
@@ -628,6 +846,17 @@ public class SummaryService
     private IQueryable<Summary> Detailed()
     {
         return WithCitations(mDb.Summaries).AsSplitQuery();
+    }
+
+    /// <summary>
+    /// Summaries with their current tree and its references, tracked for a write.
+    /// References to withdrawn responses are kept, so a node carried forward keeps them.
+    /// </summary>
+    private IQueryable<Summary> CurrentTrees()
+    {
+        return mDb.Summaries
+            .Include(s => s.Nodes.Where(n => n.ArchivedAt == null))
+                .ThenInclude(n => n.References);
     }
 
     /// <summary>

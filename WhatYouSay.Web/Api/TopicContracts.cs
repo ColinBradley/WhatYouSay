@@ -21,6 +21,9 @@ public record TopicInfo
     public required int ResponseCount { get; init; }
 
     public required int SummaryCount { get; init; }
+
+    /// <summary>Counts changes to anything the summariser reads. See <c>GET /live</c>.</summary>
+    public required int InputRevision { get; init; }
 }
 
 /// <summary>
@@ -33,6 +36,15 @@ public record ResponsePage
     public required int Total { get; init; }
 
     public required int Skip { get; init; }
+
+    /// <summary>
+    /// The topic's input revision when the page was read. A different value on a later page
+    /// means responses or reactions changed in between.
+    /// </summary>
+    public required int InputRevision { get; init; }
+
+    /// <summary>The id to pass as <c>after</c> for the next page. Null on the last page.</summary>
+    public Guid? NextAfter { get; init; }
 
     public required IReadOnlyList<ResponseInfo> Items { get; init; }
 }
@@ -51,4 +63,7 @@ public record ResponseInfo
 
     /// <summary>Null on topics that record no timing.</summary>
     public DateTimeOffset? CreatedAt { get; init; }
+
+    /// <summary>Counts by reaction kind. Only kinds anyone used appear.</summary>
+    public required IReadOnlyDictionary<string, int> Reactions { get; init; }
 }

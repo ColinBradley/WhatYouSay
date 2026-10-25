@@ -65,6 +65,15 @@ public partial class AdminPage
     [SupplyParameterFromForm(FormName = "admin-settings")]
     public bool IsAnonymous { get; set; }
 
+    [SupplyParameterFromForm(FormName = "admin-guidance")]
+    public string? ExpectedFeedback { get; set; }
+
+    [SupplyParameterFromForm(FormName = "admin-guidance")]
+    public string? SummarisingInstructions { get; set; }
+
+    [SupplyParameterFromForm(FormName = "admin-guidance")]
+    public string? SummaryLengthTarget { get; set; }
+
     [SupplyParameterFromForm(FormName = "admin-freeze")]
     public bool FreezeResponses { get; set; }
 
@@ -218,6 +227,15 @@ public partial class AdminPage
             this.AreResponsesPublic,
             fixedNow ? mTopic!.IsAnonymous : this.IsAnonymous,
             fixedNow ? mTopic!.RecordsTiming : this.RecordsTiming));
+    }
+
+    private async Task SaveGuidanceAsync()
+    {
+        await this.GuardedAsync(() => this.Admin.UpdateGuidanceAsync(
+            mTopic!,
+            this.ExpectedFeedback,
+            this.SummarisingInstructions,
+            this.SummaryLengthTarget));
     }
 
     private async Task RegenerateTokenAsync()

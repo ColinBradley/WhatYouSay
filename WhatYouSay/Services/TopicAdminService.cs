@@ -291,6 +291,45 @@ public class TopicAdminService
         await mDb.SaveChangesAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Sets the guidance the summariser reads alongside the responses. Blank values are stored
+    /// as null, meaning no guidance.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">A value is longer than <see cref="MaxGuidanceLength"/>.</exception>
+    public async Task UpdateGuidanceAsync(
+        Topic topic,
+        string? expectedFeedback,
+        string? summarisingInstructions,
+        string? summaryLengthTarget,
+        CancellationToken cancellationToken = default
+    )
+    {
+        using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
+
+        string?[] values = [expectedFeedback, summarisingInstructions, summaryLengthTarget];
+
+        if (values.Any(value => value?.Trim().Length > MaxGuidanceLength))
+        {
+            activity.RecordFailure("guidance_too_long");
+
+            throw new InvalidOperationException(
+                $"Keep each piece of guidance to {MaxGuidanceLength} characters. The summariser reads "
+                + "all of it with every update.");
+        }
+
+        topic.ExpectedFeedback = NullIfBlank(expectedFeedback);
+        topic.SummarisingInstructions = NullIfBlank(summarisingInstructions);
+        topic.SummaryLengthTarget = NullIfBlank(summaryLengthTarget);
+
+        await mDb.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>The longest each piece of summariser guidance may be, in characters.</summary>
+    public const int MaxGuidanceLength = 4000;
+
+    private static string? NullIfBlank(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
     /// <summary>Returns the new token; the old one stops working immediately.</summary>
     public async Task<string> RegenerateSummariserTokenAsync(
         Topic topic,

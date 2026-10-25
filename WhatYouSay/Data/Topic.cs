@@ -34,6 +34,25 @@ public class Topic
 
     public ResponseTiming ResponseTiming { get; set; } = ResponseTiming.Recorded;
 
+    /// <summary>
+    /// Counts changes to what the summariser reads, starting at 1.
+    /// Database triggers move it in the same statement as each change, so nothing in code sets it.
+    /// A tracked topic keeps the value it was loaded with, so read the current one with a projection.
+    /// </summary>
+    public int InputRevision { get; private set; } = 1;
+
+    /// <summary>What kind of feedback the admin expects, such as questions for a panel. Summariser guidance.</summary>
+    public string? ExpectedFeedback { get; set; }
+
+    /// <summary>How the admin wants the feedback summarised. Summariser guidance.</summary>
+    public string? SummarisingInstructions { get; set; }
+
+    /// <summary>
+    /// How long the admin would like the summary to be, in their own words. Summariser guidance,
+    /// not a limit anything enforces.
+    /// </summary>
+    public string? SummaryLengthTarget { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public List<Response> Responses { get; set; } = [];

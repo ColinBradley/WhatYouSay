@@ -1,5 +1,6 @@
 @page "/topics/{Code}/admin"
 @using WhatYouSay.Data
+@using WhatYouSay.Services
 
 <PageTitle>@(mTopic is null ? "Admin" : $"Admin — {mTopic.Title}")</PageTitle>
 
@@ -230,6 +231,42 @@ else
                     </label>
 
                     <button class="primary" type="submit">Save settings</button>
+                </form>
+
+                <h2>Summarising guidance</h2>
+
+                <p class="fine">
+                    The summariser reads this alongside the responses every time it writes. All
+                    of it is optional. Changing it counts as new feedback, so the next summariser
+                    pass takes it into account.
+                </p>
+
+                <form method="post" @formname="admin-guidance" @onsubmit="SaveGuidanceAsync" class="stack wide">
+                    <AntiforgeryToken />
+
+                    <div class="field">
+                        <label for="expected-feedback">Feedback you expect</label>
+                        <textarea id="expected-feedback" name="ExpectedFeedback" rows="3"
+                                  maxlength="@TopicAdminService.MaxGuidanceLength"
+                                  placeholder="Questions for the panel, mostly about the roadmap">@mTopic.ExpectedFeedback</textarea>
+                    </div>
+
+                    <div class="field">
+                        <label for="summarising-instructions">How to summarise it</label>
+                        <textarea id="summarising-instructions" name="SummarisingInstructions" rows="4"
+                                  maxlength="@TopicAdminService.MaxGuidanceLength"
+                                  placeholder="Group questions by team, and keep any that nobody else asked">@mTopic.SummarisingInstructions</textarea>
+                    </div>
+
+                    <div class="field">
+                        <label for="length-target">Length to aim for</label>
+                        <input id="length-target" name="SummaryLengthTarget" type="text"
+                               maxlength="@TopicAdminService.MaxGuidanceLength"
+                               placeholder="One screen, five or six main points"
+                               value="@mTopic.SummaryLengthTarget" />
+                    </div>
+
+                    <button class="primary" type="submit">Save guidance</button>
                 </form>
 
                 <h2>Summariser token</h2>

@@ -25,6 +25,8 @@ public static class SummariserApi
 
         topics.MapGet("/ai-summary-start", GetBriefingAsync);
         topics.MapGet("/", GetTopicAsync);
+        topics.MapGet("/live", GetLiveAsync);
+        topics.MapPut("/live", PutLiveAsync);
         topics.MapGet("/responses", GetResponsesAsync);
         topics.MapGet("/summaries", GetSummariesAsync);
         topics.MapGet("/summaries/{summaryId:guid}", GetSummaryAsync);
@@ -149,43 +151,284 @@ public static class SummariserApi
             AreResponsesPublic = topic.AreResponsesPublic,
             ResponseCount = counts.Responses,
             SummaryCount = counts.Summaries,
+            InputRevision = topic.InputRevision,
         });
     }
 
     /// <summary>
-    /// Plain skip/take, no cursor. A response that arrives or is withdrawn mid-read can shift
-    /// the window. A citation is located in the response's current wording when it is written,
-    /// so a quote of wording that has since changed is refused, never stored with wrong offsets.
+    /// The whole summariser input in one consistent read, with an ETag. A request whose
+    /// If-None-Match holds the current ETag gets 304 and no body, so an idle poll costs two
+    /// small queries.
     /// </summary>
-    private static async Task<Ok<ResponsePage>> GetResponsesAsync(
+    private static async Task<Results<Ok<LiveSnapshot>, StatusCodeHttpResult>> GetLiveAsync(
         SummariserSession session,
-        ResponseService responses,
-        CancellationToken cancellationToken,
-        int skip = 0,
-        int take = 200
+        SummariserInputService inputs,
+        HttpContext http,
+        CancellationToken cancellationToken
     )
     {
         var topic = session.Topic;
 
         using var activity = WebTelemetry.Source.Start().SetTopic(topic);
 
-        var live = await responses.ListAsync(topic, cancellationToken);
+        var read = await inputs.ReadAsync(topic, KnownVersions(http.Request), cancellationToken);
+
+        http.Response.Headers.ETag = $"\"{ETagPrefix}{read.Version}\"";
+
+        if (read.Input is not { } input)
+        {
+            WebTelemetry.RequestServed(topic, "get_live_unchanged");
+
+            return TypedResults.StatusCode(StatusCodes.Status304NotModified);
+        }
+
+        WebTelemetry.RequestServed(topic, "get_live");
+
+        return TypedResults.Ok(Snapshot(input));
+    }
+
+    /// <summary>Starts every ETag, so a tag from an older contract never matches.</summary>
+    private static string ETagPrefix =>
+        $"v{SummariserModel.ContractVersion}.";
+
+    /// <summary>The versions named by the request's If-None-Match, ignoring tags this API did not issue.</summary>
+    private static List<string> KnownVersions(HttpRequest request)
+    {
+        var prefix = $"\"{ETagPrefix}";
+
+        return
+        [
+            .. request.GetTypedHeaders().IfNoneMatch
+                .Select(tag => tag.Tag.Value)
+                .OfType<string>()
+                .Where(tag => tag.StartsWith(prefix, StringComparison.Ordinal) && tag.EndsWith('"'))
+                .Select(tag => tag[prefix.Length..^1]),
+        ];
+    }
+
+    private static LiveSnapshot Snapshot(SummariserInput input)
+    {
+        var topic = input.Topic;
+        var summary = input.LiveSummary;
+        var comments = input.Comments.ToLookup(comment => comment.NodeId);
+
+        return new LiveSnapshot()
+        {
+            InputRevision = topic.InputRevision,
+            IsPending = input.IsPending,
+            IsWritable = input.IsWritable,
+            NotWritableReason = (input.IsWritable, topic.SummaryPolicy) switch
+            {
+                (true, _) => null,
+                (_, SummaryPolicy.Live) => "paused",
+                _ => "reviewed",
+            },
+            LiveSummary = summary is null
+                ? null
+                : new LiveSummaryState()
+                {
+                    Id = summary.Id,
+                    Revision = summary.Revision,
+                    AppliedInputRevision = summary.AppliedInputRevision,
+                },
+            Input = new LiveInput()
+            {
+                Topic = new LiveTopic()
+                {
+                    Title = topic.Title,
+                    Question = topic.Description,
+                    ResponseIdentity = topic.ResponseIdentity.ToString(),
+                    ResponseTiming = topic.ResponseTiming.ToString(),
+                },
+                Guidance = new LiveGuidance()
+                {
+                    ExpectedFeedback = topic.ExpectedFeedback,
+                    Instructions = topic.SummarisingInstructions,
+                    LengthTarget = topic.SummaryLengthTarget,
+                },
+                Responses =
+                [
+                    .. input.Responses.Select(response => new LiveResponse()
+                    {
+                        Id = response.Id,
+                        Revision = response.RevisionNumber,
+                        Body = response.Current.Body,
+                        Author = response.Author,
+                        SubmittedAt = response.SubmittedAt,
+                        IsEdited = response.IsEdited,
+                        Reactions = Counts(input.ResponseReactions.GetValueOrDefault(response.Id)),
+                    }),
+                ],
+                Summary = summary is null
+                    ? null
+                    : new LiveSummaryContent()
+                    {
+                        Body = summary.Body,
+                        Nodes = [.. summary.Roots.Select(Node)],
+                    },
+            },
+            Model = new ModelBrief()
+            {
+                Instructions = SummariserModel.Instructions,
+                OutputSchema = SummariserModel.OutputSchema,
+            },
+        };
+
+        LiveNode Node(SummaryNode node)
+        {
+            return new LiveNode()
+            {
+                Id = node.Id,
+                Text = node.Text,
+                References = [.. node.References.Select(Describe)],
+                Reactions = Counts(input.NodeReactions.GetValueOrDefault(node.Id)),
+                Comments =
+                [
+                    .. comments[node.Id].Select(comment => new LiveComment()
+                    {
+                        Author = comment.Author,
+                        Body = comment.Body,
+                        CommenterResponseIds = [.. comment.CommenterResponses.Select(r => r.ResponseId)],
+                    }),
+                ],
+                Children = [.. node.Children.Select(Node)],
+            };
+        }
+    }
+
+    /// <summary>Counts by kind name, in the order the kinds are declared. Kinds nobody used are left out.</summary>
+    private static Dictionary<string, int> Counts(ReactionTally? tally)
+    {
+        return (tally ?? ReactionTally.None).Counts
+            .OrderBy(entry => entry.Key)
+            .ToDictionary(entry => entry.Key.ToString(), entry => entry.Value);
+    }
+
+    /// <summary>
+    /// Creates or revises the topic's live summary. Takes a draft with <c>inputRevision</c>,
+    /// a revision on every reference, and <c>basedOnRevision</c> set to null only to create it.
+    /// </summary>
+    private static async Task<Results<Ok<LiveWriteResult>, Created<LiveWriteResult>, ProblemHttpResult>> PutLiveAsync(
+        SummariserSession session,
+        SummaryService summaries,
+        WhatYouSayContext db,
+        HttpRequest request,
+        CancellationToken cancellationToken
+    )
+    {
+        var topic = session.Topic;
+
+        using var activity = WebTelemetry.Source.Start().SetTopic(topic);
+
+        var (draft, malformed) = await ReadDraftAsync(request, cancellationToken);
+
+        if (malformed is not null)
+        {
+            activity.RecordFailure("malformed_payload");
+
+            return malformed;
+        }
+
+        Summary saved;
+
+        try
+        {
+            saved = await summaries.SaveLiveAsync(topic, draft!, cancellationToken);
+        }
+        catch (SummaryGroundingException rejection)
+        {
+            return Rejected(rejection);
+        }
+
+        var current = await db.Topics
+            .Where(t => t.Id == topic.Id)
+            .Select(t => t.InputRevision)
+            .SingleAsync(cancellationToken);
+
+        // SaveLiveAsync refuses a draft without an input revision.
+        var applied = saved.AppliedInputRevision!.Value;
+
+        var result = new LiveWriteResult()
+        {
+            SummaryId = saved.Id,
+            Revision = saved.Revision,
+            AppliedInputRevision = applied,
+            InputRevision = current,
+            IsPending = applied < current,
+            NodeCount = saved.Nodes.Count,
+            MaxDepth = SummaryTree.Depth(saved.Roots),
+            ReferenceCount = saved.Nodes.Sum(n => n.References.Count),
+        };
+
+        WebTelemetry.RequestServed(topic, "write_live");
+
+        // A write without basedOnRevision is only accepted when it creates the live summary.
+        return draft!.BasedOnRevision is null
+            ? TypedResults.Created($"/api/topics/{topic.Code}/live", result)
+            : TypedResults.Ok(result);
+    }
+
+    /// <summary>
+    /// Pages through the live responses in listing order. Paging with <paramref name="after"/>
+    /// keeps a page in place when responses arrive at the front of a newest-first list.
+    /// A citation is located in the revision it names when it is written, so a quote of
+    /// wording that has since changed is never stored with wrong offsets.
+    /// </summary>
+    private static async Task<Results<Ok<ResponsePage>, ProblemHttpResult>> GetResponsesAsync(
+        SummariserSession session,
+        SummariserInputService inputs,
+        CancellationToken cancellationToken,
+        int skip = 0,
+        int take = 200,
+        Guid? after = null
+    )
+    {
+        var topic = session.Topic;
+
+        using var activity = WebTelemetry.Source.Start().SetTopic(topic);
+
+        var listing = await inputs.ListResponsesAsync(topic, cancellationToken);
+        var live = listing.Responses;
         var from = Math.Clamp(skip, 0, live.Count);
+
+        if (after is { } cursor)
+        {
+            var position = IndexOf(live, cursor);
+
+            if (position < 0)
+            {
+                activity.RecordFailure("unknown_cursor");
+
+                return TypedResults.Problem(
+                    title: "No such response to page after",
+                    detail: $"Response {cursor} is not a live response on this topic any more. It may "
+                        + "have been withdrawn or hidden. Start again from the first page.",
+                    statusCode: StatusCodes.Status409Conflict,
+                    extensions: new Dictionary<string, object?>() { ["reason"] = "unknown_cursor" });
+            }
+
+            from = position + 1;
+        }
+
         var count = Math.Clamp(take, 0, live.Count - from);
+        var items = live.Skip(from).Take(count).ToList();
 
         var page = new ResponsePage()
         {
             Total = live.Count,
             Skip = from,
+            InputRevision = listing.InputRevision,
+            NextAfter = from + count < live.Count && count > 0 ? items[^1].Id : null,
             Items =
             [
-                .. live.Skip(from).Take(count).Select(r => new ResponseInfo()
+                .. items.Select(r => new ResponseInfo()
                 {
                     Id = r.Id,
                     Body = r.Current.Body,
                     Revision = r.RevisionNumber,
                     Author = r.Author,
                     CreatedAt = r.SubmittedAt,
+                    Reactions = Counts(listing.Reactions.GetValueOrDefault(r.Id)),
                 }),
             ],
         };
@@ -195,6 +438,20 @@ public static class SummariserApi
         WebTelemetry.RequestServed(topic, "list_responses");
 
         return TypedResults.Ok(page);
+    }
+
+    /// <summary>Where the response with <paramref name="id"/> sits in <paramref name="responses"/>. Returns -1 when it is not there.</summary>
+    private static int IndexOf(IReadOnlyList<Response> responses, Guid id)
+    {
+        for (var i = 0; i < responses.Count; i++)
+        {
+            if (responses[i].Id == id)
+            {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     private static async Task<Ok<IReadOnlyList<SummaryInfo>>> GetSummariesAsync(
@@ -262,17 +519,19 @@ public static class SummariserApi
         {
             Id = node.Id,
             Text = node.Text,
-            References =
-            [
-                .. node.References.Select(reference => new ReferenceDetail()
-                {
-                    ResponseId = reference.ResponseId,
-                    Revision = reference.RevisionNumber,
-                    IsCurrentRevision = reference.IsOnCurrentRevision,
-                    Quote = reference.Quote,
-                }),
-            ],
+            References = [.. node.References.Select(Describe)],
             Children = [.. node.Children.Select(Describe)],
+        };
+    }
+
+    private static ReferenceDetail Describe(SummaryNodeReference reference)
+    {
+        return new ReferenceDetail()
+        {
+            ResponseId = reference.ResponseId,
+            Revision = reference.RevisionNumber,
+            IsCurrentRevision = reference.IsOnCurrentRevision,
+            Quote = reference.Quote,
         };
     }
 
@@ -553,7 +812,7 @@ public static class SummariserApi
     {
         var status = rejection.Reason switch
         {
-            "summary_not_agent_editable" or "stale_revision" or "live_summary_exists" =>
+            "summary_not_agent_editable" or "stale_revision" or "live_summary_exists" or "summaries_reviewed" =>
                 StatusCodes.Status409Conflict,
             _ => StatusCodes.Status422UnprocessableEntity,
         };

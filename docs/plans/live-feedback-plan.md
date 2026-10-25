@@ -108,7 +108,7 @@ Each work item is independently reviewable and leaves the current application us
 | LF-2 | ✅ Optional restrictions and live-summary ownership | LF-1 |
 | LF-3 | ✅ Multiple contributions and disclosed chronological ordering | LF-1 |
 | LF-4 | ✅ Emoji reactions on responses | LF-3 |
-| LF-5 | Consistent summariser inputs and safe live writes | LF-1 to LF-4 |
+| LF-5 | ✅ Consistent summariser inputs and safe live writes | LF-1 to LF-4 |
 | LF-6 | Topic-wide live updates and response-first readers | LF-2 to LF-5 |
 | LF-7 | Presentation page and QR join flow | LF-6 |
 | LF-8 | Local Claude Code runner and ready-to-use setup | LF-5 to LF-7 |
@@ -227,6 +227,36 @@ Keep existing reviewed endpoints usable. Old clients without revision IDs may co
 
 **Note from LF-2:** The existing endpoints already cite any live response's current revision, frozen or not. The existing `POST` already creates the live summary on a live topic, guarded by the unique index (`live_summary_exists`), and `PUT` takes `basedOnRevision`, required on the live summary. The live-write operation can reuse `Summary.Revision`, `IsLive` and those rejections. `GET /summaries/{id}/comments` still includes comments on archived nodes, with the node's text.
 
+**Implementation notes:**
+
+- `Topic.InputRevision` starts at 1 and only SQLite triggers move it. The `InputRevisions` migration creates them, and the model declares them with `HasTrigger`. They fire on:
+  - a response's insert or delete, or a change to its `IsDeleted`, `Author` or `RevisionNumber`;
+  - a response reaction's insert or delete;
+  - a node reaction's or comment's insert or delete, or a comment's body, author or hidden flag changing, but only on the live summary's current tree;
+  - a topic's title, question, identity, timing or guidance changing.
+- Each bump runs in the statement that made the change, so it commits with it. The property has a private setter. Summary tables have no triggers, so summariser writes, archiving, human edits and access changes move nothing. A person deleting a node leaves the database cascade to remove its feedback after the node, which moves nothing either. An edit that changes nothing writes no row, so it moves nothing.
+- Guidance is `Topic.ExpectedFeedback`, `SummarisingInstructions` and `SummaryLengthTarget`: optional text, up to 4000 characters each. `TopicAdminService.UpdateGuidanceAsync` stores blanks as null. The admin page has a "Summarising guidance" form.
+- `Summary.AppliedInputRevision` is the input revision of the last summariser write. A summariser write without `inputRevision`, through the older endpoints, sets it to null. Human edits leave it alone. `ResponseCountAtWrite` is still written, for versions from the older endpoints.
+- `SummariserInputService` reads in one deferred SQLite transaction. `ReadAsync` reads the topic and the live summary's id, revision and access first. When those match a version the caller holds, it stops there. Otherwise it goes on to every live response with its revisions, response tallies, the live tree, node tallies and visible comments. `ListResponsesAsync` does the same for `/responses`.
+- `SummaryService.SaveLiveAsync` addresses the live summary. A null `basedOnRevision` creates it, and any other value revises it. Refusals, all leaving everything as it was:
+  - 409: `summaries_reviewed`, `stale_revision` (also when the expected live summary has gone), `live_summary_exists` (also when the unique index stops a racing creation) and `summary_not_agent_editable`;
+  - 422: `input_revision_required`, `input_revision_out_of_range` (above the topic's, or below the summary's applied one), and per reference `revision_required`, `unknown_response` (withdrawn, hidden or another topic's), `unknown_revision` and `quote_not_found`.
+- `ReferenceDraft.Revision` may name any revision of a live response, so a quote of wording edited during generation is still accepted against the revision read. The live write requires it. The older endpoints accept it, and without it locate the quote in the current revision as before.
+- `CommentService.ListAsync` leaves out comments on archived nodes. That fixes `/summaries/{id}/comments`, and the editor's comment count now matches its tree. The reader and editor already showed comments only under current nodes. The archived page reads its own.
+- `/responses` takes `after=<id>` as a cursor and returns `nextAfter`, `inputRevision` and each response's `reactions`. `skip` still works. A cursor whose response has gone gets 409 `unknown_cursor`. `GET /api/topics/{code}` reports `inputRevision`.
+- The briefing and `SummariserModel.Instructions` share four sections: the tree's shape, the enforced rules, revising, and quality. Revising covers retained node ids and response edits, and quality covers minority feedback, reactions as emphasis, comments and guidance. The briefing's working method and endpoints depend on the policy. A live topic asks for one hands-free pass with no loop, and a reviewed one keeps the agree-first draft flow. The copied prompt says the same.
+
+**Contract for LF-8:**
+
+- `GET /api/topics/{code}/live` with `Authorization: Bearer <token>` returns the snapshot and an ETag of the form `"v1.<inputRevision>.<liveId or none>.<liveRevision>.<open or closed>"`. Sending it back as `If-None-Match` gets 304 with no body until something in the snapshot changes. `v1` is `SummariserModel.ContractVersion`.
+- The snapshot holds:
+  - `inputRevision`, `isPending`, `isWritable`, and `notWritableReason` (`paused` or `reviewed`);
+  - `liveSummary`: `id`, `revision` and `appliedInputRevision`, or null before the first write;
+  - `input`: `topic` (`title`, `question`, `responseIdentity`, `responseTiming`), `guidance` (`expectedFeedback`, `instructions`, `lengthTarget`), `responses` (`id`, `revision`, `body`, `author`, `submittedAt`, `isEdited`, `reactions`) and `summary` (`body`, and `nodes` with `id`, `text`, `references`, `reactions`, `comments` and `children`);
+  - `model`: `instructions`, the system prompt, and `outputSchema`, a JSON Schema for `{ body, nodes }`.
+- A runner generates when `isWritable` and `isPending` are both true. It sends `model.instructions` as the system prompt and `input` as the user message, and validates the answer against `outputSchema`.
+- `PUT /api/topics/{code}/live` takes the model's `body` and `nodes`, plus `basedOnRevision` (`liveSummary.revision`, or null) and `inputRevision` from the same snapshot. It answers 201 on creation and 200 on revision, with `summaryId`, `revision`, `appliedInputRevision`, `inputRevision`, `isPending`, `nodeCount`, `maxDepth` and `referenceCount`. A 409 means read again. A 422 lists every problem with a JSON pointer, for a repair attempt. After an ambiguous failure, `liveSummary.revision` and `appliedInputRevision` in a fresh snapshot show whether the write landed.
+
 ### LF-6 — Topic-wide live updates and response-first readers
 
 **Change:** Extend/replace summary-scoped notifications with topic-scoped invalidations and audit every web write path. Schedule bounded, coalesced subscriber reloads after commit so a slow observer cannot hold up submission. Add an interactive topic reader that can render responses before any summary exists, discover the first visible summary, refresh its overview/tree and tallies, and handle visibility changes. Reuse the response cards on the attendee flow so people can read/react without leaving their feedback draft. Flip existing paired reader/editor panes into response-first DOM order and logical CSS layout.
@@ -234,6 +264,8 @@ Keep existing reviewed endpoints usable. Old clients without revision IDs may co
 **Validation:** In several open browsers, observe a submission, edit, withdrawal, response reaction, direct API summary write, first summary, manual edit, visibility change and summary deletion without refresh. A rejected write changes no viewer. Public/private transitions recheck access and clear content that is no longer visible. Reconnect reloads authoritative state. Subscriber disposal does not retain closed circuits. A typed response or node comment survives unrelated notifications. Historical-version URLs stay pinned.
 
 **Finish when:** Responses and reactions update independently of AI, and all visible parts of the current summary can change live.
+
+**Note from LF-5:** `PUT /live`, the older summariser writes and guidance saves publish nothing. `Topic.InputRevision` moves with every response, reaction and live-summary feedback change, so it can tell a reader that topic input changed. It does not cover summary writes, visibility or which summary is live.
 
 **Note from LF-4:** Response reaction toggles publish to `SummaryLiveUpdates`, so only readers of the same summary see them. The summary page mints the responder cookie only when it shows a summary, so a reader that shows responses before any summary exists needs its shell to mint one too. The respond page and admin responses list show reaction counts read-only, loaded once per request.
 
@@ -248,6 +280,8 @@ Label the automatically updated summary as live AI output, rather than presentin
 **Validation:** Scan the QR from a real phone against the externally reachable configured URL. Test projector dimensions, narrow screens, zoom, keyboard navigation, `dir="rtl"`, reduced motion, long responses and a topic with no summary. Verify private raw responses never appear publicly, even on the projector route. Test scrolling back through responses while new entries arrive and preserving the summary's visible position.
 
 **Finish when:** The owner can project one stable URL containing everything needed to join and observe the session.
+
+**Note from LF-5:** Newer feedback is waiting when the live summary's `AppliedInputRevision` is below the topic's `InputRevision`. A null applied revision means the last write came through the older endpoints, so what it reflects is unknown. Human edits leave the applied revision alone.
 
 **Note from LF-3:** Anonymous topics from before LF-3 record no timing, so their responses have no newest-first order. The presentation page needs to say so for them rather than imply an order.
 
@@ -265,6 +299,8 @@ Include preflight, cancellation/end time, checkpoint/resume, bounded retries, pr
 
 **Finish when:** A presenter can prepare once and complete a session using Claude without touching the owner workflow during normal feedback collection.
 
+**Note from LF-5:** The contract is under LF-5's implementation notes. The server supplies the system prompt and output schema with each snapshot, so the runner keeps no prompt of its own. The runner adds `basedOnRevision` and `inputRevision` to the model's answer itself. The snapshot is never truncated, so the runner must refuse loudly, rather than trim, if the input is too large for the model. Seeded topics are reviewed, so a rehearsal switches one to live first.
+
 ### LF-9 — Codex runner adapter
 
 **Change:** Add the equivalent official `codex exec` invocation behind the same local runner contract, plus provider selection and a Codex preflight. Share polling, HTTP writes, checkpoints and failure handling; keep provider-specific CLI flags and output parsing narrow. Use saved presenter authentication without exporting it to the site. Keep the same structured summary and evidence validation.
@@ -281,8 +317,10 @@ These do not block the plan. Resolve them before their work item starts and reco
 |---|---|---|
 | Timing metadata | Record submission/edit times on new chronological topics, including anonymous ones; disclose timing and public display. Preserve legacy no-timing topics. Reaction/comment timing follows the collection policy. **Chosen:** as suggested, as `Topic.ResponseTiming`. The respond form discloses timing and newest-first display before posting. | LF-3 |
 | Emoji set | Reuse Agree, Disagree, Important, Question, Celebrate and Laugh. **Chosen:** as suggested, with the node bar's emoji and labels. | LF-4 |
-| Guidance/summary size | Store expected feedback and summarising instructions per topic. Allow an optional length target; do not add another mandatory review gate or a universal tree-depth limit. | LF-5 |
-| Snapshot size | One coherent snapshot of current input for normal event topics. Measure larger topics before choosing paging/chunking; never silently omit feedback. | LF-5 |
+| Guidance/summary size | Store expected feedback and summarising instructions per topic. Allow an optional length target; do not add another mandatory review gate or a universal tree-depth limit. **Chosen:** as suggested. All three fields are optional text of up to 4000 characters. The length target is free text, which the model treats as a target and nothing enforces. Changing guidance moves the input revision. | LF-5 |
+| Snapshot size | One coherent snapshot of current input for normal event topics. Measure larger topics before choosing paging/chunking; never silently omit feedback. **Chosen:** as suggested. The snapshot always carries every live response whole, with no server limit. A runner refuses loudly when the input is too large for its model, and chunking waits for measurements. | LF-5 |
+| Input revision mechanism | Not in the original plan. **Chosen:** SQLite triggers on the input tables, so every write path moves the revision in the same statement, raw SQL included. Tests cover each input path, because a migration that rebuilds a table drops its triggers. | LF-5 |
+| Older summariser writes to the live summary | Not in the original plan. **Chosen:** `PUT /summaries/{id}` keeps revising the live summary, as LF-2 left it, but stores a null applied input revision, so the summary shows as pending. Old clients cite current revisions frozen or not, as LF-2 already allowed, rather than going back to frozen-only citations. | LF-5 |
 | QR rendering | Use a small local QR encoder, with the public base URL supplied through site configuration. Verify its current package/license when choosing it. | LF-7 |
 | Runner runtime/platforms | Confirm the work presenters' operating systems. Prefer a small supplied script in a runtime already installed there; add another platform when actually needed. | LF-8 |
 | Model/timeouts | Choose a fast available model using a rehearsal; do not hard-code a model name or promise 10-second generation from a polling interval. | LF-8 |
@@ -305,6 +343,7 @@ Provider eligibility and limits still come from the presenter's plan and workpla
 | 2026-10-25 11:32 | LF-3 implemented, pending review. Build clean, all domain tests pass, and model matches migrations. The migration was checked on a fresh database and on a copy of the development database. The respond flow was exercised in the running app with two cookie jars. |
 | 2026-10-25 14:41 | LF-2 implemented on top of LF-3, pending review. Build clean, all domain tests pass, and model matches migrations. The migration was checked on a fresh database and on a copy of the development database. Live writes, revision conflicts and the admin pages were exercised in the running app. |
 | 2026-10-25 15:03 | LF-4 implemented on top of LF-2, pending review. Build clean, all domain tests pass, and model matches migrations. The migration was checked on a fresh database and on a copy of the development database. Toggling, counts, keyboard use and reacting without having responded were exercised in the running app with two cookie jars. |
+| 2026-10-25 15:36 | LF-5 implemented on top of LF-4, pending review. Build clean, all domain tests pass, and model matches migrations. The migration was checked on a fresh database and on a copy of the development database. Authentication, errors, a 304 conditional read, live writes, stale and older-input writes, and the older endpoints were exercised with curl against the running app. |
 
 ## Provider guidance checked during planning
 

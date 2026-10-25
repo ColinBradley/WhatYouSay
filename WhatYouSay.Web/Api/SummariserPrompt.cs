@@ -13,7 +13,7 @@ public static class SummariserPrompt
     // paste as ragged breaks.
     public static string For(Topic topic, string baseUrl, string token) =>
         $"""
-        Please write me a summary of the topic "{topic.Title}", which lives in WhatYouSay.
+        {Opening(topic)}
 
         Start by fetching this, which explains the whole job and every other endpoint:
 
@@ -24,8 +24,13 @@ public static class SummariserPrompt
         {Publishing(topic.SummaryPolicy)}
         """;
 
+    private static string Opening(Topic topic) =>
+        topic.SummaryPolicy == SummaryPolicy.Live
+            ? $"Please update the live summary of the topic \"{topic.Title}\", which lives in WhatYouSay."
+            : $"Please write me a summary of the topic \"{topic.Title}\", which lives in WhatYouSay.";
+
     private static string Publishing(SummaryPolicy policy) =>
         policy == SummaryPolicy.Live
-            ? "This topic is live: what you write to its live summary is published straight away, so everyone with the link sees it."
+            ? "This topic is live and hands-free: what you write to its live summary is published straight away, and I won't be reviewing it first. Make one complete pass and stop. Don't set up a loop or keep polling - keeping the summary current through a session is the job of a separate script."
             : "What you produce is a draft. I review it and publish it - you cannot.";
 }

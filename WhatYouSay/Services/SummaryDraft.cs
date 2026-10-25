@@ -18,6 +18,13 @@ public record SummaryDraft
     /// creating one.
     /// </summary>
     public int? BasedOnRevision { get; init; }
+
+    /// <summary>
+    /// The topic input revision that the draft was generated from, stored as the summary's
+    /// applied input revision. Required for a live write. Elsewhere, null records that the
+    /// summary's inputs are unknown.
+    /// </summary>
+    public int? InputRevision { get; init; }
 }
 
 /// <summary>
@@ -44,7 +51,13 @@ public record ReferenceDraft
 {
     public required Guid ResponseId { get; init; }
 
-    /// <summary>Copied character for character from the response body, or the call is rejected.</summary>
+    /// <summary>
+    /// The revision of the response that the quote is copied from. Any revision of a live
+    /// response may be named. Null means the current revision. Required for a live write.
+    /// </summary>
+    public int? Revision { get; init; }
+
+    /// <summary>Copied character for character from the response revision, or the call is rejected.</summary>
     public required string Quote { get; init; }
 }
 

@@ -47,9 +47,18 @@ public class Summary
 
     /// <summary>
     /// Live responses when the agent last wrote this version.
-    /// A different live count means the version is outdated.
+    /// A different live count suggests the version is outdated, for summaries without an
+    /// <see cref="AppliedInputRevision"/>.
     /// </summary>
     public int ResponseCountAtWrite { get; set; }
+
+    /// <summary>
+    /// The topic input revision that the summariser's last write was generated from.
+    /// A lower value than the topic's <see cref="Topic.InputRevision"/> means newer feedback is waiting.
+    /// Null when the last summariser write did not say, or the summariser has never written here.
+    /// Human edits leave it alone.
+    /// </summary>
+    public int? AppliedInputRevision { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }
 

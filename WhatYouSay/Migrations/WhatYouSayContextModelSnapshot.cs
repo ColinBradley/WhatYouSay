@@ -47,7 +47,14 @@ namespace WhatYouSay.Migrations
 
                     b.HasIndex("NodeId");
 
-                    b.ToTable("NodeComments");
+                    b.ToTable("NodeComments", t =>
+                        {
+                            t.HasTrigger("NodeComments_MoveInputRevision_Delete");
+
+                            t.HasTrigger("NodeComments_MoveInputRevision_Insert");
+
+                            t.HasTrigger("NodeComments_MoveInputRevision_Update");
+                        });
                 });
 
             modelBuilder.Entity("WhatYouSay.Data.NodeReaction", b =>
@@ -75,7 +82,12 @@ namespace WhatYouSay.Migrations
                     b.HasIndex("NodeId", "ReactorTokenHash", "Kind")
                         .IsUnique();
 
-                    b.ToTable("NodeReactions");
+                    b.ToTable("NodeReactions", t =>
+                        {
+                            t.HasTrigger("NodeReactions_MoveInputRevision_Delete");
+
+                            t.HasTrigger("NodeReactions_MoveInputRevision_Insert");
+                        });
                 });
 
             modelBuilder.Entity("WhatYouSay.Data.Response", b =>
@@ -109,7 +121,14 @@ namespace WhatYouSay.Migrations
 
                     b.HasIndex("TopicId");
 
-                    b.ToTable("Responses");
+                    b.ToTable("Responses", t =>
+                        {
+                            t.HasTrigger("Responses_MoveInputRevision_Delete");
+
+                            t.HasTrigger("Responses_MoveInputRevision_Insert");
+
+                            t.HasTrigger("Responses_MoveInputRevision_Update");
+                        });
                 });
 
             modelBuilder.Entity("WhatYouSay.Data.ResponseReaction", b =>
@@ -137,7 +156,12 @@ namespace WhatYouSay.Migrations
                     b.HasIndex("ResponseId", "ReactorTokenHash", "Kind")
                         .IsUnique();
 
-                    b.ToTable("ResponseReactions");
+                    b.ToTable("ResponseReactions", t =>
+                        {
+                            t.HasTrigger("ResponseReactions_MoveInputRevision_Delete");
+
+                            t.HasTrigger("ResponseReactions_MoveInputRevision_Insert");
+                        });
                 });
 
             modelBuilder.Entity("WhatYouSay.Data.ResponseRevision", b =>
@@ -165,6 +189,9 @@ namespace WhatYouSay.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("AppliedInputRevision")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Body")
                         .IsRequired()
@@ -304,6 +331,12 @@ namespace WhatYouSay.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ExpectedFeedback")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("InputRevision")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("IsAcceptingResponses")
                         .HasColumnType("INTEGER");
 
@@ -322,6 +355,12 @@ namespace WhatYouSay.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("SummarisingInstructions")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SummaryLengthTarget")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("SummaryPolicy")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -337,7 +376,10 @@ namespace WhatYouSay.Migrations
 
                     b.HasIndex("SummariserTokenHash");
 
-                    b.ToTable("Topics");
+                    b.ToTable("Topics", t =>
+                        {
+                            t.HasTrigger("Topics_MoveInputRevision_Update");
+                        });
                 });
 
             modelBuilder.Entity("WhatYouSay.Data.NodeComment", b =>

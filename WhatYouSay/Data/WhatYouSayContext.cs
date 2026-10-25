@@ -35,8 +35,14 @@ public class WhatYouSayContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder model)
     {
+        // Triggers on each table of summariser input move Topic.InputRevision in the same
+        // statement as the change, so no write path can forget to. The InputRevisions migration
+        // holds their SQL. They are declared here only to record that they exist, because EF
+        // neither creates nor recreates them.
         model.Entity<Topic>(topic =>
         {
+            topic.ToTable(table => table.HasTrigger("Topics_MoveInputRevision_Update"));
+
             topic.HasIndex(s => s.Code).IsUnique();
             topic.HasIndex(s => s.SummariserTokenHash);
 
@@ -49,6 +55,13 @@ public class WhatYouSayContext : DbContext
 
         model.Entity<Response>(response =>
         {
+            response.ToTable(table =>
+            {
+                table.HasTrigger("Responses_MoveInputRevision_Insert");
+                table.HasTrigger("Responses_MoveInputRevision_Update");
+                table.HasTrigger("Responses_MoveInputRevision_Delete");
+            });
+
             response.HasIndex(r => r.AuthTokenHash);
 
             response.HasOne(r => r.Topic)
@@ -126,6 +139,12 @@ public class WhatYouSayContext : DbContext
 
         model.Entity<NodeReaction>(reaction =>
         {
+            reaction.ToTable(table =>
+            {
+                table.HasTrigger("NodeReactions_MoveInputRevision_Insert");
+                table.HasTrigger("NodeReactions_MoveInputRevision_Delete");
+            });
+
             reaction.Property(r => r.Kind).HasConversion<string>();
 
             // One toggle per kind per reactor per node. Conflicting kinds are allowed;
@@ -140,6 +159,12 @@ public class WhatYouSayContext : DbContext
 
         model.Entity<ResponseReaction>(reaction =>
         {
+            reaction.ToTable(table =>
+            {
+                table.HasTrigger("ResponseReactions_MoveInputRevision_Insert");
+                table.HasTrigger("ResponseReactions_MoveInputRevision_Delete");
+            });
+
             reaction.Property(r => r.Kind).HasConversion<string>();
 
             // One reaction per kind per reactor per response, so a duplicate click is counted
@@ -154,6 +179,13 @@ public class WhatYouSayContext : DbContext
 
         model.Entity<NodeComment>(comment =>
         {
+            comment.ToTable(table =>
+            {
+                table.HasTrigger("NodeComments_MoveInputRevision_Insert");
+                table.HasTrigger("NodeComments_MoveInputRevision_Update");
+                table.HasTrigger("NodeComments_MoveInputRevision_Delete");
+            });
+
             comment.HasIndex(c => c.NodeId);
 
             comment.HasOne(c => c.Node)

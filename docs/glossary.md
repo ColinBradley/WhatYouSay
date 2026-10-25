@@ -10,6 +10,7 @@ Terms marked *planned* come from the [live feedback plan](plans/live-feedback-pl
 | Archive | What a summariser write does to a node it leaves out. An archived node keeps its feedback for the admin but is no longer in the tree. Only a person deletes a node. |
 | Agent | A model writing a summary through the summariser API. Contrast with a person editing in the admin editor. |
 | Anonymous | The identity setting that collects no author name. Not collected, rather than collected and hidden. Whether times are kept is the separate timing setting. |
+| Applied input revision | The input revision that a summary's last summariser write was generated from. Lower than the topic's input revision means newer feedback is waiting. |
 | Author | The name a responder or commenter gives. Self-declared and unverified. |
 | Briefing | The plain-text job description served at `ai-summary-start`, written for a model to read. |
 | Carry forward | Sending a node in a draft by id alone, so its text and citations stay exactly as stored. |
@@ -20,8 +21,9 @@ Terms marked *planned* come from the [live feedback plan](plans/live-feedback-pl
 | Draft | A summary not yet published. Only admins can read it. |
 | Freeze | Prevent a response's responder from editing or withdrawing it. Only the admin freezes a topic's responses, and a freeze holds until the admin allows editing again. |
 | Grounding | The rule that every branch of a summary tree ends in something a responder actually wrote. Ungrounded means a branch that doesn't. |
+| Guidance | What an admin tells the summariser about a topic: the feedback to expect, how to summarise it and a length to aim for. All optional. |
 | Identity | A topic's setting for how much it asks of responders: Required, Optional or Anonymous. Fixed once anyone has responded. |
-| Input revision | *Planned.* A counter that moves whenever anything the summariser reads changes. |
+| Input revision | A per-topic counter that moves whenever anything the summariser reads changes: responses, edits, withdrawals, reactions, feedback on the live summary and guidance. Summary writes never move it. |
 | Live summary | The one summary a live topic keeps updating in place. It is always published, and each accepted summariser write to it is seen straight away. |
 | Pause | Close the live summary to the summariser for a while, without ending live updates. |
 | Node | One assertion in a summary tree: a few words to a sentence. Nodes are untyped. |
@@ -36,6 +38,7 @@ Terms marked *planned* come from the [live feedback plan](plans/live-feedback-pl
 | Response | What a responder submits to a topic. A responder may submit several. Its id is a random Guid, so it reveals no timing. |
 | Revision | One wording of a response, with when it was submitted where the topic records timing. Editing a response's wording adds a revision. |
 | Runner | *Planned.* The local script that polls a topic and invokes the presenter's model client. |
+| Snapshot | Everything the summariser reads about a topic, from one consistent read at `GET /api/topics/{code}/live`. |
 | Summariser | Whatever writes summaries through the summariser API, usually an agent. |
 | Summariser token | A topic-scoped bearer token for the summariser API. Only its hash is stored. |
 | Summary | One version of a topic's overview and note tree. Under the reviewed policy each generation run creates a new one. |

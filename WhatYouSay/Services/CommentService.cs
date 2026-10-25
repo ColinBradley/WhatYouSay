@@ -129,8 +129,9 @@ public class CommentService
     }
 
     /// <summary>
-    /// Every comment on a summary, in reading order. <paramref name="includeHidden"/> is for
-    /// the admin and for showing people their own; the agent never sees a hidden one.
+    /// Every comment on a summary's current tree, in reading order. Comments on archived nodes
+    /// are left out. <paramref name="includeHidden"/> is for the admin and for showing people
+    /// their own; the agent never sees a hidden one.
     /// </summary>
     public async Task<IReadOnlyList<NodeCommentView>> ListAsync(
         Topic topic,
@@ -146,6 +147,7 @@ public class CommentService
 
         var comments = await mDb.NodeComments
             .Where(c => c.Node.SummaryId == summaryId
+                && c.Node.ArchivedAt == null
                 && (includeHidden || !c.IsHidden || c.AuthorTokenHash == mineHash))
             .OrderBy(c => c.Node.Ordinal)
             .ThenBy(c => c.NodeId)
