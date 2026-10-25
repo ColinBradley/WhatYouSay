@@ -63,8 +63,8 @@ else
                             <div class="reactions">
                                 @foreach (var (kind, count) in ReactionCounts(node))
                                 {
-                                    <span class="tag" title="@SummaryNodeView.Label(kind)">
-                                        @SummaryNodeView.Emoji(kind) @count
+                                    <span class="tag" title="@ReactionButtons.Label(kind)">
+                                        @ReactionButtons.Emoji(kind) @count
                                     </span>
                                 }
                             </div>

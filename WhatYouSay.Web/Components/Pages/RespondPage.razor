@@ -1,4 +1,5 @@
 @page "/topics/{Code}/respond"
+@using WhatYouSay.Services
 
 <PageTitle>@(mTopic is null ? "Respond" : $"Respond — {mTopic.Title}")</PageTitle>
 
@@ -110,6 +111,8 @@ else
 
                         <article class="panel stack wide">
                             <p class="verbatim">@response.Current.Body</p>
+
+                            <ReactionCounts Tally="@mTallies.GetValueOrDefault(response.Id, ReactionTally.None)" />
 
                             <div class="controls fine">
                                 @if (response.SubmittedAt is { } submitted)

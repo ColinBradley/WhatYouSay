@@ -12,6 +12,8 @@ public partial class AdminResponsesPage
 
     private IReadOnlyList<Response> mResponses = [];
 
+    private IReadOnlyDictionary<Guid, ReactionTally> mTallies = new Dictionary<Guid, ReactionTally>();
+
     private IReadOnlyList<Crumb> mCrumbs = [];
 
     [Inject]
@@ -19,6 +21,9 @@ public partial class AdminResponsesPage
 
     [Inject]
     private ResponseService Responses { get; set; } = default!;
+
+    [Inject]
+    private ReactionService Reactions { get; set; } = default!;
 
     [Inject]
     private TopicAdminService Admin { get; set; } = default!;
@@ -62,6 +67,7 @@ public partial class AdminResponsesPage
         ];
 
         mResponses = await this.Responses.ListAsync(mTopic);
+        mTallies = await this.Reactions.TallyResponsesAsync(mTopic, null);
     }
 
     private async Task DeleteAsync()

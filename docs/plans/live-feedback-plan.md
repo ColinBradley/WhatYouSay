@@ -107,7 +107,7 @@ Each work item is independently reviewable and leaves the current application us
 | LF-1 | ✅ Immutable response evidence | None |
 | LF-2 | ✅ Optional restrictions and live-summary ownership | LF-1 |
 | LF-3 | ✅ Multiple contributions and disclosed chronological ordering | LF-1 |
-| LF-4 | Emoji reactions on responses | LF-3 |
+| LF-4 | ✅ Emoji reactions on responses | LF-3 |
 | LF-5 | Consistent summariser inputs and safe live writes | LF-1 to LF-4 |
 | LF-6 | Topic-wide live updates and response-first readers | LF-2 to LF-5 |
 | LF-7 | Presentation page and QR join flow | LF-6 |
@@ -196,6 +196,19 @@ The current comment-to-own-response join assumes one response and would duplicat
 
 **Note from LF-3:** The respond page writes the responder cookie only on a first submission, and the summary page mints one only when it shows a summary. Response reactions need it minted wherever the cards appear. Withdrawing a response no longer touches the cookie.
 
+**Implementation notes:**
+
+- `ResponseReaction` is its own table beside `NodeReaction`, keyed to `ResponseId` and cascading from the response. A unique index on (`ResponseId`, `ReactorTokenHash`, `Kind`) allows one of each kind per reactor. `CreatedAt` is null where the topic records no timing. The `ResponseReactions` migration only adds the table.
+- `ReactionService.ToggleOnResponseAsync` refuses a response that is withdrawn, deleted by the admin or on another topic. A toggle that loses a race to an identical one stops quietly: a unique violation on add, or no row left to remove. So a double click counts once.
+- `ReactionService.TallyResponsesAsync` returns counts and the viewer's own kinds for each live response on a topic. `NodeReactionTally` is now `ReactionTally`, shared by nodes and responses.
+- Toggling does not check `AreResponsesPublic`, as node reactions do not check publication. Cards only render where responses are shown, and response ids are random.
+- `ReactionButtons` renders either the used or the unused kinds of a bar, with `aria-pressed` and a label-and-count `aria-label`. The node view uses it too. Response cards in `ResponsePane` show used kinds after the byline and the rest as `.on-demand` in the same row, and they now show an edited marker.
+- `ReactionCounts` shows counts read-only on the respond page's own responses and the admin responses list. The summary editor's response list shows none.
+- Response cards only appear inside `SummaryReader`, and the summary page already mints the cookie whenever it shows a summary, so reacting needs no response of your own. The respond page offers no reaction controls and still writes the cookie only on a first submission.
+- A response toggle goes through the reader's existing write path, which publishes to `SummaryLiveUpdates`. Other readers of the same summary therefore see it, but nothing else does.
+- Reaction metrics carry a `reaction.target` tag, `Node` or `Response`.
+- The summariser API does not report response reactions. That belongs to LF-5's snapshot.
+
 ### LF-5 — Consistent summariser inputs and safe live writes
 
 **Change:** Persist input revisions in the same transaction as input changes, add topic summarising guidance, and expose a coherent summariser snapshot with conditional reads. Include response revision IDs, reaction counts, relevant visible node feedback, guidance and the current live-summary write revision. Replace response-count-only freshness for the live path.
@@ -208,6 +221,8 @@ Keep existing reviewed endpoints usable. Old clients without revision IDs may co
 
 **Finish when:** A local process can decide whether to generate and update the live summary without guessing freshness or racing owner edits.
 
+**Note from LF-4:** `ReactionService.TallyResponsesAsync` gives counts for every live response, but nothing in the summariser API reports them yet. A response reaction writes only a `ResponseReactions` row, so input-revision tracking has to move on those writes too.
+
 **Note from LF-3:** `/responses` lists newest first on timed topics, so a response arriving between pages shifts every later page by one. Comments list the commenter's responses by id as `commenterResponses`.
 
 **Note from LF-2:** The existing endpoints already cite any live response's current revision, frozen or not. The existing `POST` already creates the live summary on a live topic, guarded by the unique index (`live_summary_exists`), and `PUT` takes `basedOnRevision`, required on the live summary. The live-write operation can reuse `Summary.Revision`, `IsLive` and those rejections. `GET /summaries/{id}/comments` still includes comments on archived nodes, with the node's text.
@@ -219,6 +234,8 @@ Keep existing reviewed endpoints usable. Old clients without revision IDs may co
 **Validation:** In several open browsers, observe a submission, edit, withdrawal, response reaction, direct API summary write, first summary, manual edit, visibility change and summary deletion without refresh. A rejected write changes no viewer. Public/private transitions recheck access and clear content that is no longer visible. Reconnect reloads authoritative state. Subscriber disposal does not retain closed circuits. A typed response or node comment survives unrelated notifications. Historical-version URLs stay pinned.
 
 **Finish when:** Responses and reactions update independently of AI, and all visible parts of the current summary can change live.
+
+**Note from LF-4:** Response reaction toggles publish to `SummaryLiveUpdates`, so only readers of the same summary see them. The summary page mints the responder cookie only when it shows a summary, so a reader that shows responses before any summary exists needs its shell to mint one too. The respond page and admin responses list show reaction counts read-only, loaded once per request.
 
 **Note from LF-2:** Admin live, pause and review changes, human edits to the live summary, and summariser writes do not publish to `SummaryLiveUpdates`. The editor does not reload when the summariser writes, and a human edit that loses a race shows an error and reloads. Making another summary live changes which summary the topic URL shows, so an open reader has to notice the selection moving.
 
@@ -263,7 +280,7 @@ These do not block the plan. Resolve them before their work item starts and reco
 | Decision | Suggested starting point | Item |
 |---|---|---|
 | Timing metadata | Record submission/edit times on new chronological topics, including anonymous ones; disclose timing and public display. Preserve legacy no-timing topics. Reaction/comment timing follows the collection policy. **Chosen:** as suggested, as `Topic.ResponseTiming`. The respond form discloses timing and newest-first display before posting. | LF-3 |
-| Emoji set | Reuse Agree, Disagree, Important, Question, Celebrate and Laugh. | LF-4 |
+| Emoji set | Reuse Agree, Disagree, Important, Question, Celebrate and Laugh. **Chosen:** as suggested, with the node bar's emoji and labels. | LF-4 |
 | Guidance/summary size | Store expected feedback and summarising instructions per topic. Allow an optional length target; do not add another mandatory review gate or a universal tree-depth limit. | LF-5 |
 | Snapshot size | One coherent snapshot of current input for normal event topics. Measure larger topics before choosing paging/chunking; never silently omit feedback. | LF-5 |
 | QR rendering | Use a small local QR encoder, with the public base URL supplied through site configuration. Verify its current package/license when choosing it. | LF-7 |
@@ -287,6 +304,7 @@ Provider eligibility and limits still come from the presenter's plan and workpla
 | 2026-10-25 10:38 | LF-1 reshaped in review: wording and timestamps moved from `Response` to revisions, and revisions no longer carry an author. Same checks repeated. |
 | 2026-10-25 11:32 | LF-3 implemented, pending review. Build clean, all domain tests pass, and model matches migrations. The migration was checked on a fresh database and on a copy of the development database. The respond flow was exercised in the running app with two cookie jars. |
 | 2026-10-25 14:41 | LF-2 implemented on top of LF-3, pending review. Build clean, all domain tests pass, and model matches migrations. The migration was checked on a fresh database and on a copy of the development database. Live writes, revision conflicts and the admin pages were exercised in the running app. |
+| 2026-10-25 15:03 | LF-4 implemented on top of LF-2, pending review. Build clean, all domain tests pass, and model matches migrations. The migration was checked on a fresh database and on a copy of the development database. Toggling, counts, keyboard use and reacting without having responded were exercised in the running app with two cookie jars. |
 
 ## Provider guidance checked during planning
 

@@ -1,4 +1,5 @@
 @page "/topics/{Code}/admin/responses"
+@using WhatYouSay.Services
 
 <PageTitle>Responses</PageTitle>
 
@@ -45,6 +46,8 @@ else
                 {
                     <article class="panel stack wide hoverable">
                         <p class="verbatim">@response.Current.Body</p>
+
+                        <ReactionCounts Tally="@mTallies.GetValueOrDefault(response.Id, ReactionTally.None)" />
 
                         <div class="controls fine">
                             <span>@(response.Author ?? "anonymous")</span>

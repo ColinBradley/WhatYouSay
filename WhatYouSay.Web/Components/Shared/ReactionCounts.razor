@@ -1,0 +1,24 @@
+@using WhatYouSay.Services
+
+@* Counts only, for pages that show reactions without offering them. *@
+
+<div class="reactions">
+    @foreach (var kind in ReactionButtons.Kinds)
+    {
+        var count = this.Tally.CountOf(kind);
+
+        @if (count > 0)
+        {
+            <span class="tag" role="img" title="@ReactionButtons.Label(kind)"
+                  aria-label="@ReactionButtons.AccessibleName(kind, count)">
+                @ReactionButtons.Emoji(kind) @count
+            </span>
+        }
+    }
+</div>
+
+@code {
+    [Parameter]
+    [EditorRequired]
+    public ReactionTally Tally { get; set; } = ReactionTally.None;
+}

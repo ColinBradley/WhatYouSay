@@ -11,12 +11,6 @@ namespace WhatYouSay.Web.Components.Shared;
 /// </summary>
 public partial class SummaryReader : IDisposable
 {
-    private static readonly NodeReactionTally sNoReactions = new()
-    {
-        Counts = new Dictionary<ReactionKind, int>(),
-        Mine = new HashSet<ReactionKind>(),
-    };
-
     private Topic? mTopic;
 
     private Summary? mSummary;
@@ -28,8 +22,11 @@ public partial class SummaryReader : IDisposable
     private ILookup<Guid, SummaryNodeReference> mReferences =
         Array.Empty<SummaryNodeReference>().ToLookup(r => r.ResponseId);
 
-    private IReadOnlyDictionary<int, NodeReactionTally> mTallies =
-        new Dictionary<int, NodeReactionTally>();
+    private IReadOnlyDictionary<int, ReactionTally> mTallies =
+        new Dictionary<int, ReactionTally>();
+
+    private IReadOnlyDictionary<Guid, ReactionTally> mResponseTallies =
+        new Dictionary<Guid, ReactionTally>();
 
     private IReadOnlyList<NodeCommentView> mComments = [];
 
@@ -72,9 +69,9 @@ public partial class SummaryReader : IDisposable
     internal ILookup<Guid, SummaryNodeReference> References =>
         mReferences;
 
-    internal NodeReactionTally TallyFor(int nodeId)
+    internal ReactionTally TallyFor(int nodeId)
     {
-        return mTallies.TryGetValue(nodeId, out var tally) ? tally : sNoReactions;
+        return mTallies.TryGetValue(nodeId, out var tally) ? tally : ReactionTally.None;
     }
 
     internal IReadOnlyList<NodeCommentView> CommentsFor(int nodeId)
@@ -103,6 +100,7 @@ public partial class SummaryReader : IDisposable
     public void Dispose()
     {
         mSubscription?.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     internal Task ToggleAsync(int nodeId, ReactionKind kind)
@@ -110,6 +108,13 @@ public partial class SummaryReader : IDisposable
         return this.RunAsync((services, topic) =>
             services.GetRequiredService<ReactionService>()
                 .ToggleAsync(topic, nodeId, this.ReactorToken, kind));
+    }
+
+    internal Task ToggleOnResponseAsync(ResponseReactionClick click)
+    {
+        return this.RunAsync((services, topic) =>
+            services.GetRequiredService<ReactionService>()
+                .ToggleOnResponseAsync(topic, click.ResponseId, this.ReactorToken, click.Kind));
     }
 
     internal async Task AddCommentAsync(int nodeId)
@@ -211,6 +216,9 @@ public partial class SummaryReader : IDisposable
         if (topic.AreResponsesPublic)
         {
             mResponses = await services.GetRequiredService<ResponseService>().ListAsync(topic);
+
+            mResponseTallies = await services.GetRequiredService<ReactionService>()
+                .TallyResponsesAsync(topic, this.ReactorToken);
 
             mReferences = mSummary.Nodes
                 .SelectMany(node => node.References)

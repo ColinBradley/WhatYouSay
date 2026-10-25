@@ -25,6 +25,8 @@ public class WhatYouSayContext : DbContext
 
     public DbSet<NodeComment> NodeComments => this.Set<NodeComment>();
 
+    public DbSet<ResponseReaction> ResponseReactions => this.Set<ResponseReaction>();
+
     protected override void ConfigureConventions(ModelConfigurationBuilder builder)
     {
         // Covers DateTimeOffset? too. Without this, every OrderBy on a timestamp throws.
@@ -133,6 +135,20 @@ public class WhatYouSayContext : DbContext
             reaction.HasOne(r => r.Node)
                 .WithMany(n => n.Reactions)
                 .HasForeignKey(r => r.NodeId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        model.Entity<ResponseReaction>(reaction =>
+        {
+            reaction.Property(r => r.Kind).HasConversion<string>();
+
+            // One reaction per kind per reactor per response, so a duplicate click is counted
+            // once however the requests interleave.
+            reaction.HasIndex(r => new { r.ResponseId, r.ReactorTokenHash, r.Kind }).IsUnique();
+
+            reaction.HasOne(r => r.Response)
+                .WithMany(r => r.Reactions)
+                .HasForeignKey(r => r.ResponseId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

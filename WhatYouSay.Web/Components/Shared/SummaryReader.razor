@@ -21,7 +21,8 @@
 
         @if (mResponses.Count > 0)
         {
-            <ResponsePane Responses="@mResponses" References="@mReferences" />
+            <ResponsePane Responses="@mResponses" References="@mReferences"
+                          Tallies="@mResponseTallies" OnReact="@this.ToggleOnResponseAsync" />
         }
     </div>
 </CascadingValue>

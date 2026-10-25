@@ -112,6 +112,34 @@ namespace WhatYouSay.Migrations
                     b.ToTable("Responses");
                 });
 
+            modelBuilder.Entity("WhatYouSay.Data.ResponseReaction", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReactorTokenHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ResponseId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ResponseId", "ReactorTokenHash", "Kind")
+                        .IsUnique();
+
+                    b.ToTable("ResponseReactions");
+                });
+
             modelBuilder.Entity("WhatYouSay.Data.ResponseRevision", b =>
                 {
                     b.Property<Guid>("ResponseId")
@@ -345,6 +373,17 @@ namespace WhatYouSay.Migrations
                     b.Navigation("Topic");
                 });
 
+            modelBuilder.Entity("WhatYouSay.Data.ResponseReaction", b =>
+                {
+                    b.HasOne("WhatYouSay.Data.Response", "Response")
+                        .WithMany("Reactions")
+                        .HasForeignKey("ResponseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Response");
+                });
+
             modelBuilder.Entity("WhatYouSay.Data.ResponseRevision", b =>
                 {
                     b.HasOne("WhatYouSay.Data.Response", "Response")
@@ -414,6 +453,8 @@ namespace WhatYouSay.Migrations
 
             modelBuilder.Entity("WhatYouSay.Data.Response", b =>
                 {
+                    b.Navigation("Reactions");
+
                     b.Navigation("References");
 
                     b.Navigation("Revisions");

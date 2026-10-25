@@ -35,16 +35,7 @@
         }
 
         <div class="node-actions">
-            @foreach (var kind in SummaryNodeView.Reactions)
-            {
-                @if (this.Tally.CountOf(kind) == 0 && !this.Tally.Mine.Contains(kind))
-                {
-                    <button type="button" class="reaction" title="@Label(kind)"
-                            @onclick="() => this.Reader.ToggleAsync(this.Node.Id, kind)">
-                        @Emoji(kind)
-                    </button>
-                }
-            }
+            <ReactionButtons Tally="@this.Tally" OnToggle="@this.ToggleAsync" />
 
             @if (comments.Count == 0)
             {
@@ -57,20 +48,7 @@
         </div>
 
         <div class="reactions">
-            @foreach (var kind in SummaryNodeView.Reactions)
-            {
-                var count = this.Tally.CountOf(kind);
-                var mine = this.Tally.Mine.Contains(kind);
-
-                @if (count > 0 || mine)
-                {
-                    <button type="button" class="reaction @(mine ? "mine" : null)"
-                            title="@Label(kind)"
-                            @onclick="() => this.Reader.ToggleAsync(this.Node.Id, kind)">
-                        @Emoji(kind)@(count > 0 ? $" {count}" : "")
-                    </button>
-                }
-            }
+            <ReactionButtons Tally="@this.Tally" OnToggle="@this.ToggleAsync" Lit="true" />
         </div>
     </div>
 

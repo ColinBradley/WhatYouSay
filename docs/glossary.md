@@ -29,7 +29,7 @@ Terms marked *planned* come from the [live feedback plan](plans/live-feedback-pl
 | Overview | A summary's markdown body: two or three paragraphs that complement the tree rather than restate it. |
 | Publish | Make a summary readable by everyone with the link. Publishing ends its draft state. |
 | Quote | The exact span of a response revision that a reference cites. |
-| Reaction | A fixed emoji kind toggled on a node: Agree, Disagree, Important, Question, Celebrate or Laugh. |
+| Reaction | A fixed emoji kind toggled on a node or a response: Agree, Disagree, Important, Question, Celebrate or Laugh. |
 | Reactor | Whoever toggles a reaction, identified only by a cookie token's hash. |
 | Reference | A stored quote of one response revision, with its offsets, attached to a node. |
 | Responder | Someone who submits responses. Identified only by the token in their cookie, which owns every response that browser gives to the topic. |

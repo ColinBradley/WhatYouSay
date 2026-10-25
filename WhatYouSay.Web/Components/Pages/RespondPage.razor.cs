@@ -21,6 +21,8 @@ public partial class RespondPage
 
     private IReadOnlyList<Response> mOwn = [];
 
+    private IReadOnlyDictionary<Guid, ReactionTally> mTallies = new Dictionary<Guid, ReactionTally>();
+
     /// <summary>The response the form is editing. Null while the form adds a new one.</summary>
     private Response? mEditing;
 
@@ -36,6 +38,9 @@ public partial class RespondPage
 
     [Inject]
     private ResponseService Responses { get; set; } = default!;
+
+    [Inject]
+    private ReactionService Reactions { get; set; } = default!;
 
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
@@ -92,6 +97,7 @@ public partial class RespondPage
         if (mToken is not null)
         {
             mOwn = await this.Responses.ListOwnAsync(mTopic, mToken);
+            mTallies = await this.Reactions.TallyResponsesAsync(mTopic, null);
         }
 
         // A post names its response in a form field, and a link to edit names it in the

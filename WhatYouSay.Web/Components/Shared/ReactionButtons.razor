@@ -1,0 +1,17 @@
+@using WhatYouSay.Data
+
+@foreach (var kind in ReactionButtons.Kinds)
+{
+    var count = this.Tally.CountOf(kind);
+    var mine = this.Tally.Mine.Contains(kind);
+
+    @if ((count > 0 || mine) == this.Lit)
+    {
+        <button type="button" class="reaction @(mine ? "mine" : null) @this.Class"
+                title="@Label(kind)" aria-label="@AccessibleName(kind, count)"
+                aria-pressed="@(mine ? "true" : "false")"
+                @onclick="() => this.OnToggle.InvokeAsync(kind)">
+            @Emoji(kind)@(count > 0 ? $" {count}" : "")
+        </button>
+    }
+}

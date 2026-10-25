@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using WhatYouSay.Data;
 
 namespace WhatYouSay.Tests;
@@ -34,12 +35,15 @@ public abstract class DatabaseTest : IDisposable
     /// A second context over the same database, for asserting what a later request would
     /// see. Filtered includes cannot evict an entity <see cref="mDb"/> is already tracking,
     /// so a test about withdrawn responses has to read through fresh eyes.
+    /// <paramref name="interceptors"/> let a test act partway through one of the context's
+    /// operations, as a concurrent request would.
     /// </summary>
-    protected WhatYouSayContext NewContext()
+    protected WhatYouSayContext NewContext(params IInterceptor[] interceptors)
     {
         return new WhatYouSayContext(
             new DbContextOptionsBuilder<WhatYouSayContext>()
                 .UseSqlite(mConnection)
+                .AddInterceptors(interceptors)
                 .Options
         );
     }

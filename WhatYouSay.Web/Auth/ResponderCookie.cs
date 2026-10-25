@@ -2,8 +2,9 @@ namespace WhatYouSay.Web.Auth;
 
 /// <summary>
 /// Holds the plaintext responder token. Only its hash is stored, so this cookie is the
-/// only way back to your own responses — it authorises editing them and reacting to summary
-/// nodes. Lose it and you lose both, which is the price of having no accounts.
+/// only way back to your own responses — it authorises editing them, and it keys this browser's
+/// reactions and comments. Lose it and you can no longer edit those responses or take back
+/// those reactions, which is the price of having no accounts.
 /// One token covers every response this browser gives to a topic, so withdrawing one
 /// response leaves the cookie in place.
 /// </summary>

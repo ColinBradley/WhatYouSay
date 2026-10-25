@@ -33,6 +33,8 @@ public class Response
 
     public List<SummaryNodeReference> References { get; set; } = [];
 
+    public List<ResponseReaction> Reactions { get; set; } = [];
+
     /// <summary>The current wording. Requires <see cref="Revisions"/> to be loaded.</summary>
     [NotMapped]
     public ResponseRevision Current =>

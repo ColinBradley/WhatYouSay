@@ -61,12 +61,12 @@ public static class WhatYouSayTelemetry
     private static readonly Counter<long> sReactionsAdded = sMeter.CreateCounter<long>(
         "whatyousay.reactions.added",
         unit: "{reaction}",
-        description: "Reactions added to a summary node, by kind.");
+        description: "Reactions added to a summary node or a response, by target and kind.");
 
     private static readonly Counter<long> sReactionsRemoved = sMeter.CreateCounter<long>(
         "whatyousay.reactions.removed",
         unit: "{reaction}",
-        description: "Reactions taken back, by kind.");
+        description: "Reactions taken back, by target and kind.");
 
     private static readonly Counter<long> sCommentsAdded = sMeter.CreateCounter<long>(
         "whatyousay.comments.added",
@@ -84,8 +84,8 @@ public static class WhatYouSayTelemetry
     /// <see cref="ActivityExtensions.SetTopic"/>.
     /// </summary>
     public static string TagFor(Topic topic) =>
-        topic.IsAnonymous 
-            ? RedactedTopic 
+        topic.IsAnonymous
+            ? RedactedTopic
             : topic.Code;
 
     public static void ResponseSubmitted(Topic topic) =>
@@ -114,18 +114,19 @@ public static class WhatYouSayTelemetry
         sSummariesEdited.Add(1, tags);
     }
 
-    public static void ReactionAdded(Topic topic, ReactionKind kind) =>
-        sReactionsAdded.Add(1, WithKind(topic, kind));
+    public static void ReactionAdded(Topic topic, ReactionTarget target, ReactionKind kind) =>
+        sReactionsAdded.Add(1, WithKind(topic, target, kind));
 
     public static void CommentAdded(Topic topic) =>
         sCommentsAdded.Add(1, Tags(topic));
 
-    public static void ReactionRemoved(Topic topic, ReactionKind kind) =>
-        sReactionsRemoved.Add(1, WithKind(topic, kind));
+    public static void ReactionRemoved(Topic topic, ReactionTarget target, ReactionKind kind) =>
+        sReactionsRemoved.Add(1, WithKind(topic, target, kind));
 
-    private static TagList WithKind(Topic topic, ReactionKind kind)
+    private static TagList WithKind(Topic topic, ReactionTarget target, ReactionKind kind)
     {
         var tags = Tags(topic);
+        tags.Add("reaction.target", target.ToString());
         tags.Add("reaction.kind", kind.ToString());
 
         return tags;

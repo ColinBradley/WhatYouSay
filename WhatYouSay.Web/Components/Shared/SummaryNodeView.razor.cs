@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using Microsoft.AspNetCore.Components;
 using WhatYouSay.Data;
 using WhatYouSay.Services;
@@ -7,10 +6,6 @@ namespace WhatYouSay.Web.Components.Shared;
 
 public partial class SummaryNodeView
 {
-    /// <summary>The bar, in display order.</summary>
-    public static readonly ImmutableArray<ReactionKind> Reactions =
-        [.. Enum.GetValues<ReactionKind>()];
-
     [CascadingParameter]
     public SummaryReader Reader { get; set; } = default!;
 
@@ -23,7 +18,7 @@ public partial class SummaryNodeView
     public int Depth { get; set; }
 
     /// <summary>Where the group and this viewer sit on this node.</summary>
-    private NodeReactionTally Tally =>
+    private ReactionTally Tally =>
         this.Reader.TallyFor(this.Node.Id);
 
     private static string QuoteTitle(SummaryNodeReference reference) =>
@@ -31,27 +26,6 @@ public partial class SummaryNodeView
             ? $"“{reference.Quote}”"
             : $"“{reference.Quote}” (the response has been edited since)";
 
-    internal static string Emoji(ReactionKind kind) =>
-        kind switch
-        {
-            ReactionKind.Agree => "\U0001F44D",
-            ReactionKind.Disagree => "\U0001F44E",
-            ReactionKind.Important => "❗",
-            ReactionKind.Question => "❓",
-            ReactionKind.Celebrate => "\U0001F389",
-            ReactionKind.Laugh => "\U0001F604",
-            _ => "?",
-        };
-
-    internal static string Label(ReactionKind kind) =>
-        kind switch
-        {
-            ReactionKind.Agree => "Agree",
-            ReactionKind.Disagree => "Disagree",
-            ReactionKind.Important => "Important",
-            ReactionKind.Question => "Not sure about this",
-            ReactionKind.Celebrate => "Worth celebrating",
-            ReactionKind.Laugh => "Made me laugh",
-            _ => kind.ToString(),
-        };
+    private Task ToggleAsync(ReactionKind kind) =>
+        this.Reader.ToggleAsync(this.Node.Id, kind);
 }

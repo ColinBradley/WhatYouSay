@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Components;
 using WhatYouSay.Data;
+using WhatYouSay.Services;
 
 namespace WhatYouSay.Web.Components.Shared;
 
@@ -9,6 +10,14 @@ public sealed record EarlierRevision
     public required ResponseRevision Revision { get; init; }
 
     public required IReadOnlyList<SummaryNodeReference> References { get; init; }
+}
+
+/// <summary>A click on one reaction button of one response.</summary>
+public sealed record ResponseReactionClick
+{
+    public required Guid ResponseId { get; init; }
+
+    public required ReactionKind Kind { get; init; }
 }
 
 public partial class ResponsePane
@@ -21,6 +30,30 @@ public partial class ResponsePane
     [Parameter]
     public ILookup<Guid, SummaryNodeReference> References { get; set; } =
         Array.Empty<SummaryNodeReference>().ToLookup(r => r.ResponseId);
+
+    /// <summary>The reactions on each response. A response nobody has reacted to needs no entry.</summary>
+    [Parameter]
+    [EditorRequired]
+    public IReadOnlyDictionary<Guid, ReactionTally> Tallies { get; set; } =
+        new Dictionary<Guid, ReactionTally>();
+
+    [Parameter]
+    [EditorRequired]
+    public EventCallback<ResponseReactionClick> OnReact { get; set; }
+
+    private ReactionTally TallyFor(Response response)
+    {
+        return this.Tallies.GetValueOrDefault(response.Id, ReactionTally.None);
+    }
+
+    private Task ReactAsync(Response response, ReactionKind kind)
+    {
+        return this.OnReact.InvokeAsync(new ResponseReactionClick()
+        {
+            ResponseId = response.Id,
+            Kind = kind,
+        });
+    }
 
     private IReadOnlyList<SummaryNodeReference> CurrentReferencesFor(Response response)
     {

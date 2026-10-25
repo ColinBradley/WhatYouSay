@@ -18,19 +18,36 @@
         <div class="panels">
             @foreach (var response in Responses)
             {
-                <article class="panel stack wide">
+                var tally = this.TallyFor(response);
+
+                <article class="panel stack wide hoverable">
                     <p class="verbatim">
                         <QuotedText Body="@response.Current.Body" References="@this.CurrentReferencesFor(response)" Linked="true" />
                     </p>
 
-                    <p class="fine">
-                        @(response.Author ?? "anonymous")
+                    <div class="controls">
+                        <span class="fine">@(response.Author ?? "anonymous")</span>
 
                         @if (response.SubmittedAt is { } created)
                         {
-                            <text>&middot; @created.ToLocalTime().ToString("d MMM yyyy")</text>
+                            <span class="fine">@created.ToLocalTime().ToString("d MMM yyyy")</span>
                         }
-                    </p>
+
+                        @if (response.IsEdited)
+                        {
+                            <span class="fine">edited</span>
+                        }
+
+                        @* The unused kinds wait for hover or focus in the row the author line
+                           already takes up, so hiding them costs no space. *@
+                        <div class="reactions" role="group" aria-label="Reactions">
+                            <ReactionButtons Tally="@tally" Lit="true"
+                                             OnToggle="@(kind => this.ReactAsync(response, kind))" />
+
+                            <ReactionButtons Tally="@tally" Class="on-demand"
+                                             OnToggle="@(kind => this.ReactAsync(response, kind))" />
+                        </div>
+                    </div>
 
                     @foreach (var earlier in this.EarlierRevisionsFor(response))
                     {
