@@ -102,7 +102,7 @@ public partial class CreateTopicPage
         {
             ResponseIdentity.Required => "everyone puts their name to what they write",
             ResponseIdentity.Optional => "a name is offered but can be left blank",
-            _ => "no name and no timestamp is recorded at all",
+            _ => "no name is asked for or stored",
         };
     }
 

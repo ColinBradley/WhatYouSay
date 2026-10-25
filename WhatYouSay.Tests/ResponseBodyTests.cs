@@ -2,6 +2,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using WhatYouSay.Auth;
 using WhatYouSay.Data;
 using WhatYouSay.Services;
 
@@ -27,7 +28,7 @@ public class ResponseBodyTests : DatabaseTest
         var topic = await this.OpenTopicAsync();
 
         await new ResponseService(mDb)
-            .SubmitAsync(topic, "CI is slow.\r\nReviews are slower.", "Anna", this.Cancellation);
+            .SubmitAsync(topic, Secrets.NewToken(), "CI is slow.\r\nReviews are slower.", "Anna", this.Cancellation);
 
         var stored = await mDb.Responses.SingleAsync(this.Cancellation);
 
@@ -42,10 +43,9 @@ public class ResponseBodyTests : DatabaseTest
         var topic = await this.OpenTopicAsync();
         var service = new ResponseService(mDb);
 
-        var token = await service.SubmitAsync(topic, "first", "Anna", this.Cancellation);
-        var response = await service.FindOwnAsync(topic.Id, token, this.Cancellation);
+        var response = await service.SubmitAsync(topic, Secrets.NewToken(), "first", "Anna", this.Cancellation);
 
-        await service.EditAsync(topic, response!, "one\r\ntwo\r\nthree", "Anna", this.Cancellation);
+        await service.EditAsync(topic, response, "one\r\ntwo\r\nthree", "Anna", this.Cancellation);
 
         Assert.AreEqual("one\ntwo\nthree", (await mDb.Responses.SingleAsync(this.Cancellation)).Current.Body);
     }

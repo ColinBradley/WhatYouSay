@@ -37,13 +37,16 @@ else
         <form method="post" @formname="respond" @onsubmit="SubmitAsync" class="fields">
             <AntiforgeryToken />
 
-            @if (mFrozen)
+            <h2>@this.FormHeading()</h2>
+
+            @if (mEditing is not null)
             {
-                <p class="fine">@this.FrozenReason()</p>
+                <input type="hidden" name="ResponseId" value="@mEditing.Id" />
             }
-            else if (mOwnResponse is not null && this.Saved is null)
+
+            @if (mLockedReason is not null)
             {
-                <p class="fine">This is the answer you already gave. Changing it replaces it.</p>
+                <p class="fine">@mLockedReason</p>
             }
 
             @if (!mTopic.IsAnonymous)
@@ -52,15 +55,15 @@ else
                     <label for="author">@this.NameLabel()</label>
 
                     <input id="author" name="Author" value="@Author"
-                           disabled="@mFrozen" title="@this.FrozenReason()" />
+                           disabled="@(mLockedReason is not null)" title="@mLockedReason" />
                 </div>
             }
 
             <div class="field">
                 <label for="body">Your answer</label>
 
-                <textarea id="body" name="Body" rows="8" autofocus="@(!mFrozen)"
-                          disabled="@mFrozen" title="@this.FrozenReason()">@Body</textarea>
+                <textarea id="body" name="Body" rows="8" autofocus="@(mLockedReason is null)"
+                          disabled="@(mLockedReason is not null)" title="@mLockedReason">@Body</textarea>
             </div>
 
             @if (mError is not null)
@@ -68,20 +71,70 @@ else
                 <p style="color: var(--danger)">@mError</p>
             }
 
+            <p class="@(this.BoxesStorageNotice() ? "notice" : "fine")">@this.StorageNotice()</p>
+
             <div class="controls">
-                <button class="primary" type="submit" name="Intent" value="save"
-                        disabled="@mFrozen" title="@this.FrozenReason()">
-                    @(mOwnResponse is null ? "Submit" : "Save changes")
-                </button>
+                @if (mEditing is null)
+                {
+                    <button class="primary" type="submit" name="Intent" value="new"
+                            disabled="@(mLockedReason is not null)" title="@mLockedReason">
+                        Submit
+                    </button>
+                }
+                else
+                {
+                    <button class="primary" type="submit" name="Intent" value="save"
+                            disabled="@(mLockedReason is not null)" title="@mLockedReason">
+                        Save changes
+                    </button>
 
-                <button class="danger" type="submit" name="Intent" value="withdraw"
-                        disabled="@(mFrozen || mOwnResponse is null)"
-                        title="@(mOwnResponse is null ? "You have not answered this topic yet." : this.FrozenReason())">
-                    Withdraw my response
-                </button>
+                    <button class="danger" type="submit" name="Intent" value="withdraw"
+                            disabled="@(mLockedReason is not null)" title="@mLockedReason">
+                        Withdraw this response
+                    </button>
+
+                    <a class="button push-end" href="@($"/topics/{Code}/respond")">Write a new response</a>
+                }
             </div>
-
-            <p class="fine">@this.StorageNotice()</p>
         </form>
+
+        @if (mOwn.Count > 0)
+        {
+            <section class="stack wide">
+                <h2>Your responses</h2>
+
+                <div class="panels">
+                    @foreach (var response in mOwn)
+                    {
+                        var blocked = this.EditBlockedReason(response);
+
+                        <article class="panel stack wide">
+                            <p class="verbatim">@response.Current.Body</p>
+
+                            <div class="controls fine">
+                                @if (response.SubmittedAt is { } submitted)
+                                {
+                                    <span>@submitted.ToLocalTime().ToString("d MMM yyyy HH:mm")</span>
+                                }
+
+                                @if (response.IsEdited)
+                                {
+                                    <span>edited</span>
+                                }
+
+                                @if (blocked is null)
+                                {
+                                    <a class="button push-end" href="@($"/topics/{Code}/respond?edit={response.Id}")">Edit</a>
+                                }
+                                else
+                                {
+                                    <button class="push-end" type="button" disabled title="@blocked">Edit</button>
+                                }
+                            </div>
+                        </article>
+                    }
+                </div>
+            </section>
+        }
     </div>
 }

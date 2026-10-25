@@ -3,6 +3,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using WhatYouSay.Auth;
 using WhatYouSay.Data;
 using WhatYouSay.Services;
 
@@ -176,7 +177,7 @@ public class ResponseRevisionTests : DatabaseTest
         var (_, nodeId) = await this.HandWrittenSummaryAsync(topic);
         var service = new ResponseService(mDb);
 
-        await service.SubmitAsync(topic, "Tom's answer", "Tom", this.Cancellation);
+        await service.SubmitAsync(topic, Secrets.NewToken(), "Tom's answer", "Tom", this.Cancellation);
         await service.EditAsync(topic, edited, AnnaLater, "Anna", this.Cancellation);
 
         var untouched = await mDb.Responses.SingleAsync(r => r.Id != edited.Id, this.Cancellation);
@@ -303,7 +304,7 @@ public class ResponseRevisionTests : DatabaseTest
         mDb.Topics.Add(topic);
         await mDb.SaveChangesAsync(this.Cancellation);
 
-        await new ResponseService(mDb).SubmitAsync(topic, AnnaSaid, "Anna", this.Cancellation);
+        await new ResponseService(mDb).SubmitAsync(topic, Secrets.NewToken(), AnnaSaid, "Anna", this.Cancellation);
 
         return (topic, await mDb.Responses.SingleAsync(this.Cancellation));
     }

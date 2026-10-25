@@ -70,11 +70,11 @@ public class ReactionServiceTests : DatabaseTest
             () => this.Service().ToggleAsync(topic, otherNode, token, ReactionKind.Agree, this.Cancellation));
     }
     [TestMethod]
-    public async Task Anonymous_topics_record_no_reaction_timestamps()
+    public async Task Untimed_topics_record_no_reaction_timestamps()
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (topic, node, token) = await this.SummarisedTopicAsync(ResponseIdentity.Anonymous);
+        var (topic, node, token) = await this.SummarisedTopicAsync(ResponseIdentity.Anonymous, ResponseTiming.NotRecorded);
 
         await this.Service().ToggleAsync(topic, node, token, ReactionKind.Agree, this.Cancellation);
 
@@ -145,10 +145,11 @@ public class ReactionServiceTests : DatabaseTest
     }
 
     private async Task<(Topic Topic, int NodeId, string Token)> SummarisedTopicAsync(
-        ResponseIdentity identity = ResponseIdentity.Required
+        ResponseIdentity identity = ResponseIdentity.Required,
+        ResponseTiming timing = ResponseTiming.Recorded
     )
     {
-        var topic = NewTopic(identity);
+        var topic = NewTopic(identity, timing);
         topic.IsAcceptingResponses = false;
 
         var token = Secrets.NewToken();

@@ -96,11 +96,29 @@ public class TopicAdminService
         await mDb.SaveChangesAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Whether the topic's identity and timing can still change. Both are fixed once anybody
+    /// has responded, because what was collected cannot be unrecorded and the responders
+    /// answered under the settings they were shown. A withdrawn response still counts.
+    /// </summary>
+    public async Task<bool> CanChangeIdentityAndTimingAsync(
+        Topic topic,
+        CancellationToken cancellationToken = default
+    )
+    {
+        return !await mDb.Responses.AnyAsync(r => r.TopicId == topic.Id, cancellationToken);
+    }
+
+    /// <exception cref="InvalidOperationException">
+    /// The identity or timing differs from the topic's while <see cref="CanChangeIdentityAndTimingAsync"/>
+    /// is false.
+    /// </exception>
     public async Task UpdateSettingsAsync(
         Topic topic,
         bool isPubliclyListed,
         bool areResponsesPublic,
         bool anonymous,
+        bool recordsTiming,
         CancellationToken cancellationToken = default
     )
     {
@@ -109,16 +127,16 @@ public class TopicAdminService
         topic.IsPubliclyListed = isPubliclyListed;
         topic.AreResponsesPublic = areResponsesPublic;
 
-        // Identity is only unchangeable once somebody has answered under it. At zero
-        // responses there is nothing to unrecord and no deal to change.
-        if (await mDb.Responses.AnyAsync(r => r.TopicId == topic.Id, cancellationToken))
+        var timing = recordsTiming ? ResponseTiming.Recorded : ResponseTiming.NotRecorded;
+
+        if (!await this.CanChangeIdentityAndTimingAsync(topic, cancellationToken))
         {
-            if (anonymous != topic.IsAnonymous)
+            if (anonymous != topic.IsAnonymous || timing != topic.ResponseTiming)
             {
                 activity.RecordFailure("responses_exist");
 
                 throw new InvalidOperationException(
-                    "Somebody has already answered under this setting, so it is fixed now.");
+                    "Somebody has already answered under these settings, so identity and timing are fixed now.");
             }
         }
         else
@@ -126,6 +144,8 @@ public class TopicAdminService
             topic.ResponseIdentity = anonymous
                 ? ResponseIdentity.Anonymous
                 : ResponseIdentity.Required;
+
+            topic.ResponseTiming = timing;
         }
 
         await mDb.SaveChangesAsync(cancellationToken);

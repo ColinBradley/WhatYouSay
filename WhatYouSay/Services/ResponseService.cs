@@ -15,11 +15,13 @@ public class ResponseService
     }
 
     /// <summary>
-    /// Stores a response and returns the plaintext token for the responder's cookie. Only
-    /// the hash is kept, so this is the one moment the token is knowable.
+    /// Stores a new response owned by <paramref name="responderToken"/>.
+    /// One token may own any number of responses on a topic, so pass the token from the
+    /// responder's existing cookie where there is one. Only the token's hash is stored.
     /// </summary>
-    public async Task<string> SubmitAsync(
+    public async Task<Response> SubmitAsync(
         Topic topic,
+        string responderToken,
         string body,
         string? author,
         CancellationToken cancellationToken = default
@@ -34,8 +36,6 @@ public class ResponseService
             throw new InvalidOperationException("This topic is no longer accepting responses.");
         }
 
-        var token = Secrets.NewToken();
-
         var response = new Response()
         {
             // Deliberately v4 and not CreateVersion7. A v7 Guid embeds a Unix timestamp,
@@ -44,7 +44,7 @@ public class ResponseService
             Id = Guid.NewGuid(),
             TopicId = topic.Id,
             Author = topic.IsAnonymous ? null : NullIfBlank(author),
-            AuthTokenHash = Secrets.HashToken(token),
+            AuthTokenHash = Secrets.HashToken(responderToken),
         };
 
         response.Revise(body, Now(topic));
@@ -54,23 +54,49 @@ public class ResponseService
 
         WhatYouSayTelemetry.ResponseSubmitted(topic);
 
-        return token;
+        return response;
     }
 
+    /// <summary>
+    /// The live responses that <paramref name="responderToken"/> owns on the topic, in the
+    /// topic's listing order. Each comes with its revisions loaded.
+    /// </summary>
+    public async Task<IReadOnlyList<Response>> ListOwnAsync(
+        Topic topic,
+        string responderToken,
+        CancellationToken cancellationToken = default
+    )
+    {
+        using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
+
+        var hash = Secrets.HashToken(responderToken);
+
+        var query = mDb.Responses
+            .Include(r => r.Revisions)
+            .Where(r => r.TopicId == topic.Id && r.AuthTokenHash == hash && !r.IsDeleted);
+
+        return await InListingOrder(query, topic).ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// One of the responder's own responses, with its revisions loaded. Returns null unless
+    /// the response is live, belongs to the topic and is owned by <paramref name="responderToken"/>.
+    /// </summary>
     public async Task<Response?> FindOwnAsync(
         Guid topicId,
-        string token,
+        Guid responseId,
+        string responderToken,
         CancellationToken cancellationToken = default
     )
     {
         using var activity = WhatYouSayTelemetry.Source.Start();
 
-        var hash = Secrets.HashToken(token);
+        var hash = Secrets.HashToken(responderToken);
 
         return await mDb.Responses
             .Include(r => r.Revisions)
             .FirstOrDefaultAsync(
-                r => r.TopicId == topicId && r.AuthTokenHash == hash && !r.IsDeleted,
+                r => r.Id == responseId && r.TopicId == topicId && r.AuthTokenHash == hash && !r.IsDeleted,
                 cancellationToken);
     }
 
@@ -99,6 +125,7 @@ public class ResponseService
         WhatYouSayTelemetry.ResponseEdited(topic);
     }
 
+    /// <summary>Withdraws one response, leaving the responder's other responses as they were.</summary>
     public async Task WithdrawAsync(
         Topic topic,
         Response response,
@@ -116,6 +143,7 @@ public class ResponseService
         WhatYouSayTelemetry.ResponseWithdrawn(topic);
     }
 
+    /// <summary>Every live response on the topic, in the topic's listing order.</summary>
     public async Task<IReadOnlyList<Response>> ListAsync(
         Topic topic,
         CancellationToken cancellationToken = default
@@ -127,16 +155,28 @@ public class ResponseService
             .Include(r => r.Revisions)
             .Where(r => r.TopicId == topic.Id && !r.IsDeleted);
 
-        // Anonymous topics have no timestamps to order by, so they fall back to the
-        // random Guid. Insertion order would otherwise leak through the SQLite rowid.
-        query = topic.IsAnonymous
-            ? query.OrderBy(r => r.Id)
-            : query.OrderBy(r => r.Revisions
+        return await InListingOrder(query, topic).ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Orders responses newest first by when each was first submitted, so an edit never moves
+    /// a response. Equal times fall back to the id, so the order stays stable between reads.
+    /// A topic that records no timing orders by the random id alone, because insertion order
+    /// would otherwise leak through the SQLite rowid.
+    /// </summary>
+    internal static IOrderedQueryable<Response> InListingOrder(IQueryable<Response> query, Topic topic)
+    {
+        if (!topic.RecordsTiming)
+        {
+            return query.OrderBy(r => r.Id);
+        }
+
+        return query
+            .OrderByDescending(r => r.Revisions
                 .Where(v => v.Number == ResponseRevision.First)
                 .Select(v => v.CreatedAt)
-                .FirstOrDefault());
-
-        return await query.ToListAsync(cancellationToken);
+                .FirstOrDefault())
+            .ThenBy(r => r.Id);
     }
 
     private static void RequireEditable(Response response, System.Diagnostics.Activity? activity)
@@ -152,10 +192,10 @@ public class ResponseService
             "This response was frozen when the topic closed, so it can no longer be changed.");
     }
 
-    /// <summary>Null on an anonymous topic, which records no timing.</summary>
+    /// <summary>Null on a topic that records no timing.</summary>
     private static DateTimeOffset? Now(Topic topic)
     {
-        return topic.IsAnonymous ? null : DateTimeOffset.UtcNow;
+        return topic.RecordsTiming ? DateTimeOffset.UtcNow : null;
     }
 
     private static string? NullIfBlank(string? value) =>

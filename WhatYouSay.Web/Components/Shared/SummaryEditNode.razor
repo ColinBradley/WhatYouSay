@@ -60,12 +60,20 @@
                 </button>
             </div>
 
-            @if (comment.ResponseBody is not null)
+            @if (comment.CommenterResponses.Count > 0)
             {
                 <details>
-                    <summary class="fine">What @(comment.Author ?? "they") actually wrote</summary>
+                    <summary class="fine">
+                        What @(comment.Author ?? "they") actually wrote
+                        @(comment.CommenterResponses.Count == 1 ? null : $"({comment.CommenterResponses.Count} responses)")
+                    </summary>
 
-                    <p class="verbatim fine">@comment.ResponseBody</p>
+                    <div class="stack">
+                        @foreach (var response in comment.CommenterResponses)
+                        {
+                            <p class="verbatim fine">@response.Body</p>
+                        }
+                    </div>
                 </details>
             }
             else

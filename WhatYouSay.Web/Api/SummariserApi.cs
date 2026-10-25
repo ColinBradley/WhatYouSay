@@ -142,6 +142,7 @@ public static class SummariserApi
             Title = topic.Title,
             Prompt = topic.Description,
             ResponseIdentity = topic.ResponseIdentity.ToString(),
+            ResponseTiming = topic.ResponseTiming.ToString(),
             IsAcceptingResponses = topic.IsAcceptingResponses,
             AreResponsesPublic = topic.AreResponsesPublic,
             ResponseCount = counts.Responses,
@@ -303,7 +304,14 @@ public static class SummariserApi
                 NodeText = comment.NodeText,
                 Body = comment.Body,
                 Author = comment.Author,
-                ResponseBody = comment.ResponseBody,
+                CommenterResponses =
+                [
+                    .. comment.CommenterResponses.Select(response => new CommenterResponseInfo()
+                    {
+                        ResponseId = response.ResponseId,
+                        Body = response.Body,
+                    }),
+                ],
             }),
         ];
 

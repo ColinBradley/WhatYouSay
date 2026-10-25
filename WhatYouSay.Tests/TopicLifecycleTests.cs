@@ -42,7 +42,7 @@ public class TopicLifecycleTests : DatabaseTest
 
         Assert.IsTrue(first.IsFrozen);
 
-        await new ResponseService(mDb).SubmitAsync(topic, "Arrived later", "Sam", this.Cancellation);
+        await new ResponseService(mDb).SubmitAsync(topic, Secrets.NewToken(), "Arrived later", "Sam", this.Cancellation);
 
         var later = await mDb.Responses.SingleAsync(r => r.Revisions.Any(v => v.Body == "Arrived later"), this.Cancellation);
 
@@ -81,14 +81,14 @@ public class TopicLifecycleTests : DatabaseTest
         mDb.Topics.Add(topic);
         await mDb.SaveChangesAsync(this.Cancellation);
 
-        await this.Admin().UpdateSettingsAsync(topic, false, false, true, this.Cancellation);
+        await this.Admin().UpdateSettingsAsync(topic, false, false, true, true, this.Cancellation);
 
         Assert.AreEqual(ResponseIdentity.Anonymous, topic.ResponseIdentity);
 
-        await new ResponseService(mDb).SubmitAsync(topic, "Said in confidence", null, this.Cancellation);
+        await new ResponseService(mDb).SubmitAsync(topic, Secrets.NewToken(), "Said in confidence", null, this.Cancellation);
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            () => this.Admin().UpdateSettingsAsync(topic, false, false, false, this.Cancellation));
+            () => this.Admin().UpdateSettingsAsync(topic, false, false, false, true, this.Cancellation));
 
         Assert.AreEqual(ResponseIdentity.Anonymous, topic.ResponseIdentity);
     }

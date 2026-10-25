@@ -64,6 +64,9 @@ else
 
                     <dt>Identity</dt>
                     <dd>@mTopic.ResponseIdentity</dd>
+
+                    <dt>Timing</dt>
+                    <dd>@(mTopic.RecordsTiming ? "Recorded, newest first" : "Not recorded")</dd>
                 </dl>
 
                 <div class="controls">
@@ -119,11 +122,18 @@ else
                         Show the raw responses beside the summary
                     </label>
 
-                    <label class="check @(mCanChangeIdentity ? null : "quiet")" title="@mIdentityReason">
+                    <label class="check @(mCanChangeIdentityAndTiming ? null : "quiet")" title="@mFixedReason">
                         <input type="checkbox" id="identity" name="IsAnonymous" value="true"
-                               checked="@mTopic.IsAnonymous" disabled="@(!mCanChangeIdentity)"
-                               title="@mIdentityReason" />
+                               checked="@mTopic.IsAnonymous" disabled="@(!mCanChangeIdentityAndTiming)"
+                               title="@mFixedReason" />
                         Anonymous
+                    </label>
+
+                    <label class="check @(mCanChangeIdentityAndTiming ? null : "quiet")" title="@mFixedReason">
+                        <input type="checkbox" id="timing" name="RecordsTiming" value="true"
+                               checked="@mTopic.RecordsTiming" disabled="@(!mCanChangeIdentityAndTiming)"
+                               title="@mFixedReason" />
+                        Record when responses arrive, and list them newest first
                     </label>
 
                     <button class="primary" type="submit">Save settings</button>

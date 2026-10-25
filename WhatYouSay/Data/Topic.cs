@@ -26,6 +26,8 @@ public class Topic
 
     public ResponseIdentity ResponseIdentity { get; set; } = ResponseIdentity.Required;
 
+    public ResponseTiming ResponseTiming { get; set; } = ResponseTiming.Recorded;
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public List<Response> Responses { get; set; } = [];
@@ -33,6 +35,8 @@ public class Topic
     public List<Summary> Summaries { get; set; } = [];
 
     public bool IsAnonymous => this.ResponseIdentity == ResponseIdentity.Anonymous;
+
+    public bool RecordsTiming => this.ResponseTiming == ResponseTiming.Recorded;
 
     /// <summary>
     /// Reopening is allowed only while nothing references the responses. Once a summary

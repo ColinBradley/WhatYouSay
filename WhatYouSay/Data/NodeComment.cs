@@ -26,6 +26,6 @@ public class NodeComment
     /// </summary>
     public bool IsHidden { get; set; }
 
-    /// <summary>Null when the topic is Anonymous, following the same rule as responses.</summary>
+    /// <summary>Null when the topic records no timing, following the same rule as responses.</summary>
     public DateTimeOffset? CreatedAt { get; set; }
 }

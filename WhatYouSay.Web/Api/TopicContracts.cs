@@ -11,6 +11,9 @@ public record TopicInfo
 
     public required string ResponseIdentity { get; init; }
 
+    /// <summary>Whether the topic records when responses arrive: <c>Recorded</c> or <c>NotRecorded</c>.</summary>
+    public required string ResponseTiming { get; init; }
+
     public required bool IsAcceptingResponses { get; init; }
 
     public required bool AreResponsesPublic { get; init; }
@@ -46,6 +49,6 @@ public record ResponseInfo
     /// <summary>Null on anonymous topics, where it was never collected.</summary>
     public string? Author { get; init; }
 
-    /// <summary>Null on anonymous topics, where it was never recorded.</summary>
+    /// <summary>Null on topics that record no timing.</summary>
     public DateTimeOffset? CreatedAt { get; init; }
 }

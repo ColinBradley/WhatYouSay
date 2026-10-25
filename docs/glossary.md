@@ -8,7 +8,7 @@ Terms marked *planned* come from the [live feedback plan](plans/live-feedback-pl
 |---|---|
 | Admin | Whoever holds a topic's admin password. There are no accounts; the password is per topic. |
 | Agent | A model writing a summary through the summariser API. Contrast with a person editing in the admin editor. |
-| Anonymous | The identity setting that collects no author name and no timestamps. Not collected, rather than collected and hidden. |
+| Anonymous | The identity setting that collects no author name. Not collected, rather than collected and hidden. Whether times are kept is the separate timing setting. |
 | Author | The name a responder or commenter gives. Self-declared and unverified. |
 | Briefing | The plain-text job description served at `ai-summary-start`, written for a model to read. |
 | Carry forward | Sending a node in a draft by id alone, so its text and citations stay exactly as stored. |
@@ -30,14 +30,15 @@ Terms marked *planned* come from the [live feedback plan](plans/live-feedback-pl
 | Reaction | A fixed emoji kind toggled on a node: Agree, Disagree, Important, Question, Celebrate or Laugh. |
 | Reactor | Whoever toggles a reaction, identified only by a cookie token's hash. |
 | Reference | A stored quote of one response revision, with its offsets, attached to a node. |
-| Responder | Someone who submits a response. Identified only by the token in their cookie. |
-| Response | What a responder submits to a topic. Its id is a random Guid, so it reveals no timing. |
+| Responder | Someone who submits responses. Identified only by the token in their cookie, which owns every response that browser gives to the topic. |
+| Response | What a responder submits to a topic. A responder may submit several. Its id is a random Guid, so it reveals no timing. |
 | Revision | One wording of a response, with when it was submitted where the topic records timing. Editing a response's wording adds a revision. |
 | Runner | *Planned.* The local script that polls a topic and invokes the presenter's model client. |
 | Summariser | Whatever writes summaries through the summariser API, usually an agent. |
 | Summariser token | A topic-scoped bearer token for the summariser API. Only its hash is stored. |
 | Summary | One version of a topic's overview and note tree. Each generation run creates a new one. |
+| Timing | A topic's setting for whether it records when responses, edits, comments and reactions arrive: Recorded or NotRecorded. Recorded topics list responses newest first. New topics record timing. Fixed once anyone has responded. |
 | Topic | A question put to a group. A title and description make up the whole prompt. |
 | Topic code | The short url-safe code naming a topic in `/topics/{code}`. |
 | Version | One summary among a topic's summaries. Human edits change a version in place; a new run makes a new one. |
-| Withdraw | A responder removing their own response. Withdrawn responses are soft-deleted and hidden from every read, citations included. |
+| Withdraw | A responder removing one of their own responses. Withdrawn responses are soft-deleted and hidden from every read, citations included. |

@@ -5,7 +5,7 @@ using WhatYouSay.Telemetry;
 
 namespace WhatYouSay.Services;
 
-/// <summary>One comment, with the commenter's own response where they gave one.</summary>
+/// <summary>One comment, with the commenter's own responses to the topic.</summary>
 public record NodeCommentView
 {
     public required int Id { get; init; }
@@ -22,8 +22,19 @@ public record NodeCommentView
 
     public required bool IsMine { get; init; }
 
-    /// <summary>Null when the commenter never responded to this topic.</summary>
-    public required string? ResponseBody { get; init; }
+    /// <summary>
+    /// The commenter's live responses to the topic, in the topic's listing order. Empty when
+    /// the commenter has none. A comment concerns its node, not any one of these responses.
+    /// </summary>
+    public required IReadOnlyList<CommenterResponse> CommenterResponses { get; init; }
+}
+
+/// <summary>The current wording of one response by the author of a comment.</summary>
+public record CommenterResponse
+{
+    public required Guid ResponseId { get; init; }
+
+    public required string Body { get; init; }
 }
 
 public class CommentService
@@ -63,7 +74,7 @@ public class CommentService
             AuthorTokenHash = Secrets.HashToken(commenterToken),
             Author = topic.IsAnonymous || string.IsNullOrWhiteSpace(author) ? null : author.Trim(),
             Body = trimmed,
-            CreatedAt = topic.IsAnonymous ? null : DateTimeOffset.UtcNow,
+            CreatedAt = topic.RecordsTiming ? DateTimeOffset.UtcNow : null,
         };
 
         mDb.NodeComments.Add(comment);
@@ -133,35 +144,64 @@ public class CommentService
 
         var mineHash = viewerToken is null ? null : Secrets.HashToken(viewerToken);
 
-        // Left-joined to the commenter's own response: an admin reading an objection wants
-        // the words it is about beside it, and a commenter who never responded has none.
-        var query =
-            from comment in mDb.NodeComments
-            join response in mDb.Responses
-                    .Where(r => r.TopicId == topic.Id && !r.IsDeleted)
-                on comment.AuthorTokenHash equals response.AuthTokenHash into responses
-            from response in responses.DefaultIfEmpty()
-            where comment.Node.SummaryId == summaryId
-                && (includeHidden || !comment.IsHidden || comment.AuthorTokenHash == mineHash)
-            orderby comment.Node.Ordinal, comment.NodeId, comment.Id
-            select new NodeCommentView()
+        var comments = await mDb.NodeComments
+            .Where(c => c.Node.SummaryId == summaryId
+                && (includeHidden || !c.IsHidden || c.AuthorTokenHash == mineHash))
+            .OrderBy(c => c.Node.Ordinal)
+            .ThenBy(c => c.NodeId)
+            .ThenBy(c => c.Id)
+            .Select(c => new
             {
-                Id = comment.Id,
-                NodeId = comment.NodeId,
-                NodeText = comment.Node.Text,
-                Body = comment.Body,
-                Author = comment.Author,
-                IsHidden = comment.IsHidden,
-                IsMine = mineHash != null && comment.AuthorTokenHash == mineHash,
-                ResponseBody = response == null
-                    ? null
-                    : response.Revisions
-                        .Where(v => v.Number == response.RevisionNumber)
-                        .Select(v => v.Body)
-                        .FirstOrDefault(),
-            };
+                c.Id,
+                c.NodeId,
+                NodeText = c.Node.Text,
+                c.Body,
+                c.Author,
+                c.IsHidden,
+                c.AuthorTokenHash,
+            })
+            .ToListAsync(cancellationToken);
 
-        return await query.ToListAsync(cancellationToken);
+        // An admin reading an objection wants the commenter's own words beside it.
+        // The responses are read in a second query rather than joined, because a commenter
+        // may own several and a join would repeat the comment for each.
+        var commenters = comments.Select(c => c.AuthorTokenHash).Distinct().ToList();
+
+        var owned = await ResponseService.InListingOrder(
+                mDb.Responses.Where(r => r.TopicId == topic.Id
+                    && !r.IsDeleted
+                    && commenters.Contains(r.AuthTokenHash)),
+                topic)
+            .Select(r => new
+            {
+                r.AuthTokenHash,
+                Response = new CommenterResponse()
+                {
+                    ResponseId = r.Id,
+                    Body = r.Revisions
+                        .Where(v => v.Number == r.RevisionNumber)
+                        .Select(v => v.Body)
+                        .First(),
+                },
+            })
+            .ToListAsync(cancellationToken);
+
+        var byCommenter = owned.ToLookup(o => o.AuthTokenHash, o => o.Response);
+
+        return
+        [
+            .. comments.Select(c => new NodeCommentView()
+            {
+                Id = c.Id,
+                NodeId = c.NodeId,
+                NodeText = c.NodeText,
+                Body = c.Body,
+                Author = c.Author,
+                IsHidden = c.IsHidden,
+                IsMine = mineHash != null && c.AuthorTokenHash == mineHash,
+                CommenterResponses = [.. byCommenter[c.AuthorTokenHash]],
+            }),
+        ];
     }
 
     internal static async Task RequireNodeAsync(

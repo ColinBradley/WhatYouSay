@@ -41,6 +41,7 @@ public class WhatYouSayContext : DbContext
             // Enums as strings throughout: a sqlite3 session should show "Anonymous", not
             // "2", and reordering members must never reinterpret existing rows.
             topic.Property(s => s.ResponseIdentity).HasConversion<string>();
+            topic.Property(s => s.ResponseTiming).HasConversion<string>();
         });
 
         model.Entity<Response>(response =>

@@ -8,7 +8,7 @@ namespace WhatYouSay.Tests;
 public class SeedDataTests : DatabaseTest
 {
     [TestMethod]
-    public async Task Anonymous_topics_record_no_identifying_metadata()
+    public async Task The_anonymous_untimed_topic_records_no_identifying_metadata()
     {
         using var activity = TestTelemetry.Source.Start();
 
@@ -19,7 +19,8 @@ public class SeedDataTests : DatabaseTest
                 .ThenInclude(r => r.Revisions)
             .SingleAsync(s => s.ResponseIdentity == ResponseIdentity.Anonymous, this.Cancellation);
 
-        // Anonymous means the data does not exist, not that it is hidden at render time.
+        // Neither the names nor the times exist, rather than being hidden at render time.
+        Assert.AreEqual(ResponseTiming.NotRecorded, anonymous.ResponseTiming);
         Assert.IsNotEmpty(anonymous.Responses);
         Assert.IsTrue(anonymous.Responses.SelectMany(r => r.Revisions).All(v => v.CreatedAt is null));
         Assert.IsTrue(anonymous.Responses.All(r => r.Author is null));

@@ -2,9 +2,10 @@ namespace WhatYouSay.Web.Auth;
 
 /// <summary>
 /// Holds the plaintext responder token. Only its hash is stored, so this cookie is the
-/// only way back to your own response — it authorises editing while the topic is open and
-/// will authorise reacting to summary nodes. Lose it and you lose both, which is the
-/// price of having no accounts.
+/// only way back to your own responses — it authorises editing them and reacting to summary
+/// nodes. Lose it and you lose both, which is the price of having no accounts.
+/// One token covers every response this browser gives to a topic, so withdrawing one
+/// response leaves the cookie in place.
 /// </summary>
 public static class ResponderCookie
 {
@@ -25,7 +26,4 @@ public static class ResponderCookie
             Expires = DateTimeOffset.UtcNow.AddYears(1),
             IsEssential = true,
         });
-
-    public static void Clear(HttpContext http, Guid topicId) =>
-        http.Response.Cookies.Delete(NameFor(topicId));
 }

@@ -106,7 +106,7 @@ Each work item is independently reviewable and leaves the current application us
 |---|---|---|
 | LF-1 | ✅ Immutable response evidence | None |
 | LF-2 | Optional restrictions and live-summary ownership | LF-1 |
-| LF-3 | Multiple contributions and disclosed chronological ordering | LF-1 |
+| LF-3 | ✅ Multiple contributions and disclosed chronological ordering | LF-1 |
 | LF-4 | Emoji reactions on responses | LF-3 |
 | LF-5 | Consistent summariser inputs and safe live writes | LF-1 to LF-4 |
 | LF-6 | Topic-wide live updates and response-first readers | LF-2 to LF-5 |
@@ -157,6 +157,18 @@ The current comment-to-own-response join assumes one response and would duplicat
 
 **Finish when:** Participation feels like adding feedback throughout a session, while explicit editing still works.
 
+**Implementation notes:**
+
+- `Topic.ResponseTiming` is `Recorded` or `NotRecorded`, stored as a string and read through `Topic.RecordsTiming`. Every writer of a `CreatedAt` reads it instead of `IsAnonymous`: revisions, comments, reactions and seed data. Telemetry still redacts anonymous topic codes by identity.
+- New topics take `Recorded` from the entity default, and the create page offers no choice. The admin settings have a timing checkbox beside Anonymous. Both are fixed once any response exists, withdrawn ones included (`TopicAdminService.CanChangeIdentityAndTimingAsync`). While they are fixed, the admin page passes the stored values, because a disabled checkbox posts nothing and used to read as unticked.
+- The `ResponseTiming` migration sets anonymous topics to `NotRecorded` and the rest to `Recorded`. It rewrites no response data.
+- `ResponseService.InListingOrder` is the one response order: newest first by revision 1's `CreatedAt`, then by `Id`. Untimed topics order by `Id` alone. Every response list uses it, including the summariser API, a responder's own list and a commenter's responses.
+- `SubmitAsync` takes the responder token and returns the new `Response`. The respond page reuses the cookie's token and mints one only when there is none. `ListOwnAsync` and `FindOwnAsync(topicId, responseId, token)` are scoped to that token, and `EditAsync` and `WithdrawAsync` act on a response found that way. Withdrawal no longer clears the cookie, and `ResponderCookie.Clear` is gone.
+- The respond page shows a new-response form, with the browser's own responses listed below it. Each has an Edit link (`?edit={id}`) that loads it into the form with save, withdraw and "Write a new response". Posts carry `ResponseId`. A new response prefills the name from the browser's last one.
+- The storage notice sits above the buttons and states what is stored, whether times are kept and that responses are shown newest first. Anonymous topics that record timing show it as a boxed notice.
+- `NodeCommentView.CommenterResponses` lists the commenter's live responses, with id and current body, once per comment. A second query reads them, because a join would repeat the comment per response. The summariser API's `commenterResponses` replaces `responseBody`. `GET /api/topics/{code}` also reports `responseTiming`, and the briefing gains a Timing line.
+- The seeded anonymous topic stays `NotRecorded`, so the untimed shape stays exercised.
+
 ### LF-4 — Emoji reactions on responses
 
 **Change:** Add response reaction storage, a database uniqueness constraint for response/cookie/kind, scoped toggle/tally operations, and accessible reaction controls on visible response cards. Reuse the current emoji vocabulary and presentation where practical. Allow reacting without submitting a response; mint the cookie in the static shell before the circuit begins.
@@ -164,6 +176,8 @@ The current comment-to-own-response join assumes one response and would duplicat
 **Validation:** Toggle on/off, multiple kinds, duplicate concurrent clicks, separate browsers and cross-topic IDs. Hidden/withdrawn responses cannot be reacted to or leak through tallies. Edits retain the intended response-level reactions. The browser immediately reflects its own successful toggle; notification to other observers lands in LF-6.
 
 **Finish when:** Responses have useful, deduplicated emoji feedback without accounts or another identity mechanism.
+
+**Note from LF-3:** The respond page writes the responder cookie only on a first submission, and the summary page mints one only when it shows a summary. Response reactions need it minted wherever the cards appear. Withdrawing a response no longer touches the cookie.
 
 ### LF-5 — Consistent summariser inputs and safe live writes
 
@@ -176,6 +190,8 @@ Keep existing reviewed endpoints usable. Old clients without revision IDs may co
 **Validation:** Detect changes when counts stay equal, including editing a response, replacing one response with another, changing reaction counts and changing guidance. An unchanged conditional read transfers no full snapshot. Snapshot reads do not mix revisions from different pages/queries. A slow valid result can be accepted with an older applied input revision; newer input remains pending. Summary writes do not trigger themselves. Invalid evidence/conflicts leave the last accepted tree intact. Manually exercise HTTP authentication, errors and compatibility.
 
 **Finish when:** A local process can decide whether to generate and update the live summary without guessing freshness or racing owner edits.
+
+**Note from LF-3:** `/responses` lists newest first on timed topics, so a response arriving between pages shifts every later page by one. Comments list the commenter's responses by id as `commenterResponses`.
 
 ### LF-6 — Topic-wide live updates and response-first readers
 
@@ -194,6 +210,8 @@ Label the automatically updated summary as live AI output, rather than presentin
 **Validation:** Scan the QR from a real phone against the externally reachable configured URL. Test projector dimensions, narrow screens, zoom, keyboard navigation, `dir="rtl"`, reduced motion, long responses and a topic with no summary. Verify private raw responses never appear publicly, even on the projector route. Test scrolling back through responses while new entries arrive and preserving the summary's visible position.
 
 **Finish when:** The owner can project one stable URL containing everything needed to join and observe the session.
+
+**Note from LF-3:** Anonymous topics from before LF-3 record no timing, so their responses have no newest-first order. The presentation page needs to say so for them rather than imply an order.
 
 ### LF-8 — Local Claude Code runner and ready-to-use setup
 
@@ -221,7 +239,7 @@ These do not block the plan. Resolve them before their work item starts and reco
 
 | Decision | Suggested starting point | Item |
 |---|---|---|
-| Timing metadata | Record submission/edit times on new chronological topics, including anonymous ones; disclose timing and public display. Preserve legacy no-timing topics. Reaction/comment timing follows the collection policy. | LF-3 |
+| Timing metadata | Record submission/edit times on new chronological topics, including anonymous ones; disclose timing and public display. Preserve legacy no-timing topics. Reaction/comment timing follows the collection policy. **Chosen:** as suggested, as `Topic.ResponseTiming`. The respond form discloses timing and newest-first display before posting. | LF-3 |
 | Emoji set | Reuse Agree, Disagree, Important, Question, Celebrate and Laugh. | LF-4 |
 | Guidance/summary size | Store expected feedback and summarising instructions per topic. Allow an optional length target; do not add another mandatory review gate or a universal tree-depth limit. | LF-5 |
 | Snapshot size | One coherent snapshot of current input for normal event topics. Measure larger topics before choosing paging/chunking; never silently omit feedback. | LF-5 |
@@ -244,6 +262,7 @@ Provider eligibility and limits still come from the presenter's plan and workpla
 |---|---|
 | 2026-10-25 10:00 | LF-1 implemented, pending review. Build clean, all domain tests pass, model matches migrations, and the migration was checked against a copy of an existing development database. |
 | 2026-10-25 10:38 | LF-1 reshaped in review: wording and timestamps moved from `Response` to revisions, and revisions no longer carry an author. Same checks repeated. |
+| 2026-10-25 11:32 | LF-3 implemented, pending review. Build clean, all domain tests pass, and model matches migrations. The migration was checked on a fresh database and on a copy of the development database. The respond flow was exercised in the running app with two cookie jars. |
 
 ## Provider guidance checked during planning
 

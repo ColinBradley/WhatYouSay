@@ -40,6 +40,7 @@ public static class SummariserBriefing
               Summaries  {{summaryCount}} so far
               Status     {{status}}
               Identity   {{IdentityLine(topic.ResponseIdentity)}}
+              Timing     {{TimingLine(topic.ResponseTiming)}}
 
             AUTHENTICATION
 
@@ -72,8 +73,9 @@ public static class SummariserBriefing
                    Counts per node, by kind.
 
               GET  {{api}}/summaries/{id}/comments
-                   What the group said back, in their own words, with each commenter's
-                   own response beside it where they gave one. Read these first on a
+                   What the group said back, in their own words, with every response
+                   each commenter gave listed beside their comment. A comment is about
+                   its node, not about any one of those responses. Read these first on a
                    second pass: they are the highest-value input you can have.
 
               PUT  {{api}}/summaries/{id}
@@ -267,9 +269,18 @@ public static class SummariserBriefing
         identity switch
         {
             ResponseIdentity.Anonymous =>
-                "anonymous - no names or timestamps were ever recorded, so there is no "
-                + "privileged view to ask for",
+                "anonymous - no names were ever recorded, so there is no privileged view to "
+                + "ask for",
             ResponseIdentity.Optional => "optional - some responses carry a name, some do not",
             _ => "required - every response carries a name",
+        };
+
+    private static string TimingLine(ResponseTiming timing) =>
+        timing switch
+        {
+            ResponseTiming.NotRecorded =>
+                "not recorded - no times were ever stored, so the order of responses means "
+                + "nothing",
+            _ => "recorded - responses carry when they were submitted and are listed newest first",
         };
 }

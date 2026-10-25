@@ -47,7 +47,10 @@ public abstract class DatabaseTest : IDisposable
     /// <summary>Lets the runner abort a test promptly.</summary>
     protected CancellationToken Cancellation => this.TestContext.CancellationToken;
 
-    protected static Topic NewTopic(ResponseIdentity identity)
+    protected static Topic NewTopic(
+        ResponseIdentity identity,
+        ResponseTiming timing = ResponseTiming.Recorded
+    )
     {
         return new Topic()
         {
@@ -58,6 +61,7 @@ public abstract class DatabaseTest : IDisposable
             AdminPasswordHash = "hash",
             SummariserTokenHash = Guid.NewGuid().ToString("n"),
             ResponseIdentity = identity,
+            ResponseTiming = timing,
             CreatedAt = DateTimeOffset.UtcNow,
         };
     }

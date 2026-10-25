@@ -70,6 +70,9 @@ public static class SeedData
             IsAcceptingResponses = acceptingResponses,
             AreResponsesPublic = false,
             ResponseIdentity = identity,
+            // The anonymous seed records no timing, so development data keeps a topic of
+            // that shape.
+            ResponseTiming = anonymous ? ResponseTiming.NotRecorded : ResponseTiming.Recorded,
             CreatedAt = createdAt,
         };
 
@@ -80,7 +83,7 @@ public static class SeedData
             var response = new Response()
             {
                 // v4, not v7: a time-ordered Guid would leak submission order and time in
-                // anonymous topics. See ResponseService.SubmitAsync.
+                // topics that record no timing. See ResponseService.SubmitAsync.
                 Id = Guid.NewGuid(),
                 Author = anonymous ? null : author,
                 AuthTokenHash = Secrets.HashToken(Secrets.NewToken()),
@@ -90,7 +93,7 @@ public static class SeedData
             };
 
             // Staggered so ordering is realistic where it is recorded at all.
-            response.Revise(body, anonymous ? null : createdAt.AddHours(i * 1.7));
+            response.Revise(body, topic.RecordsTiming ? createdAt.AddHours(i * 1.7) : null);
             topic.Responses.Add(response);
         }
 
@@ -138,7 +141,7 @@ public static class SeedData
 
     /// <summary>
     /// The scale case: anonymous, closed, many topics, and roughly a third low-effort
-    /// answers. Anonymous means no timestamps, so ordering falls back to the random Guid.
+    /// answers. This topic records no timing, so ordering falls back to the random Guid.
     /// </summary>
     private static Topic CompanyWide() =>
         Build(
@@ -353,7 +356,7 @@ public static class SeedData
             {
                 ReactorTokenHash = topic.Responses[responderIndex].AuthTokenHash,
                 Kind = kind,
-                CreatedAt = topic.IsAnonymous ? null : topic.CreatedAt.AddDays(1),
+                CreatedAt = topic.RecordsTiming ? topic.CreatedAt.AddDays(1) : null,
             });
         }
 
@@ -371,7 +374,7 @@ public static class SeedData
                 AuthorTokenHash = responder.AuthTokenHash,
                 Author = responder.Author,
                 Body = body,
-                CreatedAt = topic.IsAnonymous ? null : topic.CreatedAt.AddDays(1),
+                CreatedAt = topic.RecordsTiming ? topic.CreatedAt.AddDays(1) : null,
             });
         }
 

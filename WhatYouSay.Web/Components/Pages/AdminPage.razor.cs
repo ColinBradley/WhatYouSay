@@ -21,9 +21,9 @@ public partial class AdminPage
 
     private string? mShareLink;
 
-    private bool mCanChangeIdentity;
+    private bool mCanChangeIdentityAndTiming;
 
-    private string? mIdentityReason;
+    private string? mFixedReason;
 
     private int mResponseCount;
 
@@ -61,6 +61,9 @@ public partial class AdminPage
     [SupplyParameterFromForm(FormName = "admin-settings")]
     public bool IsAnonymous { get; set; }
 
+    [SupplyParameterFromForm(FormName = "admin-settings")]
+    public bool RecordsTiming { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
         mTopic = await this.Topics.FindByCodeAsync(this.Code);
@@ -95,10 +98,10 @@ public partial class AdminPage
         mResponseCount = await this.Topics.CountResponsesAsync(mTopic!.Id);
         mSummaryCount = (await this.Summaries.ListAllAsync(mTopic.Id)).Count;
 
-        mCanChangeIdentity = mResponseCount == 0;
-        mIdentityReason = mCanChangeIdentity
+        mCanChangeIdentityAndTiming = await this.Admin.CanChangeIdentityAndTimingAsync(mTopic);
+        mFixedReason = mCanChangeIdentityAndTiming
             ? null
-            : "Somebody has already answered under this setting. Changing it now cannot "
+            : "Somebody has already answered under these settings. Changing them now cannot "
                 + "unrecord what was collected, and would change the deal they answered under.";
     }
 
@@ -143,8 +146,16 @@ public partial class AdminPage
 
     private async Task SaveSettingsAsync()
     {
+        // A disabled checkbox posts nothing, which would read as unticked. Once identity and
+        // timing are fixed, pass the topic's own values so saving the other settings still works.
+        var fixedNow = !mCanChangeIdentityAndTiming;
+
         await this.GuardedAsync(() => this.Admin.UpdateSettingsAsync(
-            mTopic!, this.IsPubliclyListed, this.AreResponsesPublic, this.IsAnonymous));
+            mTopic!,
+            this.IsPubliclyListed,
+            this.AreResponsesPublic,
+            fixedNow ? mTopic!.IsAnonymous : this.IsAnonymous,
+            fixedNow ? mTopic!.RecordsTiming : this.RecordsTiming));
     }
 
     private async Task RegenerateTokenAsync()

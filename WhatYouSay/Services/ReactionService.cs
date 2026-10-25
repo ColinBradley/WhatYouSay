@@ -52,7 +52,7 @@ public class ReactionService
                 NodeId = nodeId,
                 ReactorTokenHash = hash,
                 Kind = kind,
-                CreatedAt = topic.IsAnonymous ? null : DateTimeOffset.UtcNow,
+                CreatedAt = topic.RecordsTiming ? DateTimeOffset.UtcNow : null,
             });
 
             WhatYouSayTelemetry.ReactionAdded(topic, kind);

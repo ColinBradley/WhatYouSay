@@ -1,19 +1,19 @@
 namespace WhatYouSay.Data;
 
 /// <summary>
-/// How much identity a topic asks of its responders. Set at creation and immutable
-/// thereafter: switching to <see cref="Anonymous"/> cannot retroactively unrecord
-/// timestamps or unsay names, and switching away from it changes the deal earlier
-/// responders agreed to.
+/// How much identity a topic asks of its responders. Fixed once anyone has responded,
+/// because switching to <see cref="Anonymous"/> cannot unsay names, and switching away
+/// from it changes the deal earlier responders agreed to.
+/// Whether times are recorded is a separate setting, <see cref="ResponseTiming"/>.
 /// </summary>
 public enum ResponseIdentity
 {
-    /// <summary>Author name required. Timestamps recorded.</summary>
+    /// <summary>Author name required.</summary>
     Required,
 
-    /// <summary>Author name offered but skippable. Timestamps recorded.</summary>
+    /// <summary>Author name offered but skippable.</summary>
     Optional,
 
-    /// <summary>No author field at all, and no timestamps recorded anywhere.</summary>
+    /// <summary>No author field at all, and no name stored anywhere.</summary>
     Anonymous,
 }

@@ -272,6 +272,10 @@ namespace WhatYouSay.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ResponseTiming")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("SummariserTokenHash")
                         .IsRequired()
                         .HasColumnType("TEXT");

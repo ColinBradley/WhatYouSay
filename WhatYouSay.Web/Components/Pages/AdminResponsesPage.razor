@@ -20,12 +20,15 @@ else
 
             <p class="quiet">@mTopic.Title</p>
 
-            @if (mTopic.IsAnonymous)
+            @if (!mTopic.RecordsTiming)
             {
                 <p class="fine">
-                    This topic is anonymous, so no names or times were recorded and the order below
-                    is meaningless by design.
+                    This topic records no times, so the order below is meaningless by design.
                 </p>
+            }
+            else
+            {
+                <p class="fine">Newest first, by when each response was first posted.</p>
             }
         </section>
 

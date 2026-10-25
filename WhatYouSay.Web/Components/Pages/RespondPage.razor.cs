@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components;
+using WhatYouSay.Auth;
 using WhatYouSay.Data;
 using WhatYouSay.Services;
 using WhatYouSay.Web.Auth;
@@ -8,11 +9,23 @@ namespace WhatYouSay.Web.Components.Pages;
 
 public partial class RespondPage
 {
+    private const string FrozenReason =
+        "This was frozen when the topic closed, so the quotes taken from it stay accurate.";
+
+    private const string NotYours =
+        "That response is not one of yours on this topic, or it has been withdrawn.";
+
     private Topic? mTopic;
 
-    private Response? mOwnResponse;
+    private string? mToken;
 
-    private bool mFrozen;
+    private IReadOnlyList<Response> mOwn = [];
+
+    /// <summary>The response the form is editing. Null while the form adds a new one.</summary>
+    private Response? mEditing;
+
+    /// <summary>Why the form's fields and buttons are disabled, or null when they are not.</summary>
+    private string? mLockedReason;
 
     private string? mError;
 
@@ -42,8 +55,19 @@ public partial class RespondPage
     [SupplyParameterFromForm]
     public string? Intent { get; set; }
 
+    /// <summary>The response a save or withdrawal targets. Absent when adding a new one.</summary>
+    [SupplyParameterFromForm]
+    public Guid? ResponseId { get; set; }
+
     [SupplyParameterFromQuery(Name = "saved")]
     public string? Saved { get; set; }
+
+    /// <summary>
+    /// The id of the response to open for editing. A string rather than a Guid, so a mangled
+    /// link reaches the page and is reported there instead of failing to bind.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "edit")]
+    public string? Edit { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -63,70 +87,127 @@ public partial class RespondPage
             new Crumb { Text = "Respond" },
         ];
 
-        var token = ResponderCookie.Read(this.HttpContext, mTopic.Id);
+        mToken = ResponderCookie.Read(this.HttpContext, mTopic.Id);
 
-        if (token is not null)
+        if (mToken is not null)
         {
-            mOwnResponse = await this.Responses.FindOwnAsync(mTopic.Id, token);
+            mOwn = await this.Responses.ListOwnAsync(mTopic, mToken);
         }
 
-        // Your own answer stops being yours to change when it freezes, which is not the
-        // same question as whether the topic is taking new ones.
-        mFrozen = !mTopic.IsAcceptingResponses || mOwnResponse?.IsFrozen == true;
+        // A post names its response in a form field, and a link to edit names it in the
+        // query string.
+        var selected = this.ResponseId ?? (Guid.TryParse(this.Edit, out var id) ? id : null);
 
-        // On a GET, prefill the editor with what is already stored.
-        if (mOwnResponse is not null && this.Body is null)
+        if (selected is { } responseId && mToken is not null)
         {
-            this.Body = mOwnResponse.Current.Body;
-            this.Author = mOwnResponse.Author;
+            mEditing = await this.Responses.FindOwnAsync(mTopic.Id, responseId, mToken);
+        }
+
+        mLockedReason = mEditing is not null
+            ? (mEditing.IsFrozen ? FrozenReason : null)
+            : (mTopic.IsAcceptingResponses ? null : "This topic is not taking new responses.");
+
+        if (!HttpMethods.IsGet(this.HttpContext.Request.Method))
+        {
+            return;
+        }
+
+        if (this.Edit is not null && mEditing is null)
+        {
+            mError = NotYours;
+        }
+
+        // On a GET, prefill the editor with what is stored. A new response starts with the
+        // name this browser gave last time, so a named topic does not ask for it again.
+        if (mEditing is not null)
+        {
+            this.Body = mEditing.Current.Body;
+            this.Author = mEditing.Author;
+        }
+        else
+        {
+            this.Author = mOwn.Select(r => r.Author).FirstOrDefault(author => author is not null);
         }
     }
 
     private async Task SubmitAsync()
     {
-        if (mTopic is null || mFrozen)
+        if (mTopic is null)
         {
             return;
         }
 
-        if (this.Intent == "withdraw")
+        try
         {
-            await this.WithdrawAsync();
+            switch (this.Intent)
+            {
+                case "save":
+                    await this.SaveAsync(mTopic);
+                    break;
+
+                case "withdraw":
+                    await this.WithdrawAsync(mTopic);
+                    break;
+
+                default:
+                    await this.AddAsync(mTopic);
+                    break;
+            }
+        }
+        catch (InvalidOperationException refused)
+        {
+            mError = refused.Message;
+        }
+    }
+
+    private async Task AddAsync(Topic topic)
+    {
+        if (!this.Validate(topic))
+        {
+            return;
+        }
+
+        // Every response from this browser shares one token, so the cookie keeps ownership
+        // of all of them.
+        var token = mToken ?? Secrets.NewToken();
+
+        await this.Responses.SubmitAsync(topic, token, this.Body!, this.Author);
+
+        // Static SSR, so the response has not started and a cookie can still be written.
+        ResponderCookie.Write(this.HttpContext, topic.Id, token);
+
+        this.Reload("new");
+    }
+
+    private async Task SaveAsync(Topic topic)
+    {
+        if (mEditing is null)
+        {
+            mError = NotYours;
 
             return;
         }
 
-        if (!this.Validate(mTopic))
+        if (!this.Validate(topic))
         {
             return;
         }
 
-        if (mOwnResponse is null)
-        {
-            var token = await this.Responses.SubmitAsync(mTopic, this.Body!, this.Author);
-
-            // Static SSR, so the response has not started and a cookie can still be written.
-            ResponderCookie.Write(this.HttpContext, mTopic.Id, token);
-
-            this.Reload("new");
-
-            return;
-        }
-
-        await this.Responses.EditAsync(mTopic, mOwnResponse, this.Body!, this.Author);
+        await this.Responses.EditAsync(topic, mEditing, this.Body!, this.Author);
 
         this.Reload("edited");
     }
 
-    private async Task WithdrawAsync()
+    private async Task WithdrawAsync(Topic topic)
     {
-        if (mTopic is null || mOwnResponse is null)
+        if (mEditing is null)
         {
+            mError = NotYours;
+
             return;
         }
 
-        await this.Responses.WithdrawAsync(mTopic, mOwnResponse);
-        ResponderCookie.Clear(this.HttpContext, mTopic.Id);
+        await this.Responses.WithdrawAsync(topic, mEditing);
 
         this.Reload("withdrawn");
     }
@@ -165,11 +246,23 @@ public partial class RespondPage
     {
         return this.Saved switch
         {
-            "new" => "Your answer is in. You can change it any time before this topic closes.",
+            "new" => "Your answer is in. Add another whenever you like, or change one of yours below "
+                + "while this topic is open.",
             "edited" => "Saved. This replaces what you wrote before.",
-            "withdrawn" => "Withdrawn. Nothing of yours is left on this topic.",
+            "withdrawn" => "Withdrawn. That response and any quotes of it are gone from this topic, "
+                + "though a summary written earlier may still reflect it. Your other responses are untouched.",
             _ => null,
         };
+    }
+
+    private string FormHeading()
+    {
+        if (mEditing is not null)
+        {
+            return "Edit your response";
+        }
+
+        return mOwn.Count == 0 ? "Your response" : "Add another response";
     }
 
     private string NameLabel()
@@ -177,28 +270,44 @@ public partial class RespondPage
         return mTopic!.ResponseIdentity == ResponseIdentity.Optional ? "Your name (optional)" : "Your name";
     }
 
-    private string? FrozenReason()
+    /// <summary>
+    /// Why one of the responder's own responses cannot be opened for editing, or null when it can.
+    /// </summary>
+    private string? EditBlockedReason(Response response)
     {
-        if (!mFrozen)
+        if (response.Id == mEditing?.Id)
         {
-            return null;
+            return "This is the response in the form above.";
         }
 
-        return mOwnResponse?.IsFrozen == true
-            ? "This was frozen when the topic closed, so the quotes taken from it stay accurate."
-            : "This topic is not taking new answers.";
+        return response.IsFrozen ? FrozenReason : null;
+    }
+
+    /// <summary>
+    /// Whether to show the storage notice in a box. An anonymous topic that records timing gets
+    /// one, because "anonymous" alone suggests the time is not kept either.
+    /// </summary>
+    private bool BoxesStorageNotice()
+    {
+        return mTopic!.IsAnonymous && mTopic.RecordsTiming;
     }
 
     private string StorageNotice()
     {
-        return mTopic!.ResponseIdentity switch
+        var topic = mTopic!;
+
+        var identity = topic.ResponseIdentity switch
         {
-            ResponseIdentity.Anonymous =>
-                "Anonymous: no name and no timestamp is recorded, not even hidden. A cookie in "
-                + "this browser is the only link back to your response.",
-            ResponseIdentity.Optional =>
-                "Your answer, the name you give if any, and the time are stored.",
-            _ => "Your answer, your name and the time are stored.",
+            ResponseIdentity.Anonymous => "Anonymous: no name is asked for or stored.",
+            ResponseIdentity.Optional => "Your answer and the name you give, if any, are stored.",
+            _ => "Your answer and your name are stored.",
         };
+
+        var timing = topic.RecordsTiming
+            ? "The time you post, and the time of each edit, is recorded. Wherever responses are "
+                + "shown, they are listed newest first, with when each was posted."
+            : "No time is recorded, not even hidden.";
+
+        return $"{identity} {timing} A cookie in this browser is the only link back to your responses.";
     }
 }

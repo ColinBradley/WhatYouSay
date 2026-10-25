@@ -77,8 +77,20 @@ public record CommentInfo
 
     public required string? Author { get; init; }
 
-    /// <summary>The commenter's own response, where they gave one.</summary>
-    public required string? ResponseBody { get; init; }
+    /// <summary>
+    /// Every live response the commenter gave to the topic, in the order <c>/responses</c>
+    /// lists them. Empty when they gave none. The comment concerns its node, not any one of
+    /// these responses.
+    /// </summary>
+    public required IReadOnlyList<CommenterResponseInfo> CommenterResponses { get; init; }
+}
+
+/// <summary>One of a commenter's own responses, by the id <c>/responses</c> gives it.</summary>
+public record CommenterResponseInfo
+{
+    public required Guid ResponseId { get; init; }
+
+    public required string Body { get; init; }
 }
 
 /// <summary>What an agent gets back after a draft passes grounding validation.</summary>

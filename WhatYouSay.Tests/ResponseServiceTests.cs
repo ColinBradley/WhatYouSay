@@ -9,13 +9,14 @@ namespace WhatYouSay.Tests;
 public class ResponseServiceTests : DatabaseTest
 {
     [TestMethod]
-    public async Task Submitting_returns_a_token_that_is_only_stored_hashed()
+    public async Task Submitting_stores_only_the_tokens_hash()
     {
         using var activity = TestTelemetry.Source.Start();
 
         var topic = await this.OpenTopicAsync(ResponseIdentity.Optional);
+        var token = Secrets.NewToken();
 
-        var token = await this.Service().SubmitAsync(topic, "Thai please", "Anna", this.Cancellation);
+        await this.Service().SubmitAsync(topic, token, "Thai please", "Anna", this.Cancellation);
 
         var stored = await mDb.Responses.SingleAsync(this.Cancellation);
 
@@ -24,20 +25,21 @@ public class ResponseServiceTests : DatabaseTest
     }
 
     [TestMethod]
-    public async Task The_returned_token_finds_that_response_again()
+    public async Task The_token_finds_its_response_again()
     {
         using var activity = TestTelemetry.Source.Start();
 
         var topic = await this.OpenTopicAsync(ResponseIdentity.Optional);
         var service = this.Service();
+        var token = Secrets.NewToken();
 
-        var token = await service.SubmitAsync(topic, "Thai please", "Anna", this.Cancellation);
+        var submitted = await service.SubmitAsync(topic, token, "Thai please", "Anna", this.Cancellation);
 
-        var found = await service.FindOwnAsync(topic.Id, token, this.Cancellation);
+        var found = await service.FindOwnAsync(topic.Id, submitted.Id, token, this.Cancellation);
 
         Assert.IsNotNull(found);
         Assert.AreEqual("Thai please", found.Current.Body);
-        Assert.IsNull(await service.FindOwnAsync(topic.Id, Secrets.NewToken(), this.Cancellation));
+        Assert.IsNull(await service.FindOwnAsync(topic.Id, submitted.Id, Secrets.NewToken(), this.Cancellation));
     }
 
     [TestMethod]
@@ -47,13 +49,12 @@ public class ResponseServiceTests : DatabaseTest
 
         var topic = await this.OpenTopicAsync(ResponseIdentity.Anonymous);
 
-        await this.Service().SubmitAsync(topic, "Meetings, mostly", "Colin", this.Cancellation);
+        await this.Service().SubmitAsync(topic, Secrets.NewToken(), "Meetings, mostly", "Colin", this.Cancellation);
 
         var stored = await mDb.Responses.SingleAsync(this.Cancellation);
 
         // The form hides the field, but the service must not depend on the form for this.
         Assert.IsNull(stored.Author);
-        Assert.IsNull(stored.SubmittedAt);
     }
 
     [TestMethod]
@@ -63,7 +64,7 @@ public class ResponseServiceTests : DatabaseTest
 
         var topic = await this.OpenTopicAsync(ResponseIdentity.Required);
 
-        await this.Service().SubmitAsync(topic, "CI is slow", "Anna", this.Cancellation);
+        await this.Service().SubmitAsync(topic, Secrets.NewToken(), "CI is slow", "Anna", this.Cancellation);
 
         var stored = await mDb.Responses.SingleAsync(this.Cancellation);
 
@@ -81,7 +82,7 @@ public class ResponseServiceTests : DatabaseTest
         await mDb.SaveChangesAsync(this.Cancellation);
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            () => this.Service().SubmitAsync(topic, "too late", null, this.Cancellation));
+            () => this.Service().SubmitAsync(topic, Secrets.NewToken(), "too late", null, this.Cancellation));
     }
 
     [TestMethod]
@@ -92,8 +93,7 @@ public class ResponseServiceTests : DatabaseTest
         var topic = await this.OpenTopicAsync(ResponseIdentity.Optional);
         var service = this.Service();
 
-        var token = await service.SubmitAsync(topic, "original", "Anna", this.Cancellation);
-        var response = (await service.FindOwnAsync(topic.Id, token, this.Cancellation))!;
+        var response = await service.SubmitAsync(topic, Secrets.NewToken(), "original", "Anna", this.Cancellation);
 
         await new TopicAdminService(mDb)
             .SetAcceptingResponsesAsync(topic, false, this.Cancellation);
@@ -114,8 +114,7 @@ public class ResponseServiceTests : DatabaseTest
         var topic = await this.OpenTopicAsync(ResponseIdentity.Optional);
         var service = this.Service();
 
-        var token = await service.SubmitAsync(topic, "original", "Anna", this.Cancellation);
-        var response = (await service.FindOwnAsync(topic.Id, token, this.Cancellation))!;
+        var response = await service.SubmitAsync(topic, Secrets.NewToken(), "original", "Anna", this.Cancellation);
 
         await service.EditAsync(topic, response, "  changed  ", "Anna", this.Cancellation);
 
@@ -132,14 +131,14 @@ public class ResponseServiceTests : DatabaseTest
         var topic = await this.OpenTopicAsync(ResponseIdentity.Optional);
         var service = this.Service();
 
-        var token = await service.SubmitAsync(topic, "never mind", null, this.Cancellation);
-        var response = (await service.FindOwnAsync(topic.Id, token, this.Cancellation))!;
+        var token = Secrets.NewToken();
+        var response = await service.SubmitAsync(topic, token, "never mind", null, this.Cancellation);
 
         await service.WithdrawAsync(topic, response, this.Cancellation);
 
         Assert.AreEqual(1, await mDb.Responses.CountAsync(this.Cancellation));
         Assert.IsEmpty(await service.ListAsync(topic, this.Cancellation));
-        Assert.IsNull(await service.FindOwnAsync(topic.Id, token, this.Cancellation));
+        Assert.IsNull(await service.FindOwnAsync(topic.Id, response.Id, token, this.Cancellation));
     }
 
     [TestMethod]
@@ -149,7 +148,7 @@ public class ResponseServiceTests : DatabaseTest
 
         var topic = await this.OpenTopicAsync(ResponseIdentity.Anonymous);
 
-        await this.Service().SubmitAsync(topic, "Meetings, mostly", null, this.Cancellation);
+        await this.Service().SubmitAsync(topic, Secrets.NewToken(), "Meetings, mostly", null, this.Cancellation);
 
         var stored = await mDb.Responses.SingleAsync(this.Cancellation);
 
@@ -159,18 +158,18 @@ public class ResponseServiceTests : DatabaseTest
     }
 
     [TestMethod]
-    public async Task Anonymous_topics_do_not_list_responses_in_submission_order()
+    public async Task Topics_that_record_no_timing_do_not_list_responses_in_submission_order()
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var topic = await this.OpenTopicAsync(ResponseIdentity.Anonymous);
+        var topic = await this.OpenTopicAsync(ResponseIdentity.Anonymous, ResponseTiming.NotRecorded);
         var service = this.Service();
 
         const int Count = 25;
 
         for (var i = 0; i < Count; i++)
         {
-            await service.SubmitAsync(topic, i.ToString(), null, this.Cancellation);
+            await service.SubmitAsync(topic, Secrets.NewToken(), i.ToString(), null, this.Cancellation);
         }
 
         var listed = await service.ListAsync(topic, this.Cancellation);
@@ -187,9 +186,12 @@ public class ResponseServiceTests : DatabaseTest
     private ResponseService Service() =>
         new(mDb);
 
-    private async Task<Topic> OpenTopicAsync(ResponseIdentity identity)
+    private async Task<Topic> OpenTopicAsync(
+        ResponseIdentity identity,
+        ResponseTiming timing = ResponseTiming.Recorded
+    )
     {
-        var topic = NewTopic(identity);
+        var topic = NewTopic(identity, timing);
 
         mDb.Topics.Add(topic);
         await mDb.SaveChangesAsync(this.Cancellation);
