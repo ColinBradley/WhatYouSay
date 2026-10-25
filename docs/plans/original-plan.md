@@ -1,5 +1,7 @@
 # What You Say
 
+> **Original plan, retained as implementation history.** The next development plan is [Live feedback and presentation](live-feedback-plan.md). That plan replaces the workflow assumptions below about required freezing, human publication of every agent update, one response per participant, anonymous ordering, and summary-first layouts as its PRs land. The original status is preserved; this move does not certify that every polish item is complete.
+
 Namespace / app name: `WhatYouSay`. Product name: **What You Say**.
 
 A small, self-hosted tool for a group of people who trust each other to work out what they think about something, together. Someone raises a **topic**, and from there any of it is optional: collect free-text responses, have an AI agent draft a grounded summary of them, write the notes by hand, open the result up for reactions and comments. Built for sprint retros, dev cycle reviews and architecture feedback at work. Not a service, not multi-tenant, no user accounts.
@@ -593,7 +595,7 @@ WhatYouSay.Web/            Blazor Server front end
   Components/      Pages, Layout, shared bits
   Api/             summariser endpoints and contracts
 WhatYouSay.Tests/          references the domain library only
-PLAN.md
+docs/plans/              original-plan.md and live-feedback-plan.md
 ```
 
 The web project is deliberately not the root project. Tests target the domain library and have no reason to build a front end, and the split keeps the service layer honest about what it depends on — a service that needs `HttpContext` won't compile there.

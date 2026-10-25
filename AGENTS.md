@@ -1,6 +1,6 @@
 # WhatYouSay
 
-Blazor Server, EF Core, SQLite. Design and build order: [PLAN.md](PLAN.md).
+Blazor Server, EF Core, SQLite. Next development plan: [Live feedback and presentation](docs/plans/live-feedback-plan.md). Original design and build history: [Original plan](docs/plans/original-plan.md).
 
 This file is for general advice, not a log of changes. It has broad descriptions and important points. Don't describe something here that could be a comment in a code file.
 
