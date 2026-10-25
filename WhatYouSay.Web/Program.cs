@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.EntityFrameworkCore;
 using WhatYouSay.Web.Components;
 using WhatYouSay.Data;
@@ -26,7 +27,12 @@ builder.Services.AddScoped<CommentService>();
 builder.Services.AddScoped<TopicAdminService>();
 builder.Services.AddScoped<AdminSession>();
 
-builder.Services.AddSingleton<SummaryLiveUpdates>();
+builder.Services.AddSingleton<TopicLiveUpdates>();
+
+// One instance per circuit. The framework calls it as a circuit handler, and live views
+// subscribe to it.
+builder.Services.AddScoped<CircuitReconnection>();
+builder.Services.AddScoped<CircuitHandler>(services => services.GetRequiredService<CircuitReconnection>());
 
 builder.Services.AddWhatYouSayTelemetry();
 

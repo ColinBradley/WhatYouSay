@@ -1,0 +1,15 @@
+@if (mView is not null)
+{
+    @if (mError is not null)
+    {
+        <div class="notice danger" role="alert">@mError</div>
+    }
+
+    @* The feed is fixed, for its actions and drafts. The view is not fixed, so every component
+       reading it renders again when a reload replaces it. *@
+    <CascadingValue Value="this" IsFixed="true">
+        <CascadingValue Value="mView">
+            @this.ChildContent(mView)
+        </CascadingValue>
+    </CascadingValue>
+}

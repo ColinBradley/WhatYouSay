@@ -6,21 +6,24 @@
 <div class="pane" id="responses">
     <div class="pane-head spread">
         <h2>Responses</h2>
-        <span class="fine">@Responses.Count @(Responses.Count == 1 ? "response" : "responses")</span>
+        <span class="fine">@this.View.Responses.Count @(this.View.Responses.Count == 1 ? "response" : "responses")</span>
     </div>
 
-    @if (Responses.Count == 0)
+    @if (this.View.Responses.Count == 0)
     {
-        <p class="quiet">Nobody answered this one.</p>
+        <p class="quiet">No responses yet.</p>
     }
     else
     {
         <div class="panels">
-            @foreach (var response in Responses)
+            @foreach (var response in this.View.Responses)
             {
-                var tally = this.TallyFor(response);
+                var tally = this.View.TallyFor(response);
 
-                <article class="panel stack wide hoverable">
+                @* Keyed by response, so a response arriving at the top adds a card instead of
+                   shifting every card's contents down one. Focus and open details stay with
+                   their response. *@
+                <article @key="response.Id" class="panel stack wide hoverable">
                     <p class="verbatim">
                         <QuotedText Body="@response.Current.Body" References="@this.CurrentReferencesFor(response)" Linked="true" />
                     </p>
@@ -42,17 +45,17 @@
                            already takes up, so hiding them costs no space. *@
                         <div class="reactions" role="group" aria-label="Reactions">
                             <ReactionButtons Tally="@tally" Lit="true"
-                                             OnToggle="@(kind => this.ReactAsync(response, kind))" />
+                                             OnToggle="@(kind => this.Feed.ToggleOnResponseAsync(response.Id, kind))" />
 
                             <ReactionButtons Tally="@tally" Class="on-demand"
-                                             OnToggle="@(kind => this.ReactAsync(response, kind))" />
+                                             OnToggle="@(kind => this.Feed.ToggleOnResponseAsync(response.Id, kind))" />
                         </div>
                     </div>
 
                     @foreach (var earlier in this.EarlierRevisionsFor(response))
                     {
                         @* app.js opens this when a citation into it is followed. *@
-                        <details>
+                        <details @key="earlier.Revision.Number">
                             <summary class="fine">Edited since it was quoted. What the summary quotes:</summary>
 
                             <p class="verbatim">

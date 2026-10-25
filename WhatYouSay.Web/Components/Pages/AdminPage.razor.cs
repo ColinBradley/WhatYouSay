@@ -4,6 +4,7 @@ using WhatYouSay.Services;
 using WhatYouSay.Web.Auth;
 using WhatYouSay.Web.Components.Shared;
 using WhatYouSay.Web.Api;
+using WhatYouSay.Web.Live;
 
 namespace WhatYouSay.Web.Components.Pages;
 
@@ -43,6 +44,9 @@ public partial class AdminPage
 
     [Inject]
     private SummaryService Summaries { get; set; } = default!;
+
+    [Inject]
+    private TopicLiveUpdates Live { get; set; } = default!;
 
     [Inject]
     private AdminSession Session { get; set; } = default!;
@@ -272,6 +276,7 @@ public partial class AdminPage
             return;
         }
 
+        this.Live.Publish(mTopic.Id);
         this.Reload();
     }
 

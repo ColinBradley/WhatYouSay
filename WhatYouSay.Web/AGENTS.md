@@ -16,13 +16,16 @@ An interactive component sits inside a static shell, because a circuit has no re
 - Parameters are ids and primitives, never entities. The component loads its own data.
 - Open a DI scope per operation. A scoped `DbContext` otherwise lives as long as the circuit and answers later reads from what it first tracked.
 - Reaching a parent through a cascaded value is an ordinary method call the framework never sees, so the parent needs an explicit `StateHasChanged` or its own rendering will not move.
-- `SummaryLiveUpdates` pushes a change to every circuit reading the same summary. A write publishes rather than refreshing itself, so the writer's screen updates by the same path as everyone else's.
+- `TopicLiveUpdates` tells every circuit showing a topic that something on it changed, and each one reloads what its viewer may see. Every web write path publishes once its change is committed, including admin pages and the summariser API. A refused write publishes nothing. A new write path publishes too.
+- A write publishes rather than refreshing itself, so the writer's screen updates by the same path as everyone else's.
+- A live view subscribes before its first load, drops a load that a later one overtook, reloads on `CircuitReconnection`, and unsubscribes on disposal. `TopicFeed` does all of that for the reader panes.
 
 ## CSS
 
 No framework. `wwwroot/app.css` holds role-named tokens (`--control-padding`, `--panel-gap`), a small set of composable classes that read them, and base element styles. A component composes by overriding a token in its own scope, never by inventing a size.
 
-- **A parent spaces its children.** `gap` on the container, never `margin` on the child to push the next one away — the only margins left are `margin: 0` resets and `margin-left: auto`, which is alignment rather than spacing.
+- **A parent spaces its children.** `gap` on the container, never `margin` on the child to push the next one away — the only margins left are `margin: 0` resets and `margin-inline-start: auto`, which is alignment rather than spacing.
+- Directions are logical (`inline-start`, `block-end`), never left, right, top or bottom, so a page mirrors under `dir="rtl"`. Markup order is reading order: put what comes first in the DOM first rather than reordering it visually.
 - Redefining a token on a page wrapper inherits it into every nested scope. Where only the page's own rhythm is meant, set `gap` directly: that is what `.sections` is for.
 - Sizes are `em`, so a scope that sets `font-size` rescales everything inside it. Set `font-size` only at deliberate anchors — never on a container that can contain itself, or it compounds through the recursion.
 - Hairlines are `px`; a fractional `em` border rounds away at some zoom levels.

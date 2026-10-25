@@ -3,6 +3,7 @@ using WhatYouSay.Data;
 using WhatYouSay.Services;
 using WhatYouSay.Web.Auth;
 using WhatYouSay.Web.Components.Shared;
+using WhatYouSay.Web.Live;
 
 namespace WhatYouSay.Web.Components.Pages;
 
@@ -27,6 +28,9 @@ public partial class AdminResponsesPage
 
     [Inject]
     private TopicAdminService Admin { get; set; } = default!;
+
+    [Inject]
+    private TopicLiveUpdates Live { get; set; } = default!;
 
     [Inject]
     private AdminSession Session { get; set; } = default!;
@@ -80,6 +84,8 @@ public partial class AdminResponsesPage
         }
 
         await this.Admin.DeleteResponseAsync(mTopic, id);
+
+        this.Live.Publish(mTopic.Id);
 
         this.Navigation.NavigateTo($"/topics/{this.Code}/admin/responses");
     }

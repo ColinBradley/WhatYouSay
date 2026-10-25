@@ -109,7 +109,7 @@ Each work item is independently reviewable and leaves the current application us
 | LF-3 | ✅ Multiple contributions and disclosed chronological ordering | LF-1 |
 | LF-4 | ✅ Emoji reactions on responses | LF-3 |
 | LF-5 | ✅ Consistent summariser inputs and safe live writes | LF-1 to LF-4 |
-| LF-6 | Topic-wide live updates and response-first readers | LF-2 to LF-5 |
+| LF-6 | ✅ Topic-wide live updates and response-first readers | LF-2 to LF-5 |
 | LF-7 | Presentation page and QR join flow | LF-6 |
 | LF-8 | Local Claude Code runner and ready-to-use setup | LF-5 to LF-7 |
 | LF-9 | Codex runner adapter | LF-8 |
@@ -271,6 +271,27 @@ Keep existing reviewed endpoints usable. Old clients without revision IDs may co
 
 **Note from LF-2:** Admin live, pause and review changes, human edits to the live summary, and summariser writes do not publish to `SummaryLiveUpdates`. The editor does not reload when the summariser writes, and a human edit that loses a race shows an error and reloads. Making another summary live changes which summary the topic URL shows, so an open reader has to notice the selection moving.
 
+**Implementation notes:**
+
+- `TopicLiveUpdates`, a singleton keyed by topic id, replaces `SummaryLiveUpdates`. `Publish` returns straight away. Each subscriber is called on the thread pool, one call at a time, and changes arriving during a call collapse into one more call. At most `Environment.ProcessorCount` calls run at the same time across every topic. A failing subscriber is logged at Debug and does not affect the others.
+- Every web write path publishes after its change commits, and a refused write publishes nothing:
+  - the respond page's submit, edit and withdraw;
+  - node and response reactions, and adding or hiding comments, in the reader;
+  - every admin page form: closing and reopening, freezing, policy, pause and resume, settings (visibility and listing included) and guidance;
+  - deleting a response, and new, make live, publish, unpublish and delete on the summaries list;
+  - every summary editor operation;
+  - `PUT /live`, `POST /summaries` and `PUT /summaries/{id}`.
+- Token regeneration, signing in and out, and creating a topic publish nothing, because no open view shows them.
+- `CircuitReconnection` is a scoped `CircuitHandler` that raises `Reconnected` on every connection after a circuit's first. Live views reload on it.
+- `TopicFeed` reads a `TopicView` record in a fresh scope: the topic, the summary on show, the versions this viewer may read, responses and references when public, the viewer's own responses when asked, tallies and comments. It cascades the view, unfixed, so every reader of it renders on each reload, and itself, fixed, for actions and comment drafts. It subscribes before its first load, drops a load that a later one overtook, and unsubscribes on disposal. Each reload rechecks response and summary visibility.
+- `ResponsePane` and `SummaryPane` take everything from that cascade, so any interactive root can lay them out. `TopicReader` is the topic page's root: header, then responses and summary. `RespondFeed` is the respond page's: the responder's own responses with Edit links and live counts, then everyone's when public. `SummaryReader` is gone.
+- The topic page's static shell keeps only the topic lookup, admin check, breadcrumb and cookie. The header, version list, overview, empty states and unpublished notice moved into the interactive reader, so closing a topic, the first summary, a newly live summary and a deletion all appear without a refresh. A version URL stays on its version. The topic URL resolves the summary afresh on every reload. `SummaryViewed` is still counted in the shell, from the version list.
+- Both shells write the responder cookie on every visit, so cards take reactions before any summary exists and before the browser has responded.
+- The editor reloads on every publish, its own writes included. Its overview is bound per keystroke. An unsaved overview stays in the box, with a warning when someone else saved one meanwhile. Unsaved node text stays until it is saved or matches what is stored. A deleted summary shows a deleted state.
+- Readers and the editor put responses first in the DOM, in the existing grid. `app.css` uses logical properties throughout. Layout was checked in RTL and at 375px.
+- Response cards, node views, editor nodes and comments are keyed, so updates keep focus, typed comment drafts and open details on the right item.
+- Nothing in the domain changed, so there are no new tests.
+
 ### LF-7 — Presentation page and QR join flow
 
 **Change:** Add the presentation route, its QR/short URL block, viewport-sized response/summary panes, readable projection styles and live empty/pending states. Responses sit at the inline start with newest arrivals first; the summary sits at the inline end. Reuse the normal topic reader's data and permissions. Generate the QR in-process and keep package versions in `Directory.Packages.props`.
@@ -280,6 +301,8 @@ Label the automatically updated summary as live AI output, rather than presentin
 **Validation:** Scan the QR from a real phone against the externally reachable configured URL. Test projector dimensions, narrow screens, zoom, keyboard navigation, `dir="rtl"`, reduced motion, long responses and a topic with no summary. Verify private raw responses never appear publicly, even on the projector route. Test scrolling back through responses while new entries arrive and preserving the summary's visible position.
 
 **Finish when:** The owner can project one stable URL containing everything needed to join and observe the session.
+
+**Note from LF-6:** A presentation root can wrap `ResponsePane` and `SummaryPane` in a `TopicFeed` with its own layout. `ResponsePane` has no slot above its list yet, so the QR block needs one, and its `id="responses"` assumes one pane per page. Cards are keyed and arrive in listing order, and nothing tracks scroll position or new arrivals yet. A page whose cards take reactions needs its shell to write the responder cookie, as the topic and respond pages do. `TopicView` carries the topic and the summary on show, so `IsLive`, `UpdatedAt`, `AppliedInputRevision` and `InputRevision` are already loaded.
 
 **Note from LF-5:** Newer feedback is waiting when the live summary's `AppliedInputRevision` is below the topic's `InputRevision`. A null applied revision means the last write came through the older endpoints, so what it reflects is unknown. Human edits leave the applied revision alone.
 
@@ -298,6 +321,8 @@ Include preflight, cancellation/end time, checkpoint/resume, bounded retries, pr
 **Validation:** Run against the actual site with Claude Code authenticated to a work account. Exercise a 10-second poll, idle periods with no model invocation, sustained arrivals, model generation longer than the poll interval, withdrawal during generation, reaction-only changes, malformed output, network interruption, token rotation, provider limits, Ctrl+C and restart. Measure submit-to-feed latency separately from submit-to-summary latency. Rehearse a 50-person topic and representative concurrent sessions against the one server, measuring SQLite contention and notification fan-out.
 
 **Finish when:** A presenter can prepare once and complete a session using Claude without touching the owner workflow during normal feedback collection.
+
+**Note from LF-6:** Every accepted `PUT /live` makes each open view of the topic reload in full. Reloads are coalesced per circuit and limited by processor count, so the rehearsal should measure that fan-out with the runner writing every 10 seconds.
 
 **Note from LF-5:** The contract is under LF-5's implementation notes. The server supplies the system prompt and output schema with each snapshot, so the runner keeps no prompt of its own. The runner adds `basedOnRevision` and `inputRevision` to the model's answer itself. The snapshot is never truncated, so the runner must refuse loudly, rather than trim, if the input is too large for the model. Seeded topics are reviewed, so a rehearsal switches one to live first.
 
@@ -344,6 +369,7 @@ Provider eligibility and limits still come from the presenter's plan and workpla
 | 2026-10-25 14:41 | LF-2 implemented on top of LF-3, pending review. Build clean, all domain tests pass, and model matches migrations. The migration was checked on a fresh database and on a copy of the development database. Live writes, revision conflicts and the admin pages were exercised in the running app. |
 | 2026-10-25 15:03 | LF-4 implemented on top of LF-2, pending review. Build clean, all domain tests pass, and model matches migrations. The migration was checked on a fresh database and on a copy of the development database. Toggling, counts, keyboard use and reacting without having responded were exercised in the running app with two cookie jars. |
 | 2026-10-25 15:36 | LF-5 implemented on top of LF-4, pending review. Build clean, all domain tests pass, and model matches migrations. The migration was checked on a fresh database and on a copy of the development database. Authentication, errors, a 304 conditional read, live writes, stale and older-input writes, and the older endpoints were exercised with curl against the running app. |
+| 2026-10-25 16:07 | LF-6 implemented on top of LF-5, pending review. Build clean, all domain tests pass. In several tabs of the running app, without refreshing: a submission, edit and withdrawal, a response reaction, the first summary and later revisions through `PUT /live`, a draft through `POST /summaries`, manual edits, visibility in both directions, closing the topic, making another summary live and a deletion. A refused `PUT /live` changed nothing, typed drafts survived, a version URL stayed pinned, and a paused and resumed circuit caught up. RTL and 375px layouts were checked. |
 
 ## Provider guidance checked during planning
 

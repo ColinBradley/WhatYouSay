@@ -10,21 +10,14 @@ using WhatYouSay.Web.Telemetry;
 namespace WhatYouSay.Web.Components.Pages;
 
 /// <summary>
-/// The static shell around <see cref="SummaryReader"/>. Mints the responder token and writes its
+/// The static shell around <see cref="TopicReader"/>. Mints the responder token and writes its
 /// cookie, which needs an <see cref="HttpContext"/> a circuit does not have.
 /// </summary>
 public partial class SummaryPage
 {
     private Topic? mTopic;
 
-    private Summary? mSummary;
-
-    private List<Summary> mVersions = [];
-
     private bool mIsAdmin;
-
-    /// <summary>Only ever non-zero for an admin, since only they list unpublished versions.</summary>
-    private int mUnpublished;
 
     private string mReactorToken = string.Empty;
 
@@ -72,45 +65,33 @@ public partial class SummaryPage
 
         mIsAdmin = await this.Session.CanAdministerAsync(mTopic.Id);
 
-        mVersions =
-        [
-            .. mIsAdmin
-                ? await this.Summaries.ListAllAsync(mTopic.Id)
-                : await this.Summaries.ListVisibleAsync(mTopic.Id),
-        ];
-
-        mUnpublished = mVersions.Count(v => !v.IsVisibleToPublic);
-
-        // The bare URL is the public one, so it resolves to the newest published version for
-        // everyone including an admin — what the group sees is what an admin checking the
-        // link should see. A draft is reached by its own id, which is what the admin summary
-        // list links to.
-        mSummary = this.SummaryId is { } id
-            ? await this.Summaries.FindAsync(id)
-            : await this.Summaries.FindLatestVisibleAsync(mTopic.Id);
-
-        if (mSummary is not null
-            && (mSummary.TopicId != mTopic.Id || !(mSummary.IsVisibleToPublic || mIsAdmin)))
-        {
-            mSummary = null;
-        }
-
-        if (mSummary is null)
-        {
-            return;
-        }
-
         // On arrival, not on a first reaction: by then the circuit has started and there is no
-        // response left to set a cookie on. Nothing is stored against it until this viewer acts.
+        // response left to set a cookie on. Responses take reactions before any summary exists,
+        // so every visitor gets a token. Nothing is stored against it until this viewer acts.
         mReactorToken = ResponderCookie.Read(this.HttpContext, mTopic.Id) ?? Secrets.NewToken();
         ResponderCookie.Write(this.HttpContext, mTopic.Id, mReactorToken);
 
-        WhatYouSayTelemetry.SummaryViewed(mTopic);
+        if (await this.ShowsSummaryAsync(mTopic))
+        {
+            WhatYouSayTelemetry.SummaryViewed(mTopic);
+        }
     }
 
-    /// <summary>Versions are held newest first, but read oldest first.</summary>
-    private int VersionNumber()
+    /// <summary>
+    /// Whether the page opens on a summary, which counts as a summary view. The reader finds the
+    /// summary again for itself, so this reads only the version list rather than a whole tree.
+    /// </summary>
+    private async Task<bool> ShowsSummaryAsync(Topic topic)
     {
-        return mVersions.Count - mVersions.FindIndex(v => v.Id == mSummary!.Id);
+        if (this.SummaryId is not { } id)
+        {
+            return (await this.Summaries.ListVisibleAsync(topic.Id)).Count > 0;
+        }
+
+        var versions = mIsAdmin
+            ? await this.Summaries.ListAllAsync(topic.Id)
+            : await this.Summaries.ListVisibleAsync(topic.Id);
+
+        return versions.Any(v => v.Id == id);
     }
 }

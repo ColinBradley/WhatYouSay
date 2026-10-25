@@ -1,6 +1,5 @@
 @page "/topics/{Code}"
 @page "/topics/{Code}/summary/{SummaryId:guid}"
-@using WhatYouSay.Web.Markdown
 
 <PageTitle>@(mTopic?.Title ?? "Topic")</PageTitle>
 
@@ -18,87 +17,8 @@
 }
 else
 {
-    <div class="sections">
-        <section class="stack wide">
-            <div class="spread">
-                <div class="controls">
-                    <h1>@mTopic.Title</h1>
-
-                    <span class="tag @(mTopic.IsAcceptingResponses ? "good" : null)">
-                        @(mTopic.IsAcceptingResponses ? "Open" : "Closed")
-                    </span>
-                </div>
-
-                <div class="controls">
-                    <a class="button @(mTopic.IsAcceptingResponses ? "primary" : null)"
-                       href="@($"/topics/{Code}/respond")">
-                        @(mTopic.IsAcceptingResponses ? "Respond" : "Your responses")
-                    </a>
-
-                    <a class="button" href="@($"/topics/{Code}/admin")">Admin</a>
-                </div>
-            </div>
-
-            <p class="prose quiet">@mTopic.Description</p>
-        </section>
-
-        @if (mSummary is null)
-        {
-            <div class="stack wide" style="max-width: 44em">
-                @if (SummaryId is null)
-                {
-                    <div class="notice">Nothing has been published for this topic yet.</div>
-                }
-                else
-                {
-                    <div class="notice">
-                        That version isn&rsquo;t available.
-                        <a href="@($"/topics/{Code}")">See the current one</a>.
-                    </div>
-                }
-
-                @if (mIsAdmin && mUnpublished > 0)
-                {
-                    <p>
-                        @mUnpublished unpublished @(mUnpublished == 1 ? "version is" : "versions are")
-                        waiting for you. <a href="@($"/topics/{Code}/admin/summaries")">Review them</a>.
-                    </p>
-                }
-            </div>
-        }
-        else
-        {
-            @if (mVersions.Count > 1)
-            {
-                <p class="fine">
-                    Version @this.VersionNumber() of @mVersions.Count
-                    @foreach (var version in mVersions.Where(v => v.Id != mSummary.Id))
-                    {
-                        <text> &middot; </text>
-                        <a href="@($"/topics/{Code}/summary/{version.Id}")">@version.CreatedAt.ToString("d MMM yyyy")</a>
-                        @(version.IsVisibleToPublic ? null : " (unpublished)")
-                    }
-                </p>
-            }
-
-            @if (!string.IsNullOrWhiteSpace(mSummary.Body))
-            {
-                <div class="prose">@((MarkupString)SummaryMarkdown.ToHtml(mSummary.Body))</div>
-            }
-
-            @if (!mSummary.IsVisibleToPublic)
-            {
-                <div class="notice warn" style="max-width: 44em">
-                    This version has not been published. You can see it because you administer this
-                    topic; nobody else can, and nobody can react to it yet.
-                    <a href="@($"/topics/{Code}/admin/summaries")">Publish it</a> to open it up.
-                </div>
-            }
-
-            @* Static SSR ends here, so the responder cookie is written while there is still a
-               response to write it to. *@
-            <SummaryReader Code="@Code" SummaryId="@mSummary.Id" ReactorToken="@mReactorToken"
-                           IsAdmin="@mIsAdmin" @rendermode="InteractiveServer" />
-        }
-    </div>
+    @* Static SSR ends here, so the responder cookie is written while there is still a
+       response to write it to. *@
+    <TopicReader TopicId="@mTopic.Id" Code="@Code" SummaryId="@SummaryId"
+                 ReactorToken="@mReactorToken" IsAdmin="@mIsAdmin" @rendermode="InteractiveServer" />
 }

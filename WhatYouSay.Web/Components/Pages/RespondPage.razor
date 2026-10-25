@@ -1,5 +1,4 @@
 @page "/topics/{Code}/respond"
-@using WhatYouSay.Services
 
 <PageTitle>@(mTopic is null ? "Respond" : $"Respond — {mTopic.Title}")</PageTitle>
 
@@ -99,45 +98,9 @@ else
             </div>
         </form>
 
-        @if (mOwn.Count > 0)
-        {
-            <section class="stack wide">
-                <h2>Your responses</h2>
-
-                <div class="panels">
-                    @foreach (var response in mOwn)
-                    {
-                        var blocked = this.EditBlockedReason(response);
-
-                        <article class="panel stack wide">
-                            <p class="verbatim">@response.Current.Body</p>
-
-                            <ReactionCounts Tally="@mTallies.GetValueOrDefault(response.Id, ReactionTally.None)" />
-
-                            <div class="controls fine">
-                                @if (response.SubmittedAt is { } submitted)
-                                {
-                                    <span>@submitted.ToLocalTime().ToString("d MMM yyyy HH:mm")</span>
-                                }
-
-                                @if (response.IsEdited)
-                                {
-                                    <span>edited</span>
-                                }
-
-                                @if (blocked is null)
-                                {
-                                    <a class="button push-end" href="@($"/topics/{Code}/respond?edit={response.Id}")">Edit</a>
-                                }
-                                else
-                                {
-                                    <button class="push-end" type="button" disabled title="@blocked">Edit</button>
-                                }
-                            </div>
-                        </article>
-                    }
-                </div>
-            </section>
-        }
+        @* Static SSR ends here, so the responder cookie is written while there is still a
+           response to write it to. *@
+        <RespondFeed TopicId="@mTopic.Id" Code="@Code" ReactorToken="@mToken" EditingId="@mEditing?.Id"
+                     @rendermode="InteractiveServer" />
     </div>
 }

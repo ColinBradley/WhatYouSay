@@ -2,13 +2,14 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using WhatYouSay.Data;
 using WhatYouSay.Services;
+using WhatYouSay.Web.Live;
 
 namespace WhatYouSay.Web.Components.Shared;
 
 /// <summary>
-/// The one interactive component in the app. A tree editor posting a form per keystroke-sized
-/// change would reload the page under the person using it, which is the whole reason this
-/// page departs from the static SSR everything else uses.
+/// The summary editor. Interactive, because a tree editor posting a form per keystroke-sized
+/// change would reload the page under the person using it. Reloads whenever anything on the
+/// topic changes, keeping whatever is typed but not yet saved.
 /// </summary>
 public partial class SummaryEditor : IAsyncDisposable
 {
@@ -20,9 +21,32 @@ public partial class SummaryEditor : IAsyncDisposable
 
     private IReadOnlyList<NodeCommentView> mComments = [];
 
-    private IReadOnlySet<int> mUngrounded = new HashSet<int>();
+    private HashSet<int> mUngrounded = [];
 
     private string mBody = string.Empty;
+
+    /// <summary>The overview as the last load found it. Null before the first load.</summary>
+    private string? mStoredBody;
+
+    /// <summary>Whether someone else saved the overview while an edit to it was unsaved here.</summary>
+    private bool mBodyChanged;
+
+    /// <summary>What has been typed into each node's text box but not yet saved.</summary>
+    private readonly Dictionary<int, string> mTextDrafts = [];
+
+    /// <summary>Each node's text as the last load found it.</summary>
+    private Dictionary<int, string> mStoredTexts = [];
+
+    /// <summary>Whether the summary has gone, deleted here or elsewhere.</summary>
+    private bool mMissing;
+
+    private IDisposable? mSubscription;
+
+    /// <summary>
+    /// Counts loads started. A load that finishes after a later one started is dropped, because
+    /// loads overlap whenever one awaits the database.
+    /// </summary>
+    private int mLoads;
 
     private string? mError;
 
@@ -49,6 +73,12 @@ public partial class SummaryEditor : IAsyncDisposable
 
     [Inject]
     private IJSRuntime JS { get; set; } = default!;
+
+    [Inject]
+    private TopicLiveUpdates Live { get; set; } = default!;
+
+    [Inject]
+    private CircuitReconnection Connection { get; set; } = default!;
 
     [Parameter]
     [EditorRequired]
@@ -196,8 +226,23 @@ public partial class SummaryEditor : IAsyncDisposable
         return mSummary is null ? [] : SummaryTree.Siblings(mSummary, node.ParentId);
     }
 
+    /// <summary>The node's text as its box shows it: an unsaved draft, or what is stored.</summary>
+    internal string TextFor(SummaryNode node)
+    {
+        return mTextDrafts.GetValueOrDefault(node.Id, node.Text);
+    }
+
+    internal void SetTextDraft(int nodeId, string text)
+    {
+        mTextDrafts[nodeId] = text;
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        // Before the first load, so a change landing mid-load is not missed.
+        mSubscription = this.Live.Subscribe(this.TopicId, this.OnChangedAsync);
+        this.Connection.Reconnected += this.OnReconnected;
+
         await this.LoadAsync();
     }
 
@@ -215,7 +260,10 @@ public partial class SummaryEditor : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        mSubscription?.Dispose();
+        this.Connection.Reconnected -= this.OnReconnected;
         mSelf?.Dispose();
+        GC.SuppressFinalize(this);
 
         await ValueTask.CompletedTask;
     }
@@ -225,7 +273,8 @@ public partial class SummaryEditor : IAsyncDisposable
     /// long as the circuit, accumulating tracked entities across an editing session and
     /// answering later reads from the first one.
     /// </summary>
-    private async Task RunAsync(Func<IServiceProvider, Topic, Task> action)
+    /// <returns>False when the operation was refused. A refusal shows its reason and reloads.</returns>
+    private async Task<bool> RunAsync(Func<IServiceProvider, Topic, Task> action)
     {
         mError = null;
         mNotice = null;
@@ -246,38 +295,125 @@ public partial class SummaryEditor : IAsyncDisposable
             mError = failure.Message;
         }
 
-        await this.LoadAsync();
+        if (mError is not null)
+        {
+            await this.LoadAsync();
+
+            return false;
+        }
+
+        // This circuit is a subscriber too, so its own reload comes back through the publish.
+        this.Live.Publish(this.TopicId);
+
+        return true;
+    }
+
+    private Task OnChangedAsync()
+    {
+        return this.InvokeAsync(this.LoadAsync);
+    }
+
+    private void OnReconnected()
+    {
+        _ = this.InvokeAsync(this.LoadAsync);
     }
 
     private async Task LoadAsync()
     {
+        var load = ++mLoads;
+
         await using (var scope = this.Scopes.CreateAsyncScope())
         {
-            var topic = await this.RequireTopicAsync(scope.ServiceProvider);
-            var edits = scope.ServiceProvider.GetRequiredService<SummaryEditService>();
+            var services = scope.ServiceProvider;
+            var topic = await this.RequireTopicAsync(services);
+            var summary = await services.GetRequiredService<SummaryEditService>().LoadAsync(topic, this.SummaryId);
+
+            IReadOnlyList<Response> responses = summary is null
+                ? []
+                : await services.GetRequiredService<ResponseService>().ListAsync(topic);
+
+            IReadOnlyList<NodeCommentView> comments = summary is null
+                ? []
+                : await services.GetRequiredService<CommentService>()
+                    .ListAsync(topic, this.SummaryId, null, includeHidden: true);
+
+            if (load != mLoads)
+            {
+                return;
+            }
 
             mTopic = topic;
-            mSummary = await edits.LoadAsync(topic, this.SummaryId);
+            mSummary = summary;
+            mMissing = summary is null;
+            mResponses = responses;
+            mComments = comments;
 
-            if (mSummary is not null)
+            if (summary is not null)
             {
-                mBody = mSummary.Body;
-
-                mUngrounded = SummaryGrounding.Ungrounded(mSummary)
+                mUngrounded = SummaryGrounding.Ungrounded(summary)
                     .Select(node => node.Id)
                     .ToHashSet();
 
-                mResponses = await scope.ServiceProvider
-                    .GetRequiredService<ResponseService>()
-                    .ListAsync(topic);
-
-                mComments = await scope.ServiceProvider
-                    .GetRequiredService<CommentService>()
-                    .ListAsync(topic, this.SummaryId, null, includeHidden: true);
+                this.TakeBody(summary.Body);
+                this.TakeTexts(summary);
             }
         }
 
         this.StateHasChanged();
+    }
+
+    /// <summary>
+    /// Shows a freshly loaded overview, unless an edit to it is unsaved here. An unsaved edit
+    /// stays in the box, and is flagged when someone else saved the overview meanwhile.
+    /// </summary>
+    private void TakeBody(string stored)
+    {
+        var untouched = mStoredBody is null || mBody == mStoredBody;
+
+        // The service trims what it saves, so a save from here comes back trimmed.
+        var savedHere = stored != mStoredBody && mBody.Trim() == stored;
+
+        if (untouched || savedHere)
+        {
+            mBody = stored;
+            mBodyChanged = false;
+        }
+        else if (stored != mStoredBody)
+        {
+            mBodyChanged = true;
+        }
+
+        mStoredBody = stored;
+    }
+
+    /// <summary>
+    /// Drops the text drafts that a load has settled: those for nodes that have gone, those
+    /// matching what is stored, and those this editor has just saved.
+    /// A draft of a node that someone else changed stays, so saving it replaces their text.
+    /// </summary>
+    private void TakeTexts(Summary summary)
+    {
+        var stored = summary.Nodes.ToDictionary(node => node.Id, node => node.Text);
+
+        foreach (var (nodeId, draft) in mTextDrafts.ToList())
+        {
+            var exists = stored.TryGetValue(nodeId, out var text);
+
+            // The service trims what it saves, so a save from here comes back trimmed.
+            var savedHere = exists && text != mStoredTexts.GetValueOrDefault(nodeId) && draft.Trim() == text;
+
+            if (!exists || draft == text || savedHere)
+            {
+                mTextDrafts.Remove(nodeId);
+            }
+        }
+
+        if (mConfirmingDelete is { } armed && !stored.ContainsKey(armed))
+        {
+            mConfirmingDelete = null;
+        }
+
+        mStoredTexts = stored;
     }
 
     private async Task<Topic> RequireTopicAsync(IServiceProvider services)
@@ -286,7 +422,7 @@ public partial class SummaryEditor : IAsyncDisposable
             ?? throw new InvalidOperationException($"Topic {this.Code} no longer exists.");
     }
 
-    private Task SaveBodyAsync()
+    private Task<bool> SaveBodyAsync()
     {
         return this.RunAsync((services, topic) =>
             services.GetRequiredService<SummaryEditService>()
@@ -386,7 +522,7 @@ public partial class SummaryEditor : IAsyncDisposable
         }
     }
 
-    private Task SetAgentEditableAsync(bool editable)
+    private Task<bool> SetAgentEditableAsync(bool editable)
     {
         return this.RunAsync((services, topic) =>
             services.GetRequiredService<TopicAdminService>()

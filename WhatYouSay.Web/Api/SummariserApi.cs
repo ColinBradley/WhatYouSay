@@ -5,6 +5,7 @@ using System.Text.Json;
 using WhatYouSay.Data;
 using WhatYouSay.Services;
 using WhatYouSay.Telemetry;
+using WhatYouSay.Web.Live;
 using WhatYouSay.Web.Telemetry;
 
 namespace WhatYouSay.Web.Api;
@@ -312,6 +313,7 @@ public static class SummariserApi
         SummariserSession session,
         SummaryService summaries,
         WhatYouSayContext db,
+        TopicLiveUpdates live,
         HttpRequest request,
         CancellationToken cancellationToken
     )
@@ -339,6 +341,8 @@ public static class SummariserApi
         {
             return Rejected(rejection);
         }
+
+        live.Publish(topic.Id);
 
         var current = await db.Topics
             .Where(t => t.Id == topic.Id)
@@ -638,6 +642,7 @@ public static class SummariserApi
     private static async Task<Results<Created<DraftResult>, ProblemHttpResult>> CreateSummaryAsync(
         SummariserSession session,
         SummaryService summaries,
+        TopicLiveUpdates live,
         HttpRequest request,
         CancellationToken cancellationToken
     )
@@ -665,6 +670,7 @@ public static class SummariserApi
                 cancellationToken
             );
 
+            live.Publish(topic.Id);
             WebTelemetry.RequestServed(topic, "create_summary");
 
             return TypedResults.Created(
@@ -682,6 +688,7 @@ public static class SummariserApi
     private static async Task<Results<Ok<DraftResult>, ProblemHttpResult>> UpdateSummaryAsync(
         SummariserSession session,
         SummaryService summaries,
+        TopicLiveUpdates live,
         Guid summaryId,
         HttpRequest request,
         CancellationToken cancellationToken
@@ -717,6 +724,7 @@ public static class SummariserApi
                 cancellationToken
             );
 
+            live.Publish(topic.Id);
             WebTelemetry.RequestServed(topic, "update_summary");
 
             return TypedResults.Ok(Result(topic, saved));

@@ -1,7 +1,17 @@
 @using WhatYouSay.Data
 @using WhatYouSay.Services
 
-@if (mSummary is null)
+@if (mMissing)
+{
+    <div class="stack">
+        <h1>Summary deleted</h1>
+
+        <p class="quiet">This version no longer exists.</p>
+
+        <a href="@($"/topics/{Code}/admin/summaries")">Back to the versions</a>
+    </div>
+}
+else if (mSummary is null)
 {
     <p class="quiet">Loading&hellip;</p>
 }
@@ -104,7 +114,15 @@ else
                 tree &mdash; that is what stops the two drifting apart.
             </p>
 
-            <textarea rows="8" @bind="mBody" disabled="@this.IsLocked" title="@this.LockedReason"></textarea>
+            @* Bound per keystroke, so a reload can tell an unsaved edit from what is stored. *@
+            <textarea rows="8" @bind="mBody" @bind:event="oninput" disabled="@this.IsLocked" title="@this.LockedReason"></textarea>
+
+            @if (mBodyChanged)
+            {
+                <div class="notice warn" role="status">
+                    Someone else saved the overview while you were editing it. Saving yours replaces theirs.
+                </div>
+            }
 
             <button class="primary" @onclick="SaveBodyAsync" disabled="@this.IsLocked" title="@this.LockedReason">
                 Save overview
@@ -123,16 +141,9 @@ else
             <CascadingValue Value="this" IsFixed="true">
                 <SummaryEditToolbar Selected="@this.Selected" />
 
+                @* Responses come first in reading order, so they take the inline start and come
+                   first when the columns stack. *@
                 <div class="@(mResponses.Count > 0 ? "split" : null)">
-                    <div class="@(mResponses.Count > 0 ? "pane" : null)">
-                        <ul class="tree edit-tree">
-                            @foreach (var root in mSummary.Roots)
-                            {
-                                <SummaryEditNode Node="@root" Depth="0" />
-                            }
-                        </ul>
-                    </div>
-
                     @if (mResponses.Count > 0)
                     {
                         <div class="pane">
@@ -149,7 +160,7 @@ else
                             <div class="panels">
                                 @foreach (var response in mResponses)
                                 {
-                                    <article class="panel stack wide">
+                                    <article @key="response.Id" class="panel stack wide">
                                         <p class="verbatim" data-response="@response.Id">
                                             <QuotedText Body="@response.Current.Body" References="@this.CurrentReferencesFor(response)" />
                                         </p>
@@ -160,6 +171,15 @@ else
                             </div>
                         </div>
                     }
+
+                    <div class="@(mResponses.Count > 0 ? "pane" : null)">
+                        <ul class="tree edit-tree">
+                            @foreach (var root in mSummary.Roots)
+                            {
+                                <SummaryEditNode @key="root.Id" Node="@root" Depth="0" />
+                            }
+                        </ul>
+                    </div>
                 </div>
             </CascadingValue>
         </section>

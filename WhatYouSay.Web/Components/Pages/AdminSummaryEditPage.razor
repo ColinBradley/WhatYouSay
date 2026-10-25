@@ -23,7 +23,7 @@ else if (mMissing)
 else
 {
     @* Static SSR down to here, so AdminSession still has the HttpContext it reads the cookie
-       from. The editor below is the one interactive island in the app. *@
+       from. The editor below is interactive. *@
     <SummaryEditor TopicId="@mTopic.Id" Code="@Code" SummaryId="@Id"
                    @rendermode="InteractiveServer" />
 }

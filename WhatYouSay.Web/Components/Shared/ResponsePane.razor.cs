@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Components;
 using WhatYouSay.Data;
-using WhatYouSay.Services;
 
 namespace WhatYouSay.Web.Components.Shared;
 
@@ -12,52 +11,18 @@ public sealed record EarlierRevision
     public required IReadOnlyList<SummaryNodeReference> References { get; init; }
 }
 
-/// <summary>A click on one reaction button of one response.</summary>
-public sealed record ResponseReactionClick
-{
-    public required Guid ResponseId { get; init; }
-
-    public required ReactionKind Kind { get; init; }
-}
-
+/// <summary>Every public response on a topic, as cards that take reactions. Sits inside a <see cref="TopicFeed"/>.</summary>
 public partial class ResponsePane
 {
-    [Parameter]
-    [EditorRequired]
-    public IReadOnlyList<Response> Responses { get; set; } = [];
+    [CascadingParameter]
+    public TopicFeed Feed { get; set; } = default!;
 
-    /// <summary>Every reference in the summary, so each response can find the ones citing it.</summary>
-    [Parameter]
-    public ILookup<Guid, SummaryNodeReference> References { get; set; } =
-        Array.Empty<SummaryNodeReference>().ToLookup(r => r.ResponseId);
-
-    /// <summary>The reactions on each response. A response nobody has reacted to needs no entry.</summary>
-    [Parameter]
-    [EditorRequired]
-    public IReadOnlyDictionary<Guid, ReactionTally> Tallies { get; set; } =
-        new Dictionary<Guid, ReactionTally>();
-
-    [Parameter]
-    [EditorRequired]
-    public EventCallback<ResponseReactionClick> OnReact { get; set; }
-
-    private ReactionTally TallyFor(Response response)
-    {
-        return this.Tallies.GetValueOrDefault(response.Id, ReactionTally.None);
-    }
-
-    private Task ReactAsync(Response response, ReactionKind kind)
-    {
-        return this.OnReact.InvokeAsync(new ResponseReactionClick()
-        {
-            ResponseId = response.Id,
-            Kind = kind,
-        });
-    }
+    [CascadingParameter]
+    public TopicView View { get; set; } = default!;
 
     private IReadOnlyList<SummaryNodeReference> CurrentReferencesFor(Response response)
     {
-        return [.. this.References[response.Id].Where(r => r.RevisionNumber == response.RevisionNumber)];
+        return [.. this.View.References[response.Id].Where(r => r.RevisionNumber == response.RevisionNumber)];
     }
 
     /// <summary>
@@ -68,7 +33,7 @@ public partial class ResponsePane
     {
         return
         [
-            .. this.References[response.Id]
+            .. this.View.References[response.Id]
                 .Where(r => r.RevisionNumber != response.RevisionNumber)
                 .GroupBy(r => r.RevisionNumber)
                 .OrderBy(group => group.Key)

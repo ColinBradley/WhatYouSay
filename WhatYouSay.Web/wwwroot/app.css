@@ -109,7 +109,7 @@ body {
 
 /* An in-page anchor must not land underneath the sticky header. */
 :target {
-    scroll-margin-top: calc(var(--header-height) + 1em);
+    scroll-margin-block-start: calc(var(--header-height) + 1em);
 }
 
 h1, h2, h3, h4 {
@@ -179,13 +179,13 @@ mark {
 
 hr {
     border: 0;
-    border-top: var(--hairline) solid var(--line);
+    border-block-start: var(--hairline) solid var(--line);
     margin: 0;
 }
 
 blockquote {
-    border-left: 2px solid var(--line-strong);
-    padding-left: 0.9em;
+    border-inline-start: 2px solid var(--line-strong);
+    padding-inline-start: 0.9em;
     color: var(--text);
 }
 
@@ -200,9 +200,9 @@ table {
 }
 
 th, td {
-    text-align: left;
+    text-align: start;
     padding: 0.5em 0.75em;
-    border-bottom: var(--hairline) solid var(--line);
+    border-block-end: var(--hairline) solid var(--line);
 }
 
 th {
@@ -438,7 +438,7 @@ fieldset {
 }
 
 .push-end {
-    margin-left: auto;
+    margin-inline-start: auto;
 }
 
 /* ---- Notices and tags ---------------------------------------------------- */
@@ -446,15 +446,15 @@ fieldset {
 .notice {
     padding: var(--panel-padding);
     border: var(--hairline) solid var(--line);
-    border-left: 3px solid var(--line-strong);
+    border-inline-start: 3px solid var(--line-strong);
     border-radius: var(--panel-radius);
     background: var(--panel-bg);
 }
 
-.notice.warn { border-left-color: var(--warn); background: var(--warn-quiet); }
-.notice.danger { border-left-color: var(--danger); background: var(--danger-quiet); }
-.notice.good { border-left-color: var(--good); background: var(--good-quiet); }
-.notice.accent { border-left-color: var(--accent); background: var(--accent-quiet); }
+.notice.warn { border-inline-start-color: var(--warn); background: var(--warn-quiet); }
+.notice.danger { border-inline-start-color: var(--danger); background: var(--danger-quiet); }
+.notice.good { border-inline-start-color: var(--good); background: var(--good-quiet); }
+.notice.accent { border-inline-start-color: var(--accent); background: var(--accent-quiet); }
 
 .tag {
     display: inline-flex;
@@ -532,7 +532,7 @@ fieldset {
 
 .app-header {
     position: sticky;
-    top: 0;
+    inset-block-start: 0;
     z-index: 10;
     display: flex;
     flex-wrap: wrap;
@@ -540,7 +540,7 @@ fieldset {
     gap: var(--control-outer-gap) 1em;
     min-height: var(--header-height);
     padding: 0.5em clamp(1em, 4vw, 2em);
-    border-bottom: var(--hairline) solid var(--line);
+    border-block-end: var(--hairline) solid var(--line);
     background: color-mix(in srgb, var(--page-bg) 85%, transparent);
     backdrop-filter: blur(8px);
 }
@@ -607,12 +607,15 @@ fieldset {
     white-space: nowrap;
 }
 
-/* ---- The split: a tree beside the words it was drawn from -----------------
+/* ---- The split: the responses beside the summary drawn from them ----------
  *
- * Each column scrolls independently so neither moves the other, and an in-page
- * anchor scrolls the nearest scrollable ancestor -- which is the column. Below
- * the breakpoint the columns stack, the panes stop scrolling themselves, and the
- * same anchor scrolls the page instead. No JS in either case.
+ * Responses come first in the markup, so the grid puts them at the inline start in
+ * either text direction, and first when the columns stack. Nothing reorders them
+ * visually, so keyboard and screen-reader order match what is seen.
+ *
+ * Each column scrolls independently so neither moves the other. Below the
+ * breakpoint the columns stack, the panes stop scrolling themselves, and the page
+ * scrolls instead.
  */
 
 .split {
@@ -628,14 +631,14 @@ fieldset {
     overflow-y: auto;
     overscroll-behavior: contain;
     position: sticky;
-    top: calc(var(--header-height) + 1em);
+    inset-block-start: calc(var(--header-height) + 1em);
 }
 
 .split > .pane > .pane-head {
     position: sticky;
-    top: 0;
+    inset-block-start: 0;
     z-index: 1;
-    padding-bottom: 0.5em;
+    padding-block-end: 0.5em;
     background: var(--page-bg);
 }
 
@@ -669,8 +672,8 @@ fieldset {
 }
 
 .tree ul {
-    padding-left: var(--tree-indent);
-    border-left: var(--hairline) solid var(--line);
+    padding-inline-start: var(--tree-indent);
+    border-inline-start: var(--hairline) solid var(--line);
 }
 
 .node-text {
@@ -713,13 +716,13 @@ fieldset {
 
 #blazor-error-ui {
     position: fixed;
-    bottom: 0;
-    left: 0;
+    inset-block-end: 0;
+    inset-inline-start: 0;
     z-index: 100;
     display: none;
     width: 100%;
     padding: 0.7em clamp(1em, 4vw, 2em);
-    border-top: var(--hairline) solid var(--line);
+    border-block-start: var(--hairline) solid var(--line);
     background: var(--warn-quiet);
     color: var(--text);
     font-size: var(--fine-size);
@@ -727,8 +730,8 @@ fieldset {
 
 #blazor-error-ui .dismiss {
     position: absolute;
-    top: 0.5em;
-    right: 0.75em;
+    inset-block-start: 0.5em;
+    inset-inline-end: 0.75em;
     cursor: pointer;
 }
 
@@ -876,8 +879,8 @@ fieldset {
  */
 .node-actions {
     position: absolute;
-    top: -0.35em;
-    right: 0;
+    inset-block-start: -0.35em;
+    inset-inline-end: 0;
     z-index: 2;
     display: flex;
     gap: 0.25em;
@@ -966,7 +969,7 @@ details.comments.unasked:not([open]) {
 .banner {
     font-size: var(--subheading-size);
     font-weight: 500;
-    border-left-width: 5px;
+    border-inline-start-width: 5px;
 }
 
 .flash {
@@ -990,7 +993,7 @@ details.comments.unasked:not([open]) {
 
 .edit-toolbar {
     position: sticky;
-    top: calc(var(--header-height) + 0.5em);
+    inset-block-start: calc(var(--header-height) + 0.5em);
     z-index: 5;
     display: flex;
     flex-wrap: wrap;

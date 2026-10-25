@@ -2,7 +2,7 @@
 @using WhatYouSay.Services
 
 @{
-    var comments = this.Reader.CommentsFor(this.Node.Id);
+    var comments = this.View.CommentsFor(this.Node.Id);
 }
 
 <li id="@($"node-{this.Node.Id}")">
@@ -16,7 +16,7 @@
             <div class="fine citations">
                 @foreach (var reference in this.Node.References)
                 {
-                    @if (this.Reader.ResponsesArePublic)
+                    @if (this.View.ResponsesArePublic)
                     {
                         @* app.js scrolls the pane alone; an href moves the page with it. *@
                         <button type="button" class="bare" data-shows-quote="@reference.Id"
@@ -63,17 +63,17 @@
         <div class="panel stack wide">
             <div class="comment-form">
                 <textarea rows="2" placeholder="Say something about this"
-                          value="@this.Reader.DraftFor(this.Node.Id)"
-                          @onchange="@(e => this.Reader.SetDraft(this.Node.Id, e.Value?.ToString() ?? string.Empty))"></textarea>
+                          value="@this.Feed.DraftFor(this.Node.Id)"
+                          @onchange="@(e => this.Feed.SetDraft(this.Node.Id, e.Value?.ToString() ?? string.Empty))"></textarea>
 
-                <button type="button" @onclick="() => this.Reader.AddCommentAsync(this.Node.Id)">
+                <button type="button" @onclick="() => this.Feed.AddCommentAsync(this.Node.Id)">
                     Add comment
                 </button>
             </div>
 
             @foreach (var comment in comments)
             {
-                <div class="comment @(comment.IsHidden ? "is-hidden" : null)">
+                <div @key="comment.Id" class="comment @(comment.IsHidden ? "is-hidden" : null)">
                     <div>@comment.Body</div>
 
                     <div class="fine">
@@ -84,10 +84,10 @@
                             <span class="tag">Hidden</span>
                         }
 
-                        @if (comment.IsMine || this.Reader.IsAdmin)
+                        @if (comment.IsMine || this.Feed.IsAdmin)
                         {
                             <button class="bare" type="button"
-                                    @onclick="() => this.Reader.SetCommentHiddenAsync(comment.Id, !comment.IsHidden)">
+                                    @onclick="() => this.Feed.SetCommentHiddenAsync(comment.Id, !comment.IsHidden)">
                                 @(comment.IsHidden ? "Show" : "Hide")
                             </button>
                         }

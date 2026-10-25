@@ -4,12 +4,13 @@ using WhatYouSay.Data;
 using WhatYouSay.Services;
 using WhatYouSay.Web.Auth;
 using WhatYouSay.Web.Components.Shared;
+using WhatYouSay.Web.Live;
 
 namespace WhatYouSay.Web.Components.Pages;
 
 public partial class RespondPage
 {
-    private const string FrozenReason =
+    internal const string FrozenReason =
         "The topic's admin has frozen responses, so this can't be changed for now.";
 
     private const string NotYours =
@@ -17,11 +18,9 @@ public partial class RespondPage
 
     private Topic? mTopic;
 
-    private string? mToken;
+    private string mToken = string.Empty;
 
     private IReadOnlyList<Response> mOwn = [];
-
-    private IReadOnlyDictionary<Guid, ReactionTally> mTallies = new Dictionary<Guid, ReactionTally>();
 
     /// <summary>The response the form is editing. Null while the form adds a new one.</summary>
     private Response? mEditing;
@@ -40,7 +39,7 @@ public partial class RespondPage
     private ResponseService Responses { get; set; } = default!;
 
     [Inject]
-    private ReactionService Reactions { get; set; } = default!;
+    private TopicLiveUpdates Live { get; set; } = default!;
 
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
@@ -92,19 +91,19 @@ public partial class RespondPage
             new Crumb { Text = "Respond" },
         ];
 
-        mToken = ResponderCookie.Read(this.HttpContext, mTopic.Id);
+        // Written on arrival, because the list below the form takes reactions before this
+        // browser has responded. That list's circuit cannot write a cookie. Every response from
+        // this browser shares the one token, so the cookie keeps ownership of all of them.
+        mToken = ResponderCookie.Read(this.HttpContext, mTopic.Id) ?? Secrets.NewToken();
+        ResponderCookie.Write(this.HttpContext, mTopic.Id, mToken);
 
-        if (mToken is not null)
-        {
-            mOwn = await this.Responses.ListOwnAsync(mTopic, mToken);
-            mTallies = await this.Reactions.TallyResponsesAsync(mTopic, null);
-        }
+        mOwn = await this.Responses.ListOwnAsync(mTopic, mToken);
 
         // A post names its response in a form field, and a link to edit names it in the
         // query string.
         var selected = this.ResponseId ?? (Guid.TryParse(this.Edit, out var id) ? id : null);
 
-        if (selected is { } responseId && mToken is not null)
+        if (selected is { } responseId)
         {
             mEditing = await this.Responses.FindOwnAsync(mTopic.Id, responseId, mToken);
         }
@@ -173,16 +172,9 @@ public partial class RespondPage
             return;
         }
 
-        // Every response from this browser shares one token, so the cookie keeps ownership
-        // of all of them.
-        var token = mToken ?? Secrets.NewToken();
+        await this.Responses.SubmitAsync(topic, mToken, this.Body!, this.Author);
 
-        await this.Responses.SubmitAsync(topic, token, this.Body!, this.Author);
-
-        // Static SSR, so the response has not started and a cookie can still be written.
-        ResponderCookie.Write(this.HttpContext, topic.Id, token);
-
-        this.Reload("new");
+        this.Reload(topic, "new");
     }
 
     private async Task SaveAsync(Topic topic)
@@ -201,7 +193,7 @@ public partial class RespondPage
 
         await this.Responses.EditAsync(topic, mEditing, this.Body!, this.Author);
 
-        this.Reload("edited");
+        this.Reload(topic, "edited");
     }
 
     private async Task WithdrawAsync(Topic topic)
@@ -215,15 +207,16 @@ public partial class RespondPage
 
         await this.Responses.WithdrawAsync(topic, mEditing);
 
-        this.Reload("withdrawn");
+        this.Reload(topic, "withdrawn");
     }
 
     /// <summary>
-    /// The outcome travels in the query string because the post redirects, which is what stops
-    /// a refresh resubmitting it.
+    /// Publishes a saved change, then redirects to show its outcome. The outcome travels in the
+    /// query string because the post redirects, which is what stops a refresh resubmitting it.
     /// </summary>
-    private void Reload(string outcome)
+    private void Reload(Topic topic, string outcome)
     {
+        this.Live.Publish(topic.Id);
         this.Navigation.NavigateTo($"/topics/{this.Code}/respond?saved={outcome}");
     }
 
@@ -274,19 +267,6 @@ public partial class RespondPage
     private string NameLabel()
     {
         return mTopic!.ResponseIdentity == ResponseIdentity.Optional ? "Your name (optional)" : "Your name";
-    }
-
-    /// <summary>
-    /// Why one of the responder's own responses cannot be opened for editing, or null when it can.
-    /// </summary>
-    private string? EditBlockedReason(Response response)
-    {
-        if (response.Id == mEditing?.Id)
-        {
-            return "This is the response in the form above.";
-        }
-
-        return response.IsFrozen ? FrozenReason : null;
     }
 
     /// <summary>

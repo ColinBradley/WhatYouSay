@@ -1,0 +1,38 @@
+<TopicFeed TopicId="@this.TopicId" Code="@this.Code" SummaryId="@this.SummaryId"
+           ReactorToken="@this.ReactorToken" IsAdmin="@this.IsAdmin" Context="view">
+    <div class="sections">
+        <section class="stack wide">
+            <div class="spread">
+                <div class="controls">
+                    <h1>@view.Topic.Title</h1>
+
+                    <span class="tag @(view.Topic.IsAcceptingResponses ? "good" : null)">
+                        @(view.Topic.IsAcceptingResponses ? "Open" : "Closed")
+                    </span>
+                </div>
+
+                <div class="controls">
+                    <a class="button @(view.Topic.IsAcceptingResponses ? "primary" : null)"
+                       href="@($"/topics/{view.Topic.Code}/respond")">
+                        @(view.Topic.IsAcceptingResponses ? "Respond" : "Your responses")
+                    </a>
+
+                    <a class="button" href="@($"/topics/{view.Topic.Code}/admin")">Admin</a>
+                </div>
+            </div>
+
+            <p class="prose quiet">@view.Topic.Description</p>
+        </section>
+
+        @* Responses come first in reading order, so they take the inline start and come first
+           when the columns stack. *@
+        <div class="@(view.ResponsesArePublic ? "split" : null)">
+            @if (view.ResponsesArePublic)
+            {
+                <ResponsePane />
+            }
+
+            <SummaryPane />
+        </div>
+    </div>
+</TopicFeed>

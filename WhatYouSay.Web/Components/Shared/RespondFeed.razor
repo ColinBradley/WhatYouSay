@@ -1,0 +1,48 @@
+<TopicFeed TopicId="@this.TopicId" Code="@this.Code" ReactorToken="@this.ReactorToken"
+           IncludesSummary="false" IncludesOwn="true" Context="view">
+    @if (view.Own.Count > 0)
+    {
+        <section class="stack wide">
+            <h2>Your responses</h2>
+
+            <div class="panels">
+                @foreach (var response in view.Own)
+                {
+                    var blocked = this.EditBlockedReason(response);
+
+                    <article @key="response.Id" class="panel stack wide">
+                        <p class="verbatim">@response.Current.Body</p>
+
+                        <ReactionCounts Tally="@view.TallyFor(response)" />
+
+                        <div class="controls fine">
+                            @if (response.SubmittedAt is { } submitted)
+                            {
+                                <span>@submitted.ToLocalTime().ToString("d MMM yyyy HH:mm")</span>
+                            }
+
+                            @if (response.IsEdited)
+                            {
+                                <span>edited</span>
+                            }
+
+                            @if (blocked is null)
+                            {
+                                <a class="button push-end" href="@($"/topics/{this.Code}/respond?edit={response.Id}")">Edit</a>
+                            }
+                            else
+                            {
+                                <button class="push-end" type="button" disabled title="@blocked">Edit</button>
+                            }
+                        </div>
+                    </article>
+                }
+            </div>
+        </section>
+    }
+
+    @if (view.ResponsesArePublic)
+    {
+        <ResponsePane />
+    }
+</TopicFeed>

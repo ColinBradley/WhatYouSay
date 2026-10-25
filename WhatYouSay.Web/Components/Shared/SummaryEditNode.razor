@@ -7,9 +7,10 @@
 
 <li class="@(this.Editor.IsSelected(this.Node.Id) ? "is-picked" : null)">
     <input class="@(this.Editor.IsUngrounded(this.Node.Id) ? "is-ungrounded" : null)"
-           value="@this.Node.Text" disabled="@this.Editor.IsLocked"
+           value="@this.Editor.TextFor(this.Node)" disabled="@this.Editor.IsLocked"
            title="@this.Editor.LockedReason"
            @onfocus="() => this.Editor.Select(this.Node.Id)"
+           @oninput="@(e => this.Editor.SetTextDraft(this.Node.Id, e.Value?.ToString() ?? string.Empty))"
            @onchange="@(e => this.Editor.SetTextAsync(this.Node.Id, e.Value?.ToString() ?? string.Empty))" />
 
     @if (this.Editor.IsUngrounded(this.Node.Id))
@@ -88,7 +89,7 @@
         <ul>
             @foreach (var child in this.Node.Children)
             {
-                <SummaryEditNode Node="@child" Depth="@(this.Depth + 1)" />
+                <SummaryEditNode @key="child.Id" Node="@child" Depth="@(this.Depth + 1)" />
             }
         </ul>
     }

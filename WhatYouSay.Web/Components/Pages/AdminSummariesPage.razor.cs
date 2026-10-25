@@ -3,6 +3,7 @@ using WhatYouSay.Data;
 using WhatYouSay.Services;
 using WhatYouSay.Web.Auth;
 using WhatYouSay.Web.Components.Shared;
+using WhatYouSay.Web.Live;
 
 namespace WhatYouSay.Web.Components.Pages;
 
@@ -28,6 +29,9 @@ public partial class AdminSummariesPage
 
     [Inject]
     private TopicAdminService Admin { get; set; } = default!;
+
+    [Inject]
+    private TopicLiveUpdates Live { get; set; } = default!;
 
     [Inject]
     private AdminSession Session { get; set; } = default!;
@@ -129,6 +133,8 @@ public partial class AdminSummariesPage
         {
             var created = await this.Admin.CreateEmptySummaryAsync(mTopic);
 
+            this.Live.Publish(mTopic.Id);
+
             this.Navigation.NavigateTo($"/topics/{this.Code}/admin/summaries/{created.Id}");
 
             return;
@@ -177,6 +183,7 @@ public partial class AdminSummariesPage
             return;
         }
 
+        this.Live.Publish(mTopic.Id);
         this.Navigation.NavigateTo($"/topics/{this.Code}/admin/summaries");
     }
 }

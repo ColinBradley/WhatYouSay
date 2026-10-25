@@ -1,0 +1,63 @@
+@using WhatYouSay.Web.Markdown
+
+<div class="pane">
+    <div class="pane-head">
+        <h2>Summary</h2>
+    </div>
+
+    <div class="stack wide">
+        @if (this.View.Summary is not { } summary)
+        {
+            @if (this.Feed.SummaryId is null)
+            {
+                <div class="notice">Nothing has been published for this topic yet.</div>
+            }
+            else
+            {
+                <div class="notice">
+                    That version isn&rsquo;t available.
+                    <a href="@($"/topics/{this.View.Topic.Code}")">See the current one</a>.
+                </div>
+            }
+
+            @if (this.Unpublished > 0)
+            {
+                <p>
+                    @this.Unpublished unpublished @(this.Unpublished == 1 ? "version is" : "versions are")
+                    waiting for you. <a href="@($"/topics/{this.View.Topic.Code}/admin/summaries")">Review them</a>.
+                </p>
+            }
+        }
+        else
+        {
+            @if (this.View.Versions.Count > 1)
+            {
+                <p class="fine">
+                    Version @this.VersionNumber(summary) of @this.View.Versions.Count
+                    @foreach (var version in this.View.Versions.Where(v => v.Id != summary.Id))
+                    {
+                        <text> &middot; </text>
+                        <a href="@($"/topics/{this.View.Topic.Code}/summary/{version.Id}")">@version.CreatedAt.ToString("d MMM yyyy")</a>
+                        @(version.IsVisibleToPublic ? null : " (unpublished)")
+                    }
+                </p>
+            }
+
+            @if (!summary.IsVisibleToPublic)
+            {
+                <div class="notice warn">
+                    This version has not been published. You can see it because you administer this
+                    topic; nobody else can, and nobody can react to it yet.
+                    <a href="@($"/topics/{this.View.Topic.Code}/admin/summaries")">Publish it</a> to open it up.
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(summary.Body))
+            {
+                <div class="prose">@((MarkupString)SummaryMarkdown.ToHtml(summary.Body))</div>
+            }
+
+            <SummaryNodeList Nodes="@summary.Roots.ToList()" />
+        }
+    </div>
+</div>
