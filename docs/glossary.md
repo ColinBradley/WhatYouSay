@@ -39,7 +39,7 @@ Terms marked *planned* come from the [live feedback plan](plans/live-feedback-pl
 | Responder | Someone who submits responses. Identified only by the token in their cookie, which owns every response that browser gives to the topic. |
 | Response | What a responder submits to a topic. A responder may submit several. Its id is a random Guid, so it reveals no timing. |
 | Revision | One wording of a response, with when it was submitted where the topic records timing. Editing a response's wording adds a revision. |
-| Runner | *Planned.* The local script that polls a topic and invokes the presenter's model client. |
+| Runner | The script a presenter runs locally during a session, `runner/runner.cs`. It polls a topic and asks the presenter's own model client for each new version of the live summary. The site serves it at `/runner.cs`. |
 | Snapshot | Everything the summariser reads about a topic, from one consistent read at `GET /api/topics/{code}/live`. |
 | Summariser | Whatever writes summaries through the summariser API, usually an agent. |
 | Summariser token | A topic-scoped bearer token for the summariser API. Only its hash is stored. |

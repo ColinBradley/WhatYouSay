@@ -31,4 +31,9 @@
     <ProjectReference Include="..\WhatYouSay\WhatYouSay.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Served at /runner.cs, so presenters download the runner that matches this site. -->
+    <EmbeddedResource Include="..\runner\runner.cs" LogicalName="runner.cs" Link="Api\runner.cs" />
+  </ItemGroup>
+
 </Project>

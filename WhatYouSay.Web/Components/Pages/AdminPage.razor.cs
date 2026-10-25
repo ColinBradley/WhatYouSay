@@ -25,6 +25,8 @@ public partial class AdminPage
 
     private string? mJoinLink;
 
+    private string? mRunnerSetup;
+
     private bool mCanChangeIdentityAndTiming;
 
     private string? mFixedReason;
@@ -94,6 +96,10 @@ public partial class AdminPage
     private bool IsLive =>
         mTopic?.SummaryPolicy == SummaryPolicy.Live;
 
+    /// <summary>The site's address with no trailing slash, for the commands an admin copies.</summary>
+    private string SiteUrl =>
+        this.Address.Resolve(string.Empty, this.Navigation.BaseUri).AbsoluteUri.TrimEnd('/');
+
     private string? FreezeReason =>
         mResponseCount switch
         {
@@ -158,6 +164,7 @@ public partial class AdminPage
     {
         mShareLink = this.Address.Resolve($"topics/{this.Code}", this.Navigation.BaseUri).AbsoluteUri;
         mJoinLink = this.Address.Resolve($"topics/{this.Code}/respond", this.Navigation.BaseUri).AbsoluteUri;
+        mRunnerSetup = RunnerSetup.For(mTopic!, this.SiteUrl, this.Address.IsConfigured);
         mResponseCount = await this.Topics.CountResponsesAsync(mTopic!.Id);
         mFrozenCount = await this.Topics.CountFrozenResponsesAsync(mTopic.Id);
         mSummaryCount = (await this.Summaries.ListAllAsync(mTopic.Id)).Count;
@@ -258,8 +265,7 @@ public partial class AdminPage
 
         mNewToken = await this.Admin.RegenerateSummariserTokenAsync(mTopic);
 
-        mPrompt = SummariserPrompt.For(
-            mTopic, this.Navigation.BaseUri.TrimEnd('/'), mNewToken);
+        mPrompt = SummariserPrompt.For(mTopic, this.SiteUrl, mNewToken);
 
         // Stays on the page rather than redirecting, because the token is shown once.
         await this.LoadDashboardAsync();

@@ -73,6 +73,7 @@ app.UseAntiforgery();
 app.MapStaticAssets();
 
 app.MapSummariserApi();
+app.MapRunnerDownload();
 
 // Listed in the routes but never built: /topics is the collection, 
 // and the collection is what the home page shows.

@@ -18,6 +18,7 @@ Guidance that only applies to one part of the tree lives beside it, and is loade
 | `WhatYouSay` | Entities, `WhatYouSayContext`, migrations, `Auth`, seed data |
 | `WhatYouSay.Web` | Blazor Server front end and the summariser REST API |
 | `WhatYouSay.Tests` | References `WhatYouSay` only, never the web project |
+| `runner` | `runner.cs`, the presenter's live summary runner: a .NET 10 file-based app with no package references, which the web project embeds and serves at `/runner.cs`. Not in the solution, so check it with `dotnet build runner/runner.cs`. It must also build outside the repo. |
 
 ## Code style
 
@@ -90,4 +91,10 @@ The summariser API names the topic in the path and takes the token in an `Author
 
 ```bash
 curl -H "Authorization: Bearer dev-retro" http://localhost:5286/api/topics/spr47ab/ai-summary-start
+```
+
+The runner takes the token from `WHATYOUSAY_TOKEN`. Seeded topics are reviewed, so switch one to live on its admin page first. `--claude` points it at any executable that answers like `claude -p --output-format json`, such as a stub.
+
+```bash
+WHATYOUSAY_TOKEN=dev-lunch dotnet run runner/runner.cs -- --site http://localhost:5286 --topic lunch42 --preflight
 ```

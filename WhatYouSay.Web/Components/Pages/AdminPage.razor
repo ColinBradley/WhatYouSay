@@ -116,6 +116,11 @@ else
 
                 <a class="button" href="@($"/topics/{Code}/present")">Open the presentation page</a>
 
+                <p class="fine">
+                    To keep the live summary updating through the session, start the summary
+                    runner before it begins. Its setup steps are below.
+                </p>
+
                 <h2>Collecting</h2>
 
                 @if (mTopic.IsAcceptingResponses)
@@ -339,6 +344,25 @@ else
                 </form>
             </section>
         </div>
+
+        <section class="stack wide" style="max-width: 52em">
+            <h2>Summary runner</h2>
+
+            <p class="fine">
+                During a session, a small script on the presenter&rsquo;s computer keeps the live
+                summary up to date with their own Claude Code. These steps set it up. Follow them,
+                or paste them into Claude Code and ask it to help. They leave out the token, which
+                the presenter sets in their own terminal.
+            </p>
+
+            <textarea id="runner-setup" rows="14" readonly
+                      style="font-family: var(--mono-font); font-size: var(--fine-size)">@mRunnerSetup</textarea>
+
+            <button type="button"
+                    onclick="whatYouSayCopy(document.getElementById('runner-setup'), this)">
+                Copy setup steps
+            </button>
+        </section>
 
         @if (mPrompt is not null)
         {
