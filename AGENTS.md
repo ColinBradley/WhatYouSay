@@ -44,17 +44,18 @@ Address every analyzer diagnostic, including `Info`/suggestion-level ones that d
 
 ## Comments
 
-Comment the non-obvious **why**: a constraint, a footgun, a decision the next person would otherwise undo. Nothing else.
+Follow [docs/writing.md](docs/writing.md) for comments, doc comments and docs. [docs/glossary.md](docs/glossary.md) lists the project's terms.
 
-Delete a comment if it does any of these:
+## Finishing work
 
-- Restates what the code already says.
-- Justifies a convention already written down here.
-- Narrates the decision — alternatives weighed, what was considered and rejected, why one approach beats another.
-- Editorialises: "worth knowing", "earns its place", "unusually well placed".
-- Try not to split sentences across lines. Let punctuation guide where a line break should be.
+Every piece of work ends with a writing pass, as described in [docs/writing.md](docs/writing.md#the-writing-pass). That includes each work item from a plan, and anything else before it goes back to a person for review.
 
-A doc comment on a type or member is for someone calling it, not for someone reviewing the choice to write it. If it reads as reasoning rather than as information needed to change the code safely, it goes.
+- Do the pass last, once no more changes are expected, over every comment, doc comment and doc the work added or changed.
+- If the pass changes code, build and test again.
+- Say in the hand-back summary that the pass was done, and list any reasons you added that the author should confirm.
+- For a plan's work item, also update the plan: tick the item in its table, add implementation notes to its breakdown, and add a progress log entry with the date and time.
+
+Each plan has a project key, and its work items are numbered from it, such as LF-1 in the live feedback plan. Refer to work by that ID in docs, commit messages and pull requests, but not in code comments.
 
 ## Packages
 

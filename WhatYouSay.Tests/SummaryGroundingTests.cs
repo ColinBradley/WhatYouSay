@@ -451,25 +451,21 @@ public class SummaryGroundingTests : DatabaseTest
         var topic = NewTopic(ResponseIdentity.Required);
         topic.IsAcceptingResponses = false;
 
-        var anna = new Response()
+        var anna = Revised(new Response()
         {
             Id = Guid.NewGuid(),
-            Body = AnnaSaid,
             Author = "Anna",
             AuthTokenHash = "a",
             IsFrozen = true,
-            CreatedAt = DateTimeOffset.UtcNow,
-        };
+        }, AnnaSaid, DateTimeOffset.UtcNow);
 
-        var tom = new Response()
+        var tom = Revised(new Response()
         {
             Id = Guid.NewGuid(),
-            Body = TomSaid,
             Author = "Tom",
             AuthTokenHash = "t",
             IsFrozen = true,
-            CreatedAt = DateTimeOffset.UtcNow,
-        };
+        }, TomSaid, DateTimeOffset.UtcNow);
 
         topic.Responses.Add(anna);
         topic.Responses.Add(tom);

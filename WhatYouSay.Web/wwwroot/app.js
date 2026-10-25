@@ -39,6 +39,12 @@ window.whatYouSayCopy = async (source, button) => {
             return;
         }
 
+        // A quote of an earlier wording sits in a collapsed <details>.
+        // Open it first, because a closed one has no layout to scroll to.
+        for (let details = target.closest('details'); details; details = details.parentElement?.closest('details')) {
+            details.open = true;
+        }
+
         const pane = target.closest('.pane');
 
         if (pane && pane.scrollHeight > pane.clientHeight) {

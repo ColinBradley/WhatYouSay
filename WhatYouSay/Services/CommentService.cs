@@ -153,7 +153,12 @@ public class CommentService
                 Author = comment.Author,
                 IsHidden = comment.IsHidden,
                 IsMine = mineHash != null && comment.AuthorTokenHash == mineHash,
-                ResponseBody = response == null ? null : response.Body,
+                ResponseBody = response == null
+                    ? null
+                    : response.Revisions
+                        .Where(v => v.Number == response.RevisionNumber)
+                        .Select(v => v.Body)
+                        .FirstOrDefault(),
             };
 
         return await query.ToListAsync(cancellationToken);

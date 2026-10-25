@@ -146,14 +146,13 @@ public class CommentServiceTests : DatabaseTest
 
         var token = Secrets.NewToken();
 
-        topic.Responses.Add(new Response()
+        topic.Responses.Add(Revised(new Response()
         {
             Id = Guid.NewGuid(),
-            Body = "CI is slow and it costs me an hour a day.",
             Author = identity == ResponseIdentity.Anonymous ? null : "Ash",
             AuthTokenHash = Secrets.HashToken(token),
             IsFrozen = true,
-        });
+        }, "CI is slow and it costs me an hour a day."));
 
         var summary = new Summary() { Body = "Overview", IsDraft = false, IsPublic = true };
         var node = new SummaryNode() { Text = "CI is slow" };

@@ -159,7 +159,7 @@ public class SummaryEditServiceTests : DatabaseTest
         var reloaded = await this.Service().LoadAsync(topic, summary.Id, this.Cancellation);
         var reference = reloaded!.Nodes.Single(node => node.Id == leaf.Id).References.Single();
 
-        Assert.AreEqual("nineteen hours", response.Body[reference.StartIndex..reference.EndIndex]);
+        Assert.AreEqual("nineteen hours", response.Current.Body[reference.StartIndex..reference.EndIndex]);
     }
 
     [TestMethod]
@@ -247,14 +247,13 @@ public class SummaryEditServiceTests : DatabaseTest
         var topic = NewTopic(ResponseIdentity.Required);
         topic.IsAcceptingResponses = false;
 
-        var response = new Response()
+        var response = Revised(new Response()
         {
             Id = Guid.CreateVersion7(),
-            Body = "I counted nineteen hours of scheduled calls last week.",
             AuthTokenHash = Guid.NewGuid().ToString("n"),
             IsFrozen = true,
             Author = "Sam",
-        };
+        }, "I counted nineteen hours of scheduled calls last week.");
 
         var summary = new Summary()
         {

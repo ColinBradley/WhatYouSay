@@ -31,7 +31,7 @@ public class ResponseBodyTests : DatabaseTest
 
         var stored = await mDb.Responses.SingleAsync(this.Cancellation);
 
-        Assert.AreEqual("CI is slow.\nReviews are slower.", stored.Body);
+        Assert.AreEqual("CI is slow.\nReviews are slower.", stored.Current.Body);
     }
 
     [TestMethod]
@@ -47,7 +47,7 @@ public class ResponseBodyTests : DatabaseTest
 
         await service.EditAsync(topic, response!, "one\r\ntwo\r\nthree", "Anna", this.Cancellation);
 
-        Assert.AreEqual("one\ntwo\nthree", (await mDb.Responses.SingleAsync(this.Cancellation)).Body);
+        Assert.AreEqual("one\ntwo\nthree", (await mDb.Responses.SingleAsync(this.Cancellation)).Current.Body);
     }
 
     /// <summary>
@@ -87,12 +87,12 @@ public class ResponseBodyTests : DatabaseTest
 
         var normalised = ResponseBody.Normalise(Body);
         var reference = await db.Set<SummaryNodeReference>().SingleAsync(this.Cancellation);
-        var response = await db.Responses.SingleAsync(this.Cancellation);
+        var response = await db.Responses.Include(r => r.Revisions).SingleAsync(this.Cancellation);
 
-        Assert.AreEqual(normalised, response.Body);
+        Assert.AreEqual(normalised, response.Current.Body);
         Assert.AreEqual(normalised.IndexOf(Quote, StringComparison.Ordinal), reference.StartIndex);
         Assert.IsTrue(
-            QuoteLocator.Matches(response.Body, reference.Quote, reference.StartIndex, reference.EndIndex),
+            QuoteLocator.Matches(response.Current.Body, reference.Quote, reference.StartIndex, reference.EndIndex),
             "The repaired offsets should still select the quote.");
     }
 

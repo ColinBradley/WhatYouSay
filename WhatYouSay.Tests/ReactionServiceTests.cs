@@ -131,14 +131,13 @@ public class ReactionServiceTests : DatabaseTest
     {
         var token = Secrets.NewToken();
 
-        mDb.Responses.Add(new Response()
+        mDb.Responses.Add(Revised(new Response()
         {
             Id = Guid.NewGuid(),
             TopicId = topic.Id,
-            Body = "Another answer",
             AuthTokenHash = Secrets.HashToken(token),
             IsFrozen = true,
-        });
+        }, "Another answer"));
 
         await mDb.SaveChangesAsync(this.Cancellation);
 
@@ -154,14 +153,13 @@ public class ReactionServiceTests : DatabaseTest
 
         var token = Secrets.NewToken();
 
-        topic.Responses.Add(new Response()
+        topic.Responses.Add(Revised(new Response()
         {
             Id = Guid.NewGuid(),
-            Body = "CI is slow",
             Author = identity == ResponseIdentity.Anonymous ? null : "Anna",
             AuthTokenHash = Secrets.HashToken(token),
             IsFrozen = true,
-        });
+        }, "CI is slow"));
 
         var heading = new SummaryNode { Text = "Tooling" };
         var leaf = new SummaryNode { Text = "CI is slow", Parent = heading };

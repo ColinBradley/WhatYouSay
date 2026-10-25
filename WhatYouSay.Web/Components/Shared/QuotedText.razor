@@ -1,0 +1,23 @@
+@* Renders a body as plain text, with each cited run marked.
+   It adds no element of its own, so the caller's element stays the one that the editor's
+   quoting reads a selection from. *@
+
+@foreach (var segment in ResponseHighlighting.Segment(this.Body, this.References))
+{
+    @if (segment.ReferenceIds.Count == 0)
+    {
+        @segment.Text
+    }
+    else if (this.Linked)
+    {
+        @* Every reference selecting this run is named here. An anchor of its own would be a
+           place to scroll to with nothing to light up. *@
+        <mark class="quoted" data-refs="@ResponseHighlighting.Refs(segment)"
+              data-shows-node="@this.NodeOf(segment.ReferenceIds[0])"
+              title="Show the note this supports">@segment.Text</mark>
+    }
+    else
+    {
+        <mark class="quoted">@segment.Text</mark>
+    }
+}

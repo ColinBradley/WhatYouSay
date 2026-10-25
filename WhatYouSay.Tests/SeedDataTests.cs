@@ -16,12 +16,12 @@ public class SeedDataTests : DatabaseTest
 
         var anonymous = await mDb.Topics
             .Include(s => s.Responses)
+                .ThenInclude(r => r.Revisions)
             .SingleAsync(s => s.ResponseIdentity == ResponseIdentity.Anonymous, this.Cancellation);
 
         // Anonymous means the data does not exist, not that it is hidden at render time.
         Assert.IsNotEmpty(anonymous.Responses);
-        Assert.IsTrue(anonymous.Responses.All(r => r.CreatedAt is null));
-        Assert.IsTrue(anonymous.Responses.All(r => r.UpdatedAt is null));
+        Assert.IsTrue(anonymous.Responses.SelectMany(r => r.Revisions).All(v => v.CreatedAt is null));
         Assert.IsTrue(anonymous.Responses.All(r => r.Author is null));
     }
 
@@ -34,9 +34,10 @@ public class SeedDataTests : DatabaseTest
 
         var retro = await mDb.Topics
             .Include(s => s.Responses)
+                .ThenInclude(r => r.Revisions)
             .SingleAsync(s => s.Code == "spr47ab", this.Cancellation);
 
-        Assert.IsTrue(retro.Responses.All(r => r.CreatedAt is not null));
+        Assert.IsTrue(retro.Responses.All(r => r.SubmittedAt is not null));
         Assert.IsTrue(retro.Responses.All(r => !string.IsNullOrWhiteSpace(r.Author)));
     }
 

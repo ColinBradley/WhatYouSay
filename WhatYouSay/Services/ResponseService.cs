@@ -36,18 +36,19 @@ public class ResponseService
 
         var token = Secrets.NewToken();
 
-        mDb.Responses.Add(new Response()
+        var response = new Response()
         {
             // Deliberately v4 and not CreateVersion7. A v7 Guid embeds a Unix timestamp,
             // so it would both restore submission order and leak roughly when someone
-            // answered — undoing the whole point of not recording CreatedAt.
+            // answered — undoing the whole point of not recording a time.
             Id = Guid.NewGuid(),
             TopicId = topic.Id,
-            Body = ResponseBody.Normalise(body),
             Author = topic.IsAnonymous ? null : NullIfBlank(author),
             AuthTokenHash = Secrets.HashToken(token),
-            CreatedAt = topic.IsAnonymous ? null : DateTimeOffset.UtcNow,
-        });
+        };
+
+        response.Revise(body, Now(topic));
+        mDb.Responses.Add(response);
 
         await mDb.SaveChangesAsync(cancellationToken);
 
@@ -66,12 +67,18 @@ public class ResponseService
 
         var hash = Secrets.HashToken(token);
 
-        return await mDb.Responses.FirstOrDefaultAsync(
-            r => r.TopicId == topicId && r.AuthTokenHash == hash && !r.IsDeleted,
-            cancellationToken);
+        return await mDb.Responses
+            .Include(r => r.Revisions)
+            .FirstOrDefaultAsync(
+                r => r.TopicId == topicId && r.AuthTokenHash == hash && !r.IsDeleted,
+                cancellationToken);
     }
 
-    /// <summary>Editable until frozen, so summary quotes cannot rot.</summary>
+    /// <summary>
+    /// Changes the wording and author. A changed wording becomes a new revision, so citations
+    /// of the old one keep their text.
+    /// Requires the response's revisions to be loaded, as <see cref="FindOwnAsync"/> does.
+    /// </summary>
     public async Task EditAsync(
         Topic topic,
         Response response,
@@ -84,9 +91,8 @@ public class ResponseService
 
         RequireEditable(response, activity);
 
-        response.Body = ResponseBody.Normalise(body);
+        response.Revise(body, Now(topic));
         response.Author = topic.IsAnonymous ? null : NullIfBlank(author);
-        response.UpdatedAt = topic.IsAnonymous ? null : DateTimeOffset.UtcNow;
 
         await mDb.SaveChangesAsync(cancellationToken);
 
@@ -117,13 +123,18 @@ public class ResponseService
     {
         using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
 
-        var query = mDb.Responses.Where(r => r.TopicId == topic.Id && !r.IsDeleted);
+        var query = mDb.Responses
+            .Include(r => r.Revisions)
+            .Where(r => r.TopicId == topic.Id && !r.IsDeleted);
 
         // Anonymous topics have no timestamps to order by, so they fall back to the
         // random Guid. Insertion order would otherwise leak through the SQLite rowid.
         query = topic.IsAnonymous
             ? query.OrderBy(r => r.Id)
-            : query.OrderBy(r => r.CreatedAt);
+            : query.OrderBy(r => r.Revisions
+                .Where(v => v.Number == ResponseRevision.First)
+                .Select(v => v.CreatedAt)
+                .FirstOrDefault());
 
         return await query.ToListAsync(cancellationToken);
     }
@@ -139,6 +150,12 @@ public class ResponseService
 
         throw new InvalidOperationException(
             "This response was frozen when the topic closed, so it can no longer be changed.");
+    }
+
+    /// <summary>Null on an anonymous topic, which records no timing.</summary>
+    private static DateTimeOffset? Now(Topic topic)
+    {
+        return topic.IsAnonymous ? null : DateTimeOffset.UtcNow;
     }
 
     private static string? NullIfBlank(string? value) =>

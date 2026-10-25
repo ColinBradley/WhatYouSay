@@ -72,14 +72,21 @@ public partial class SummaryEditor : IAsyncDisposable
     internal IReadOnlyList<Response> Responses =>
         mResponses;
 
-    /// <summary>What already quotes this response, so the pane can mark those runs.</summary>
-    private IEnumerable<SummaryNodeReference> ReferencesFor(Guid responseId)
+    /// <summary>
+    /// References to this response's current wording, so the pane can mark the quoted runs.
+    /// Quotes of an earlier wording appear only on their node.
+    /// </summary>
+    private IReadOnlyList<SummaryNodeReference> CurrentReferencesFor(Response response)
     {
         return mSummary is null
             ? []
-            : mSummary.Nodes
-                .SelectMany(node => node.References)
-                .Where(reference => reference.ResponseId == responseId);
+            :
+            [
+                .. mSummary.Nodes
+                    .SelectMany(node => node.References)
+                    .Where(reference => reference.ResponseId == response.Id
+                        && reference.RevisionNumber == response.RevisionNumber),
+            ];
     }
 
     /// <summary>Whether this node ends a branch with nothing cited on it or above it.</summary>
@@ -370,7 +377,7 @@ public partial class SummaryEditor : IAsyncDisposable
 
     internal static string Label(Response response)
     {
-        var body = response.Body.ReplaceLineEndings(" ");
+        var body = response.Current.Body.ReplaceLineEndings(" ");
         var text = body.Length <= 60 ? body : body[..60] + "…";
 
         return response.Author is { } author ? $"{author}: {text}" : text;

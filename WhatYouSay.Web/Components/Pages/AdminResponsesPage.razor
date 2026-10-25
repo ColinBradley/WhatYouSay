@@ -41,17 +41,17 @@ else
                 @foreach (var response in mResponses)
                 {
                     <article class="panel stack wide hoverable">
-                        <p class="verbatim">@response.Body</p>
+                        <p class="verbatim">@response.Current.Body</p>
 
                         <div class="controls fine">
                             <span>@(response.Author ?? "anonymous")</span>
 
-                            @if (response.CreatedAt is { } created)
+                            @if (response.SubmittedAt is { } created)
                             {
                                 <span>@created.ToLocalTime().ToString("d MMM yyyy HH:mm")</span>
                             }
 
-                            @if (response.UpdatedAt is not null)
+                            @if (response.IsEdited)
                             {
                                 <span>edited</span>
                             }

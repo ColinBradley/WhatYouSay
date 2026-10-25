@@ -20,32 +20,29 @@
             {
                 <article class="panel stack wide">
                     <p class="verbatim">
-                        @foreach (var segment in ResponseHighlighting.Segment(response.Body, this.ReferencesFor(response.Id)))
-                        {
-                            @if (segment.ReferenceIds.Count == 0)
-                            {
-                                @segment.Text
-                            }
-                            else
-                            {
-                                @* Every reference selecting this run is named here. An anchor
-                                   of its own would be a place to scroll to with nothing to
-                                   light up. *@
-                                <mark class="quoted" data-refs="@ResponseHighlighting.Refs(segment)"
-                                      data-shows-node="@this.NodeOf(segment.ReferenceIds[0])"
-                                      title="Show the note this supports">@segment.Text</mark>
-                            }
-                        }
+                        <QuotedText Body="@response.Current.Body" References="@this.CurrentReferencesFor(response)" Linked="true" />
                     </p>
 
                     <p class="fine">
                         @(response.Author ?? "anonymous")
 
-                        @if (response.CreatedAt is { } created)
+                        @if (response.SubmittedAt is { } created)
                         {
                             <text>&middot; @created.ToLocalTime().ToString("d MMM yyyy")</text>
                         }
                     </p>
+
+                    @foreach (var earlier in this.EarlierRevisionsFor(response))
+                    {
+                        @* app.js opens this when a citation into it is followed. *@
+                        <details>
+                            <summary class="fine">Edited since it was quoted. What the summary quotes:</summary>
+
+                            <p class="verbatim">
+                                <QuotedText Body="@earlier.Revision.Body" References="@earlier.References" Linked="true" />
+                            </p>
+                        </details>
+                    }
                 </article>
             }
         </div>

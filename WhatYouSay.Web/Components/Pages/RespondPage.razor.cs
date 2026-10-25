@@ -77,7 +77,7 @@ public partial class RespondPage
         // On a GET, prefill the editor with what is already stored.
         if (mOwnResponse is not null && this.Body is null)
         {
-            this.Body = mOwnResponse.Body;
+            this.Body = mOwnResponse.Current.Body;
             this.Author = mOwnResponse.Author;
         }
     }

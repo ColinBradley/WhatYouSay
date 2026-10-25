@@ -36,7 +36,7 @@ public class ResponseServiceTests : DatabaseTest
         var found = await service.FindOwnAsync(topic.Id, token, this.Cancellation);
 
         Assert.IsNotNull(found);
-        Assert.AreEqual("Thai please", found.Body);
+        Assert.AreEqual("Thai please", found.Current.Body);
         Assert.IsNull(await service.FindOwnAsync(topic.Id, Secrets.NewToken(), this.Cancellation));
     }
 
@@ -53,7 +53,7 @@ public class ResponseServiceTests : DatabaseTest
 
         // The form hides the field, but the service must not depend on the form for this.
         Assert.IsNull(stored.Author);
-        Assert.IsNull(stored.CreatedAt);
+        Assert.IsNull(stored.SubmittedAt);
     }
 
     [TestMethod]
@@ -68,7 +68,7 @@ public class ResponseServiceTests : DatabaseTest
         var stored = await mDb.Responses.SingleAsync(this.Cancellation);
 
         Assert.AreEqual("Anna", stored.Author);
-        Assert.IsNotNull(stored.CreatedAt);
+        Assert.IsNotNull(stored.SubmittedAt);
     }
 
     [TestMethod]
@@ -119,8 +119,9 @@ public class ResponseServiceTests : DatabaseTest
 
         await service.EditAsync(topic, response, "  changed  ", "Anna", this.Cancellation);
 
-        Assert.AreEqual("changed", response.Body);
-        Assert.IsNotNull(response.UpdatedAt);
+        Assert.AreEqual("changed", response.Current.Body);
+        Assert.IsTrue(response.IsEdited);
+        Assert.IsNotNull(response.Current.CreatedAt);
     }
 
     [TestMethod]
@@ -176,7 +177,7 @@ public class ResponseServiceTests : DatabaseTest
         var submissionOrder = Enumerable.Range(0, Count).ToList();
 
         Assert.HasCount(Count, listed);
-        Assert.AreNotSequenceEqual(submissionOrder, listed.Select(r => int.Parse(r.Body)).ToList());
+        Assert.AreNotSequenceEqual(submissionOrder, listed.Select(r => int.Parse(r.Current.Body)).ToList());
     }
 
     /// <summary>The version nibble sits in the high half of byte 6, big-endian.</summary>

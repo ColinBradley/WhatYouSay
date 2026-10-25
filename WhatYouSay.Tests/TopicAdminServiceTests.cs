@@ -111,13 +111,12 @@ public class TopicAdminServiceTests : DatabaseTest
             "Retro", "Prompt", "pw", ResponseIdentity.Required, false, false, this.Cancellation
         );
 
-        var response = new Response()
+        var response = Revised(new Response()
         {
             Id = Guid.NewGuid(),
             TopicId = created.Topic.Id,
-            Body = "Something",
             AuthTokenHash = "hash",
-        };
+        }, "Something");
 
         mDb.Responses.Add(response);
         await mDb.SaveChangesAsync(this.Cancellation);
@@ -141,13 +140,12 @@ public class TopicAdminServiceTests : DatabaseTest
             "Theirs", "Prompt", "pw", ResponseIdentity.Required, false, false, this.Cancellation
         );
 
-        var response = new Response()
+        var response = Revised(new Response()
         {
             Id = Guid.NewGuid(),
             TopicId = theirs.Topic.Id,
-            Body = "Something",
             AuthTokenHash = "hash",
-        };
+        }, "Something");
 
         mDb.Responses.Add(response);
         await mDb.SaveChangesAsync(this.Cancellation);

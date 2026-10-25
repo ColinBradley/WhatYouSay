@@ -62,6 +62,14 @@ public abstract class DatabaseTest : IDisposable
         };
     }
 
+    /// <summary>Gives a response built in a test its first wording, as submitting would.</summary>
+    protected static Response Revised(Response response, string body, DateTimeOffset? at = null)
+    {
+        response.Revise(body, at);
+
+        return response;
+    }
+
     /// <summary>A topic with a heading over one grounded node, the smallest usable tree.</summary>
     protected async Task<SummaryNode> SeededLeafAsync()
     {

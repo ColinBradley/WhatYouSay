@@ -105,7 +105,7 @@ public class SummaryService
         }
 
         var stored = summary?.Nodes.ToDictionary(node => node.Id) ?? [];
-        var responses = await this.ValidateAsync(topic, draft, stored, cancellationToken);
+        var revisions = await this.ValidateAsync(topic, draft, stored, cancellationToken);
         var now = DateTimeOffset.UtcNow;
 
         if (summary is null)
@@ -117,7 +117,7 @@ public class SummaryService
                 Body = draft.Body,
                 CreatedBy = createdBy,
                 IsAgentEditable = true,
-                ResponseCountAtWrite = responses.Count,
+                ResponseCountAtWrite = revisions.Count,
                 CreatedAt = now,
                 UpdatedAt = now,
             };
@@ -128,7 +128,7 @@ public class SummaryService
         {
             summary.Body = draft.Body;
             summary.UpdatedAt = now;
-            summary.ResponseCountAtWrite = responses.Count;
+            summary.ResponseCountAtWrite = revisions.Count;
         }
 
         var kept = new HashSet<int>();
@@ -206,15 +206,16 @@ public class SummaryService
         {
             foreach (var referenceDraft in draftNode.References ?? [])
             {
-                var response = responses[referenceDraft.ResponseId];
-                var location = QuoteLocator.Locate(response.Body, referenceDraft.Quote)!.Value;
+                var revision = revisions[referenceDraft.ResponseId];
+                var location = QuoteLocator.Locate(revision.Body, referenceDraft.Quote)!.Value;
 
                 node.References.Add(new SummaryNodeReference()
                 {
-                    ResponseId = response.Id,
+                    ResponseId = revision.ResponseId,
+                    RevisionNumber = revision.Number,
                     // The span taken from Body, not the string that was sent: matching
                     // forgives presentation, so the two can differ and only one is true.
-                    Quote = response.Body[location.StartIndex..location.EndIndex],
+                    Quote = revision.Body[location.StartIndex..location.EndIndex],
                     StartIndex = location.StartIndex,
                     EndIndex = location.EndIndex,
                 });
@@ -222,8 +223,12 @@ public class SummaryService
         }
     }
 
-    /// <summary>Runs before anything is written, so a failure leaves nothing behind.</summary>
-    private async Task<Dictionary<Guid, Response>> ValidateAsync(
+    /// <summary>
+    /// Runs before anything is written, so a failure leaves nothing behind.
+    /// Returns the current revision of every live response, keyed by response id.
+    /// New citations are located in these.
+    /// </summary>
+    private async Task<Dictionary<Guid, ResponseRevision>> ValidateAsync(
         Topic topic,
         SummaryDraft draft,
         Dictionary<int, SummaryNode> stored,
@@ -235,9 +240,9 @@ public class SummaryService
             throw this.Reject(topic, "empty_summary", "/nodes", "A summary needs at least one node.");
         }
 
-        var responses = await mDb.Responses
-            .Where(r => r.TopicId == topic.Id && !r.IsDeleted)
-            .ToDictionaryAsync(r => r.Id, cancellationToken);
+        var revisions = await CurrentRevisions(mDb, topic)
+            .Include(v => v.Response)
+            .ToDictionaryAsync(v => v.ResponseId, cancellationToken);
 
         // Every problem is collected rather than thrown on, so one retry can fix the lot.
         var failures = new List<GroundingFailure>();
@@ -253,7 +258,7 @@ public class SummaryService
             throw this.Reject(topic, failures);
         }
 
-        return responses;
+        return revisions;
 
         // Nothing on a node says what sort of thing it is, so the rule cannot ask which nodes
         // are obliged to cite. What it can ask is that every path down the tree ends somewhere
@@ -370,7 +375,7 @@ public class SummaryService
 
         void CheckReference(NodeDraft node, ReferenceDraft reference, string path)
         {
-            if (!responses.TryGetValue(reference.ResponseId, out var response))
+            if (!revisions.TryGetValue(reference.ResponseId, out var revision))
             {
                 failures.Add(new GroundingFailure()
                 {
@@ -386,7 +391,7 @@ public class SummaryService
             // The whole of the quote-rot guarantee, and the only rule here about
             // ordering: an offset into text its author can still edit selects the wrong
             // words later while still validating now.
-            if (!response.IsFrozen)
+            if (!revision.Response.IsFrozen)
             {
                 failures.Add(new GroundingFailure()
                 {
@@ -399,12 +404,12 @@ public class SummaryService
                 return;
             }
 
-            if (QuoteLocator.Locate(response.Body, reference.Quote) is not null)
+            if (QuoteLocator.Locate(revision.Body, reference.Quote) is not null)
             {
                 return;
             }
 
-            var mismatch = QuoteLocator.Diagnose(response.Body, reference.Quote);
+            var mismatch = QuoteLocator.Diagnose(revision.Body, reference.Quote);
 
             failures.Add(new GroundingFailure()
             {
@@ -417,6 +422,18 @@ public class SummaryService
                 Detail = mismatch.Detail,
             });
         }
+    }
+
+    /// <summary>
+    /// The current revision of each live response on the topic.
+    /// A new citation may only be located in one of these.
+    /// </summary>
+    internal static IQueryable<ResponseRevision> CurrentRevisions(WhatYouSayContext db, Topic topic)
+    {
+        return db.ResponseRevisions.Where(v =>
+            v.Response.TopicId == topic.Id
+            && !v.Response.IsDeleted
+            && v.Number == v.Response.RevisionNumber);
     }
 
     private SummaryGroundingException Reject(
@@ -492,14 +509,26 @@ public class SummaryService
     /// <summary>
     /// Loads every node of the summary flat, in one query — EF cannot eager-load an arbitrary
     /// depth, so the tree is stitched afterwards. Withdrawn responses are filtered out here
-    /// rather than at render time, so no caller can surface one by accident.
+    /// rather than at render time, so no caller can surface one, or any of its revisions, by
+    /// accident.
     /// </summary>
     private IQueryable<Summary> Detailed()
     {
-        return mDb.Summaries
+        return WithCitations(mDb.Summaries).AsSplitQuery();
+    }
+
+    /// <summary>
+    /// Includes every node and each node's references to live responses.
+    /// Each reference comes with its response and the revision it quotes.
+    /// </summary>
+    internal static IQueryable<Summary> WithCitations(IQueryable<Summary> summaries)
+    {
+        return summaries
             .Include(s => s.Nodes)
                 .ThenInclude(n => n.References.Where(r => !r.Response.IsDeleted))
                     .ThenInclude(r => r.Response)
-            .AsSplitQuery();
+            .Include(s => s.Nodes)
+                .ThenInclude(n => n.References.Where(r => !r.Response.IsDeleted))
+                    .ThenInclude(r => r.Revision);
     }
 }

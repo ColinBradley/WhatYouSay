@@ -20,13 +20,13 @@
                     {
                         @* app.js scrolls the pane alone; an href moves the page with it. *@
                         <button type="button" class="bare" data-shows-quote="@reference.Id"
-                                title="@($"“{reference.Quote}”")">
+                                title="@QuoteTitle(reference)">
                             @(reference.Response.Author ?? "anonymous")
                         </button>
                     }
                     else
                     {
-                        <span title="@($"“{reference.Quote}”")">
+                        <span title="@QuoteTitle(reference)">
                             @(reference.Response.Author ?? "anonymous")
                         </span>
                     }

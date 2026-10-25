@@ -91,23 +91,16 @@ namespace WhatYouSay.Migrations
                     b.Property<string>("Author")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("Body")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CreatedAt")
-                        .HasColumnType("TEXT");
-
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsFrozen")
                         .HasColumnType("INTEGER");
 
-                    b.Property<Guid>("TopicId")
-                        .HasColumnType("TEXT");
+                    b.Property<int>("RevisionNumber")
+                        .HasColumnType("INTEGER");
 
-                    b.Property<string>("UpdatedAt")
+                    b.Property<Guid>("TopicId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -117,6 +110,26 @@ namespace WhatYouSay.Migrations
                     b.HasIndex("TopicId");
 
                     b.ToTable("Responses");
+                });
+
+            modelBuilder.Entity("WhatYouSay.Data.ResponseRevision", b =>
+                {
+                    b.Property<Guid>("ResponseId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("ResponseId", "Number");
+
+                    b.ToTable("ResponseRevisions");
                 });
 
             modelBuilder.Entity("WhatYouSay.Data.Summary", b =>
@@ -209,6 +222,9 @@ namespace WhatYouSay.Migrations
                     b.Property<Guid>("ResponseId")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("RevisionNumber")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("StartIndex")
                         .HasColumnType("INTEGER");
 
@@ -216,7 +232,7 @@ namespace WhatYouSay.Migrations
 
                     b.HasIndex("NodeId");
 
-                    b.HasIndex("ResponseId");
+                    b.HasIndex("ResponseId", "RevisionNumber");
 
                     b.ToTable("References");
                 });
@@ -307,6 +323,17 @@ namespace WhatYouSay.Migrations
                     b.Navigation("Topic");
                 });
 
+            modelBuilder.Entity("WhatYouSay.Data.ResponseRevision", b =>
+                {
+                    b.HasOne("WhatYouSay.Data.Response", "Response")
+                        .WithMany("Revisions")
+                        .HasForeignKey("ResponseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Response");
+                });
+
             modelBuilder.Entity("WhatYouSay.Data.Summary", b =>
                 {
                     b.HasOne("WhatYouSay.Data.Topic", "Topic")
@@ -350,14 +377,24 @@ namespace WhatYouSay.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("WhatYouSay.Data.ResponseRevision", "Revision")
+                        .WithMany()
+                        .HasForeignKey("ResponseId", "RevisionNumber")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("Node");
 
                     b.Navigation("Response");
+
+                    b.Navigation("Revision");
                 });
 
             modelBuilder.Entity("WhatYouSay.Data.Response", b =>
                 {
                     b.Navigation("References");
+
+                    b.Navigation("Revisions");
                 });
 
             modelBuilder.Entity("WhatYouSay.Data.Summary", b =>

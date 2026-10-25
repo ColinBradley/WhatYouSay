@@ -178,9 +178,10 @@ public static class SummariserApi
                 .. live.Skip(from).Take(count).Select(r => new ResponseInfo()
                 {
                     Id = r.Id,
-                    Body = r.Body,
+                    Body = r.Current.Body,
+                    Revision = r.RevisionNumber,
                     Author = r.Author,
-                    CreatedAt = r.CreatedAt,
+                    CreatedAt = r.SubmittedAt,
                 }),
             ],
         };
@@ -262,6 +263,8 @@ public static class SummariserApi
                 .. node.References.Select(reference => new ReferenceDetail()
                 {
                     ResponseId = reference.ResponseId,
+                    Revision = reference.RevisionNumber,
+                    IsCurrentRevision = reference.IsOnCurrentRevision,
                     Quote = reference.Quote,
                 }),
             ],

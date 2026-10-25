@@ -44,7 +44,7 @@ public class TopicLifecycleTests : DatabaseTest
 
         await new ResponseService(mDb).SubmitAsync(topic, "Arrived later", "Sam", this.Cancellation);
 
-        var later = await mDb.Responses.SingleAsync(r => r.Body == "Arrived later", this.Cancellation);
+        var later = await mDb.Responses.SingleAsync(r => r.Revisions.Any(v => v.Body == "Arrived later"), this.Cancellation);
 
         Assert.IsFalse(later.IsFrozen);
 
@@ -136,13 +136,12 @@ public class TopicLifecycleTests : DatabaseTest
         var topic = NewTopic(ResponseIdentity.Required);
         var token = Secrets.NewToken();
 
-        topic.Responses.Add(new Response()
+        topic.Responses.Add(Revised(new Response()
         {
             Id = Guid.NewGuid(),
-            Body = "CI is slow",
             Author = "Anna",
             AuthTokenHash = Secrets.HashToken(token),
-        });
+        }, "CI is slow"));
 
         mDb.Topics.Add(topic);
         await mDb.SaveChangesAsync(this.Cancellation);

@@ -1,6 +1,6 @@
 # Live feedback and presentation
 
-Date: 2026-10-11. Status: implementation plan; no application changes have been made for this plan. The [original plan](original-plan.md) records the current design and implementation history.
+Project key: **LF**. Work items are numbered LF-1 to LF-9, and each one is delivered as its own pull request.
 
 ## Outcome
 
@@ -98,33 +98,48 @@ At wide sizes, the response pane occupies the inline start and the summary pane 
 
 Put responses first in the DOM on existing paired reader/editor views too. Use CSS grid and logical properties such as `padding-inline-start`, `border-inline-start` and `inset-block-start`; avoid visual reversal that makes keyboard or screen-reader order disagree. Check `dir="rtl"` as well as LTR, narrow layouts, zoom and reduced motion. Full translation is outside this work.
 
-## PR sequence
+## Work items
 
-Each PR is independently reviewable and leaves the current application usable. Update the relevant plan/invariant guidance as behaviour actually changes, including the domain AGENTS rule that currently requires frozen evidence. Run `dotnet test` for domain changes and `dotnet build` for application/script integration changes, addressing analyzer diagnostics. Domain tests use real SQLite and migrations; the existing test project continues to reference the domain library only. UI and HTTP behaviour are verified through manual browser/API exercises, not a new UI-test suite.
+Each work item is independently reviewable and leaves the current application usable. Update the relevant plan/invariant guidance as behaviour actually changes, including the domain AGENTS rule that currently requires frozen evidence. Run `dotnet test` for domain changes and `dotnet build` for application/script integration changes, addressing analyzer diagnostics. Domain tests use real SQLite and migrations; the existing test project continues to reference the domain library only. UI and HTTP behaviour are verified through manual browser/API exercises, not a new UI-test suite.
 
-| PR | Deliverable | Dependencies |
+| ID | Deliverable | Dependencies |
 |---|---|---|
-| 1 | Immutable response evidence | None |
-| 2 | Optional restrictions and live-summary ownership | 1 |
-| 3 | Multiple contributions and disclosed chronological ordering | 1 |
-| 4 | Emoji reactions on responses | 3 |
-| 5 | Consistent summariser inputs and safe live writes | 1–4 |
-| 6 | Topic-wide live updates and response-first readers | 2–5 |
-| 7 | Presentation page and QR join flow | 6 |
-| 8 | Local Claude Code runner and ready-to-use setup | 5–7 |
-| 9 | Codex runner adapter | 8 |
+| LF-1 | ✅ Immutable response evidence | None |
+| LF-2 | Optional restrictions and live-summary ownership | LF-1 |
+| LF-3 | Multiple contributions and disclosed chronological ordering | LF-1 |
+| LF-4 | Emoji reactions on responses | LF-3 |
+| LF-5 | Consistent summariser inputs and safe live writes | LF-1 to LF-4 |
+| LF-6 | Topic-wide live updates and response-first readers | LF-2 to LF-5 |
+| LF-7 | Presentation page and QR join flow | LF-6 |
+| LF-8 | Local Claude Code runner and ready-to-use setup | LF-5 to LF-7 |
+| LF-9 | Codex runner adapter | LF-8 |
 
-PRs 1–8 provide the complete initial workflow for the Claude users at work. PR 9 adds provider choice without changing the website's authentication model.
+LF-1 to LF-8 provide the complete initial workflow for the Claude users at work. LF-9 adds provider choice without changing the website's authentication model.
 
-### PR 1 — Immutable response evidence
+### LF-1 — Immutable response evidence
 
-**Change:** Add response revisions and reference-to-revision links. Backfill one revision from each existing response, preserve existing citation text/offsets, and update both agent and human citation writers/readers. Keep existing freeze/publication behaviour in this PR; removing the citation freeze requirement follows when the new evidence path is proven. Account for deleted responses without exposing them through revision reads.
+**Change:** Add response revisions and reference-to-revision links. Backfill one revision from each existing response, preserve existing citation text/offsets, and update both agent and human citation writers/readers. Keep existing freeze/publication behaviour in this item; removing the citation freeze requirement follows when the new evidence path is proven. Account for deleted responses without exposing them through revision reads.
 
 **Validation:** Existing summaries survive migration. After editing a response, an earlier citation still selects the original words and attribution. Current and earlier revisions cannot be confused or cited across topics. Withdrawal hides all quoted revisions. Line-ending normalisation and existing quote matching continue to work. Exercise an existing SQLite database as well as a fresh migrated one.
 
 **Finish when:** Evidence can safely outlive a response edit, and all citation paths use the same rule.
 
-### PR 2 — Optional restrictions and live-summary ownership
+**Implementation notes:**
+
+- A response's wording lives only in its revisions. `Response` holds identity, ownership, author, flags and `RevisionNumber`, which names the current revision. `Body`, `CreatedAt` and `UpdatedAt` are gone from it.
+- `ResponseRevision` is keyed by (`ResponseId`, `Number`) and holds the normalised body and a nullable `CreatedAt`. Numbers count up from 1 within one response, so they disclose edit count but not timing. `CreatedAt` is null wherever the topic records no timing.
+- The submission time is revision 1's `CreatedAt`, and an edit's time is its revision's `CreatedAt`. Reading either, or the current body, requires the revisions to be loaded.
+- The author is not versioned. Citations show the response's current author, rather than the immutable author attribution the design above describes.
+- `Response.Revise` is the only way to change wording. It normalises the body, records nothing for an unchanged wording, and adds the next revision otherwise.
+- `SummaryNodeReference.RevisionNumber` forms a composite foreign key with `ResponseId`, so the database refuses a reference naming another response's revision. Both foreign keys restrict deletion.
+- Agent and human citation writers locate quotes in the current revision only (`SummaryService.CurrentRevisions`). Earlier wording cannot be newly cited, and existing citations keep their revision.
+- Reads load each reference's revision through `SummaryService.WithCitations`, filtered on a live response, so withdrawal or admin deletion hides every revision together.
+- Readers apply offsets only to references on the current revision. Citations of earlier wording render that wording in a collapsed block in the response pane, which opens when a citation is followed. The editor tags them.
+- The summariser API reports `revision` on responses and `revision`/`isCurrentRevision` on references. The draft contract is unchanged and cites the current revision implicitly. Revision IDs in writes belong to LF-5.
+- The `ResponseRevisions` migration copies every response's body and submission time into revision 1, withdrawn responses included, and points every existing reference at it. The last-edit time of a previously edited response is not kept, because its earlier wording was never stored.
+- The frozen-response requirement for agent citations is still in place; LF-2 removes it.
+
+### LF-2 — Optional restrictions and live-summary ownership
 
 **Change:** Introduce the live/reviewed summary policy, a topic's active live-summary selection, and summary write revisions. Remove the prerequisite that cited responses be frozen. Separate collection closure from freezing, support an explicit owner-controlled freeze/unfreeze action, and expose independent AI pause/edit-access and review choices. Allow human editing of a live published summary. Archive removed live-tree nodes with their comments/reactions rather than deleting that feedback. New topics choose live updates by default; migrated topics retain existing settings and frozen state.
 
@@ -132,7 +147,7 @@ PRs 1–8 provide the complete initial workflow for the Claude users at work. PR
 
 **Finish when:** A topic can stay open while its one live summary is updated repeatedly, without owner intervention between writes.
 
-### PR 3 — Multiple contributions and disclosed chronological ordering
+### LF-3 — Multiple contributions and disclosed chronological ordering
 
 **Change:** Reuse one responder cookie for multiple responses, add list-own and explicit response edit/withdraw operations, and update the form with a separate new-contribution action. Add the timing/order policy and newest-first service queries with a deterministic tie-break. New anonymous topics disclose timing/order before submission. Existing anonymous topics keep their original no-timing policy; their data is not reinterpreted.
 
@@ -142,15 +157,15 @@ The current comment-to-own-response join assumes one response and would duplicat
 
 **Finish when:** Participation feels like adding feedback throughout a session, while explicit editing still works.
 
-### PR 4 — Emoji reactions on responses
+### LF-4 — Emoji reactions on responses
 
 **Change:** Add response reaction storage, a database uniqueness constraint for response/cookie/kind, scoped toggle/tally operations, and accessible reaction controls on visible response cards. Reuse the current emoji vocabulary and presentation where practical. Allow reacting without submitting a response; mint the cookie in the static shell before the circuit begins.
 
-**Validation:** Toggle on/off, multiple kinds, duplicate concurrent clicks, separate browsers and cross-topic IDs. Hidden/withdrawn responses cannot be reacted to or leak through tallies. Edits retain the intended response-level reactions. The browser immediately reflects its own successful toggle; notification to other observers lands in PR 6.
+**Validation:** Toggle on/off, multiple kinds, duplicate concurrent clicks, separate browsers and cross-topic IDs. Hidden/withdrawn responses cannot be reacted to or leak through tallies. Edits retain the intended response-level reactions. The browser immediately reflects its own successful toggle; notification to other observers lands in LF-6.
 
 **Finish when:** Responses have useful, deduplicated emoji feedback without accounts or another identity mechanism.
 
-### PR 5 — Consistent summariser inputs and safe live writes
+### LF-5 — Consistent summariser inputs and safe live writes
 
 **Change:** Persist input revisions in the same transaction as input changes, add topic summarising guidance, and expose a coherent summariser snapshot with conditional reads. Include response revision IDs, reaction counts, relevant visible node feedback, guidance and the current live-summary write revision. Replace response-count-only freshness for the live path.
 
@@ -162,7 +177,7 @@ Keep existing reviewed endpoints usable. Old clients without revision IDs may co
 
 **Finish when:** A local process can decide whether to generate and update the live summary without guessing freshness or racing owner edits.
 
-### PR 6 — Topic-wide live updates and response-first readers
+### LF-6 — Topic-wide live updates and response-first readers
 
 **Change:** Extend/replace summary-scoped notifications with topic-scoped invalidations and audit every web write path. Schedule bounded, coalesced subscriber reloads after commit so a slow observer cannot hold up submission. Add an interactive topic reader that can render responses before any summary exists, discover the first visible summary, refresh its overview/tree and tallies, and handle visibility changes. Reuse the response cards on the attendee flow so people can read/react without leaving their feedback draft. Flip existing paired reader/editor panes into response-first DOM order and logical CSS layout.
 
@@ -170,7 +185,7 @@ Keep existing reviewed endpoints usable. Old clients without revision IDs may co
 
 **Finish when:** Responses and reactions update independently of AI, and all visible parts of the current summary can change live.
 
-### PR 7 — Presentation page and QR join flow
+### LF-7 — Presentation page and QR join flow
 
 **Change:** Add the presentation route, its QR/short URL block, viewport-sized response/summary panes, readable projection styles and live empty/pending states. Responses sit at the inline start with newest arrivals first; the summary sits at the inline end. Reuse the normal topic reader's data and permissions. Generate the QR in-process and keep package versions in `Directory.Packages.props`.
 
@@ -180,9 +195,9 @@ Label the automatically updated summary as live AI output, rather than presentin
 
 **Finish when:** The owner can project one stable URL containing everything needed to join and observe the session.
 
-### PR 8 — Local Claude Code runner and ready-to-use setup
+### LF-8 — Local Claude Code runner and ready-to-use setup
 
-**Change:** Supply the local script, the Claude Code invocation, startup configuration and an admin-copyable setup prompt/instructions. The script performs conditional polls, starts bounded `claude -p` calls only for changed inputs, validates the returned structure, and posts via the new live-write contract. The script owns the 10-second cadence; no agent scheduling feature is involved. Start with one maintained runtime, selected before coding this PR from the actual presenter machines, and document installation requirements.
+**Change:** Supply the local script, the Claude Code invocation, startup configuration and an admin-copyable setup prompt/instructions. The script performs conditional polls, starts bounded `claude -p` calls only for changed inputs, validates the returned structure, and posts via the new live-write contract. The script owns the 10-second cadence; no agent scheduling feature is involved. Start with one maintained runtime, selected before coding this item from the actual presenter machines, and document installation requirements.
 
 Keep the topic token in local configuration and HTTP headers rather than model input or logs. Feed the model the snapshot and guidance as data, request the existing structured summary shape, and use the installed unmodified client's own authentication. Provider/model/interval/timeouts are startup settings. Keep shell argument construction safe for quotes, Unicode, multiline guidance and untrusted response text.
 
@@ -192,7 +207,7 @@ Include preflight, cancellation/end time, checkpoint/resume, bounded retries, pr
 
 **Finish when:** A presenter can prepare once and complete a session using Claude without touching the owner workflow during normal feedback collection.
 
-### PR 9 — Codex runner adapter
+### LF-9 — Codex runner adapter
 
 **Change:** Add the equivalent official `codex exec` invocation behind the same local runner contract, plus provider selection and a Codex preflight. Share polling, HTTP writes, checkpoints and failure handling; keep provider-specific CLI flags and output parsing narrow. Use saved presenter authentication without exporting it to the site. Keep the same structured summary and evidence validation.
 
@@ -200,20 +215,20 @@ Include preflight, cancellation/end time, checkpoint/resume, bounded retries, pr
 
 **Finish when:** Presenter choice of installed client changes setup only, not the audience or website workflow.
 
-## Decisions to resolve within the relevant PR
+## Decisions to resolve within the relevant work item
 
-These do not block the plan. Resolve them before their PR starts and record the selected values here.
+These do not block the plan. Resolve them before their work item starts and record the selected values here.
 
-| Decision | Suggested starting point | PR |
+| Decision | Suggested starting point | Item |
 |---|---|---|
-| Timing metadata | Record submission/edit times on new chronological topics, including anonymous ones; disclose timing and public display. Preserve legacy no-timing topics. Reaction/comment timing follows the collection policy. | 3 |
-| Emoji set | Reuse Agree, Disagree, Important, Question, Celebrate and Laugh. | 4 |
-| Guidance/summary size | Store expected feedback and summarising instructions per topic. Allow an optional length target; do not add another mandatory review gate or a universal tree-depth limit. | 5 |
-| Snapshot size | One coherent snapshot of current input for normal event topics. Measure larger topics before choosing paging/chunking; never silently omit feedback. | 5 |
-| QR rendering | Use a small local QR encoder, with the public base URL supplied through site configuration. Verify its current package/license when choosing it. | 7 |
-| Runner runtime/platforms | Confirm the work presenters' operating systems. Prefer a small supplied script in a runtime already installed there; add another platform when actually needed. | 8 |
-| Model/timeouts | Choose a fast available model using a rehearsal; do not hard-code a model name or promise 10-second generation from a polling interval. | 8 |
-| Failure visibility | Begin with summary update age/pending feedback on the site and actionable runner console errors. Add an explicit expiring heartbeat/status protocol if rehearsal shows presenters need clearer connection/error status on the projector. | 8 |
+| Timing metadata | Record submission/edit times on new chronological topics, including anonymous ones; disclose timing and public display. Preserve legacy no-timing topics. Reaction/comment timing follows the collection policy. | LF-3 |
+| Emoji set | Reuse Agree, Disagree, Important, Question, Celebrate and Laugh. | LF-4 |
+| Guidance/summary size | Store expected feedback and summarising instructions per topic. Allow an optional length target; do not add another mandatory review gate or a universal tree-depth limit. | LF-5 |
+| Snapshot size | One coherent snapshot of current input for normal event topics. Measure larger topics before choosing paging/chunking; never silently omit feedback. | LF-5 |
+| QR rendering | Use a small local QR encoder, with the public base URL supplied through site configuration. Verify its current package/license when choosing it. | LF-7 |
+| Runner runtime/platforms | Confirm the work presenters' operating systems. Prefer a small supplied script in a runtime already installed there; add another platform when actually needed. | LF-8 |
+| Model/timeouts | Choose a fast available model using a rehearsal; do not hard-code a model name or promise 10-second generation from a polling interval. | LF-8 |
+| Failure visibility | Begin with summary update age/pending feedback on the site and actionable runner console errors. Add an explicit expiring heartbeat/status protocol if rehearsal shows presenters need clearer connection/error status on the projector. | LF-8 |
 
 ## Rollout and completion
 
@@ -222,6 +237,13 @@ Do not reinterpret existing topics as publicly live or change their anonymity co
 The workflow is complete when a presenter can set up their topic and account before a session, project the page, receive several responses per participant and live emoji feedback, and see summaries keep updating through sustained input without closing, freezing or republishing. Verify stopping/restarting a runner and reloading/reconnecting clients without losing accepted summaries, human contributions or ownership cookies.
 
 Provider eligibility and limits still come from the presenter's plan and workplace configuration. The website has no shared provider account. Scale beyond one application process would require cross-instance notifications and a different SQLite/deployment assessment; that is not needed for the initial self-hosted event deployment unless the rehearsal measurements show otherwise.
+
+## Progress log
+
+| When | Entry |
+|---|---|
+| 2026-10-25 10:00 | LF-1 implemented, pending review. Build clean, all domain tests pass, model matches migrations, and the migration was checked against a copy of an existing development database. |
+| 2026-10-25 10:38 | LF-1 reshaped in review: wording and timestamps moved from `Response` to revisions, and revisions no longer carry an author. Same checks repeated. |
 
 ## Provider guidance checked during planning
 

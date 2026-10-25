@@ -13,6 +13,8 @@ public class WhatYouSayContext : DbContext
 
     public DbSet<Response> Responses => this.Set<Response>();
 
+    public DbSet<ResponseRevision> ResponseRevisions => this.Set<ResponseRevision>();
+
     public DbSet<Summary> Summaries => this.Set<Summary>();
 
     public DbSet<SummaryNode> SummaryNodes => this.Set<SummaryNode>();
@@ -48,6 +50,16 @@ public class WhatYouSayContext : DbContext
             response.HasOne(r => r.Topic)
                 .WithMany(s => s.Responses)
                 .HasForeignKey(r => r.TopicId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        model.Entity<ResponseRevision>(revision =>
+        {
+            revision.HasKey(r => new { r.ResponseId, r.Number });
+
+            revision.HasOne(r => r.Response)
+                .WithMany(r => r.Revisions)
+                .HasForeignKey(r => r.ResponseId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -88,6 +100,11 @@ public class WhatYouSayContext : DbContext
             reference.HasOne(r => r.Response)
                 .WithMany(r => r.References)
                 .HasForeignKey(r => r.ResponseId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            reference.HasOne(r => r.Revision)
+                .WithMany()
+                .HasForeignKey(r => new { r.ResponseId, r.RevisionNumber })
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

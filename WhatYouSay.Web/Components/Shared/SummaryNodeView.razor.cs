@@ -26,6 +26,11 @@ public partial class SummaryNodeView
     private NodeReactionTally Tally =>
         this.Reader.TallyFor(this.Node.Id);
 
+    private static string QuoteTitle(SummaryNodeReference reference) =>
+        reference.IsOnCurrentRevision
+            ? $"“{reference.Quote}”"
+            : $"“{reference.Quote}” (the response has been edited since)";
+
     private static string Emoji(ReactionKind kind) =>
         kind switch
         {

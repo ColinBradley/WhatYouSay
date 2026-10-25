@@ -3,6 +3,14 @@ using WhatYouSay.Data;
 
 namespace WhatYouSay.Web.Components.Shared;
 
+/// <summary>An earlier wording of a response, with the references that quote it.</summary>
+public sealed record EarlierRevision
+{
+    public required ResponseRevision Revision { get; init; }
+
+    public required IReadOnlyList<SummaryNodeReference> References { get; init; }
+}
+
 public partial class ResponsePane
 {
     [Parameter]
@@ -14,18 +22,28 @@ public partial class ResponsePane
     public ILookup<Guid, SummaryNodeReference> References { get; set; } =
         Array.Empty<SummaryNodeReference>().ToLookup(r => r.ResponseId);
 
-    private IEnumerable<SummaryNodeReference> ReferencesFor(Guid responseId)
+    private IReadOnlyList<SummaryNodeReference> CurrentReferencesFor(Response response)
     {
-        return this.References[responseId];
+        return [.. this.References[response.Id].Where(r => r.RevisionNumber == response.RevisionNumber)];
     }
 
-    /// <summary>The node a quote supports, for the jump back into the tree.</summary>
-    private string? NodeOf(int referenceId)
+    /// <summary>
+    /// Earlier wordings of the response that the summary still quotes.
+    /// Each is shown as it was, because its offsets mean nothing in the current body.
+    /// </summary>
+    private IReadOnlyList<EarlierRevision> EarlierRevisionsFor(Response response)
     {
-        var reference = this.References
-            .SelectMany(group => group)
-            .FirstOrDefault(r => r.Id == referenceId);
-
-        return reference is null ? null : $"node-{reference.NodeId}";
+        return
+        [
+            .. this.References[response.Id]
+                .Where(r => r.RevisionNumber != response.RevisionNumber)
+                .GroupBy(r => r.RevisionNumber)
+                .OrderBy(group => group.Key)
+                .Select(group => new EarlierRevision()
+                {
+                    Revision = group.First().Revision,
+                    References = [.. group],
+                }),
+        ];
     }
 }

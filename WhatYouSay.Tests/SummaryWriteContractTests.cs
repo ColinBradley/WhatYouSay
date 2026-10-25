@@ -331,15 +331,13 @@ public class SummaryWriteContractTests : DatabaseTest
         var topic = NewTopic(ResponseIdentity.Required);
         topic.IsAcceptingResponses = false;
 
-        var anna = new Response()
+        var anna = Revised(new Response()
         {
             Id = Guid.NewGuid(),
-            Body = AnnaSaid,
             Author = "Anna",
             AuthTokenHash = "a",
             IsFrozen = true,
-            CreatedAt = DateTimeOffset.UtcNow,
-        };
+        }, AnnaSaid, DateTimeOffset.UtcNow);
 
         topic.Responses.Add(anna);
         mDb.Topics.Add(topic);

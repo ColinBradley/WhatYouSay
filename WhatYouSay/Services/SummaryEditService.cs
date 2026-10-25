@@ -39,10 +39,7 @@ public class SummaryEditService
     {
         using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
 
-        var summary = await mDb.Summaries
-            .Include(s => s.Nodes)
-                .ThenInclude(n => n.References.Where(r => !r.Response.IsDeleted))
-                    .ThenInclude(r => r.Response)
+        var summary = await SummaryService.WithCitations(mDb.Summaries)
             .AsSplitQuery()
             .FirstOrDefaultAsync(s => s.Id == summaryId && s.TopicId == topic.Id, cancellationToken);
 
@@ -210,8 +207,8 @@ public class SummaryEditService
     }
 
     /// <summary>
-    /// Cites a span of a response. The quote is located rather than trusted, so a hand-typed
-    /// one fails exactly as an agent's would.
+    /// Cites a span of a response's current revision. The quote is located rather than
+    /// trusted, so a hand-typed one fails exactly as an agent's would.
     /// </summary>
     public async Task AddReferenceAsync(
         Topic topic,
@@ -225,21 +222,16 @@ public class SummaryEditService
         var summary = await this.RequireDraftAsync(topic, summaryId, cancellationToken);
         var node = Require(summary, nodeId);
 
-        var response = await mDb.Responses.FirstOrDefaultAsync(
-            r => r.Id == responseId && r.TopicId == topic.Id && !r.IsDeleted,
-            cancellationToken);
-
-        if (response is null)
-        {
-            throw Reject(
+        var revision = await SummaryService.CurrentRevisions(mDb, topic)
+            .FirstOrDefaultAsync(v => v.ResponseId == responseId, cancellationToken)
+            ?? throw Reject(
                 "unknown_response",
                 $"/nodes/{nodeId}/references/responseId",
                 $"Response {responseId} is not a live response on this topic.");
-        }
 
-        if (QuoteLocator.Locate(response.Body, quote) is not { } location)
+        if (QuoteLocator.Locate(revision.Body, quote) is not { } location)
         {
-            var mismatch = QuoteLocator.Diagnose(response.Body, quote);
+            var mismatch = QuoteLocator.Diagnose(revision.Body, quote);
 
             throw new SummaryGroundingException(
                 "quote_not_found",
@@ -262,9 +254,10 @@ public class SummaryEditService
         var reference = new SummaryNodeReference()
         {
             NodeId = node.Id,
-            ResponseId = response.Id,
+            ResponseId = revision.ResponseId,
+            RevisionNumber = revision.Number,
             // The span found in Body, not what was typed: matching forgives presentation.
-            Quote = response.Body[location.StartIndex..location.EndIndex],
+            Quote = revision.Body[location.StartIndex..location.EndIndex],
             StartIndex = location.StartIndex,
             EndIndex = location.EndIndex,
         };

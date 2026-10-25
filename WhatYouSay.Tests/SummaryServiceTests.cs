@@ -110,7 +110,7 @@ public class SummaryServiceTests : DatabaseTest
         {
             Assert.IsTrue(
                 QuoteLocator.Matches(
-                    reference.Response.Body, reference.Quote, reference.StartIndex, reference.EndIndex),
+                    reference.Revision.Body, reference.Quote, reference.StartIndex, reference.EndIndex),
                 $"Quote does not sit at its recorded offsets: \"{reference.Quote}\"");
         }
     }

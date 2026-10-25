@@ -25,6 +25,11 @@
             <blockquote class="grow">
                 &ldquo;@reference.Quote&rdquo;
                 <span class="quiet">&mdash; @(reference.Response.Author ?? "anonymous")</span>
+
+                @if (!reference.IsOnCurrentRevision)
+                {
+                    <span class="tag" title="The quote keeps the wording it was taken from.">Response edited since</span>
+                }
             </blockquote>
 
             <button class="bare danger" type="button"

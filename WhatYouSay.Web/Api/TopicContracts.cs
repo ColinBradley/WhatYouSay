@@ -40,6 +40,9 @@ public record ResponseInfo
 
     public required string Body { get; init; }
 
+    /// <summary>The revision that <see cref="Body"/> belongs to. It goes up by one with every edit.</summary>
+    public required int Revision { get; init; }
+
     /// <summary>Null on anonymous topics, where it was never collected.</summary>
     public string? Author { get; init; }
 

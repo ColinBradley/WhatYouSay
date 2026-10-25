@@ -47,6 +47,12 @@ public record ReferenceDetail
 {
     public required Guid ResponseId { get; init; }
 
+    /// <summary>Which wording of the response the quote was taken from.</summary>
+    public required int Revision { get; init; }
+
+    /// <summary>False once the response has been edited. The quote still matches its own revision.</summary>
+    public required bool IsCurrentRevision { get; init; }
+
     public required string Quote { get; init; }
 }
 

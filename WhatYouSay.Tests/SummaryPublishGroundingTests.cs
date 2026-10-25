@@ -99,13 +99,12 @@ public class SummaryPublishGroundingTests : DatabaseTest
         var topic = NewTopic(ResponseIdentity.Required);
         topic.IsAcceptingResponses = false;
 
-        var response = new Response()
+        var response = Revised(new Response()
         {
             Id = Guid.CreateVersion7(),
-            Body = "CI is slow and the build takes twenty minutes.",
             AuthTokenHash = Guid.NewGuid().ToString("n"),
             IsFrozen = true,
-        };
+        }, "CI is slow and the build takes twenty minutes.");
 
         var summary = new Summary() { Body = "Overview" };
         var heading = new SummaryNode() { Text = "Tooling" };
@@ -135,11 +134,12 @@ public class SummaryPublishGroundingTests : DatabaseTest
 
     private static SummaryNodeReference Cite(Response response, string quote)
     {
-        var at = response.Body.IndexOf(quote, StringComparison.Ordinal);
+        var at = response.Current.Body.IndexOf(quote, StringComparison.Ordinal);
 
         return new SummaryNodeReference()
         {
             ResponseId = response.Id,
+            RevisionNumber = ResponseRevision.First,
             Quote = quote,
             StartIndex = at,
             EndIndex = at + quote.Length,

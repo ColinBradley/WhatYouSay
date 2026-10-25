@@ -13,7 +13,8 @@ Throw `InvalidOperationException` for a rule a caller could have checked, and `S
 ## Invariants that span files
 
 - **A reference may only be created against a frozen response.** Closing a topic freezes every response then in it and the freeze never lifts, so quoting cannot rot underneath a summary. Reopening is free.
-- **`Response.Id` is a v4 random Guid, never `CreateVersion7`.** A v7 Guid embeds a timestamp, and anonymous topics order by `Id` — a time-ordered one would reconstruct submission order and roughly when each person answered, walking straight past the decision not to store `CreatedAt`.
+- **A response's wording and timing live only in its revisions.** `Response.Revise` adds a revision for each changed wording, and nothing changes a revision afterwards. A reference names one revision, and its quote and offsets index that revision's body. Every read of a revision is filtered on a live response, so withdrawing a response hides all of its wordings together.
+- **`Response.Id` is a v4 random Guid, never `CreateVersion7`.** A v7 Guid embeds a timestamp, and anonymous topics order by `Id` — a time-ordered one would reconstruct submission order and roughly when each person answered, walking straight past the decision not to store a time.
 - Enums are stored as strings and `DateTimeOffset` as UTC ISO-8601 text. Both exist so the file reads by hand in `sqlite3`, and the second so SQLite can `ORDER BY` it.
 
 ## Migrations

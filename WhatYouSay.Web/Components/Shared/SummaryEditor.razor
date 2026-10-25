@@ -120,18 +120,7 @@ else
                                 {
                                     <article class="panel stack wide">
                                         <p class="verbatim" data-response="@response.Id">
-                                            @foreach (var segment in ResponseHighlighting.Segment(response.Body,
-                                this.ReferencesFor(response.Id)))
-                                            {
-                                                @if (segment.ReferenceIds.Count == 0)
-                                                {
-                                                    @segment.Text
-                                                }
-                                                else
-                                                {
-                                                    <mark class="quoted">@segment.Text</mark>
-                                                }
-                                            }
+                                            <QuotedText Body="@response.Current.Body" References="@this.CurrentReferencesFor(response)" />
                                         </p>
 
                                         <p class="fine">@(response.Author ?? "anonymous")</p>

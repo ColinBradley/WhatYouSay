@@ -77,20 +77,21 @@ public static class SeedData
         {
             var (author, body) = responses[i];
 
-            topic.Responses.Add(new Response()
+            var response = new Response()
             {
                 // v4, not v7: a time-ordered Guid would leak submission order and time in
                 // anonymous topics. See ResponseService.SubmitAsync.
                 Id = Guid.NewGuid(),
-                Body = body,
                 Author = anonymous ? null : author,
                 AuthTokenHash = Secrets.HashToken(Secrets.NewToken()),
                 // Closing is what freezes, and a closed topic has to arrive that way or its
                 // summary cites text nothing will let an agent cite.
                 IsFrozen = !acceptingResponses,
-                // Staggered so ordering is realistic where it is recorded at all.
-                CreatedAt = anonymous ? null : createdAt.AddHours(i * 1.7),
-            });
+            };
+
+            // Staggered so ordering is realistic where it is recorded at all.
+            response.Revise(body, anonymous ? null : createdAt.AddHours(i * 1.7));
+            topic.Responses.Add(response);
         }
 
         return topic;
@@ -432,13 +433,14 @@ public static class SeedData
             var response = topic.Responses[responseIndex];
 
             // A typo in a seed quote fails loudly here rather than rendering wrong.
-            var location = QuoteLocator.Locate(response.Body, quote)
+            var location = QuoteLocator.Locate(response.Current.Body, quote)
                 ?? throw new InvalidOperationException(
                     $"Seed quote not found in response {responseIndex}: \"{quote}\"");
 
             node.References.Add(new SummaryNodeReference()
             {
                 Response = response,
+                Revision = response.Current,
                 Quote = quote,
                 StartIndex = location.StartIndex,
                 EndIndex = location.EndIndex,
