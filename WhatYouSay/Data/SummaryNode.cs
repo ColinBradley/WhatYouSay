@@ -29,6 +29,14 @@ public class SummaryNode
     /// </summary>
     public required string Text { get; set; }
 
+    /// <summary>
+    /// When a summariser write left this node out of the tree. Null while it is in the tree.
+    /// An archived node keeps its parent, citations, reactions and comments, so the admin can
+    /// still see what it said and what feedback it gathered.
+    /// No read of the current tree includes it.
+    /// </summary>
+    public DateTimeOffset? ArchivedAt { get; set; }
+
     /// <summary>Empty until <see cref="SummaryTree.Assemble"/> has run over the summary.</summary>
     public List<SummaryNode> Children { get; set; } = [];
 

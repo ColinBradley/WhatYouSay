@@ -1,0 +1,93 @@
+@page "/topics/{Code}/admin/summaries/{Id:guid}/archived"
+@using WhatYouSay.Web.Components.Shared
+
+<PageTitle>Archived nodes</PageTitle>
+
+<Breadcrumb Items="@mCrumbs" />
+
+@if (mTopic is null)
+{
+    <div class="stack">
+        <h1>Topic not found</h1>
+
+        <a href="/">Back to the list</a>
+    </div>
+}
+else
+{
+    <div class="sections" style="max-width: 52em">
+        <section class="stack">
+            <h1>Archived nodes</h1>
+
+            <p class="quiet">@mTopic.Title</p>
+
+            <p class="fine">
+                Nodes the summariser took out of this summary. Readers no longer see them, but
+                the reactions and comments people left on them are kept here.
+            </p>
+        </section>
+
+        @if (mNodes.Count == 0)
+        {
+            <div class="notice">Nothing has been archived from this summary.</div>
+        }
+        else
+        {
+            <div class="panels">
+                @foreach (var node in mNodes)
+                {
+                    <article class="panel stack wide">
+                        <div class="loud">@node.Text</div>
+
+                        <div class="controls fine">
+                            <span>Archived @node.ArchivedAt?.ToLocalTime().ToString("d MMM yyyy HH:mm")</span>
+
+                            @if (node.Parent is { } parent)
+                            {
+                                <span>
+                                    Under &ldquo;@parent.Text&rdquo;@(parent.ArchivedAt is null ? null : ", archived too")
+                                </span>
+                            }
+                        </div>
+
+                        @foreach (var reference in node.References)
+                        {
+                            <blockquote class="fine">
+                                &ldquo;@reference.Quote&rdquo;
+                                <span class="quiet">&mdash; @(reference.Response.Author ?? "anonymous")</span>
+                            </blockquote>
+                        }
+
+                        @if (node.Reactions.Count > 0)
+                        {
+                            <div class="reactions">
+                                @foreach (var (kind, count) in ReactionCounts(node))
+                                {
+                                    <span class="tag" title="@SummaryNodeView.Label(kind)">
+                                        @SummaryNodeView.Emoji(kind) @count
+                                    </span>
+                                }
+                            </div>
+                        }
+
+                        @foreach (var comment in node.Comments)
+                        {
+                            <div class="panel node-comment @(comment.IsHidden ? "is-hidden" : null)">
+                                <div>@comment.Body</div>
+
+                                <div class="controls fine">
+                                    <span>@(comment.Author ?? "anonymous")</span>
+
+                                    @if (comment.IsHidden)
+                                    {
+                                        <span class="tag">Hidden</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </article>
+                }
+            </div>
+        }
+    </div>
+}

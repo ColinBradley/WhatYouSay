@@ -13,7 +13,7 @@ public static class SummariserPrompt
     // paste as ragged breaks.
     public static string For(Topic topic, string baseUrl, string token) =>
         $"""
-        Please write me a draft summary of the topic "{topic.Title}", which lives in WhatYouSay.
+        Please write me a summary of the topic "{topic.Title}", which lives in WhatYouSay.
 
         Start by fetching this, which explains the whole job and every other endpoint:
 
@@ -21,6 +21,11 @@ public static class SummariserPrompt
 
         That token is the credential, so keep it out of anywhere public. It reaches this one topic and nothing else.
 
-        What you produce is a draft. I review it and publish it - you cannot.
+        {Publishing(topic.SummaryPolicy)}
         """;
+
+    private static string Publishing(SummaryPolicy policy) =>
+        policy == SummaryPolicy.Live
+            ? "This topic is live: what you write to its live summary is published straight away, so everyone with the link sees it."
+            : "What you produce is a draft. I review it and publish it - you cannot.";
 }

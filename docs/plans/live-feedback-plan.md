@@ -105,7 +105,7 @@ Each work item is independently reviewable and leaves the current application us
 | ID | Deliverable | Dependencies |
 |---|---|---|
 | LF-1 | ✅ Immutable response evidence | None |
-| LF-2 | Optional restrictions and live-summary ownership | LF-1 |
+| LF-2 | ✅ Optional restrictions and live-summary ownership | LF-1 |
 | LF-3 | ✅ Multiple contributions and disclosed chronological ordering | LF-1 |
 | LF-4 | Emoji reactions on responses | LF-3 |
 | LF-5 | Consistent summariser inputs and safe live writes | LF-1 to LF-4 |
@@ -146,6 +146,23 @@ LF-1 to LF-8 provide the complete initial workflow for the Claude users at work.
 **Validation:** Open editable responses can be cited. A valid live write can remain visible and agent-editable. Reviewed drafts remain private until owner publication. Closing without freezing still permits authorised editing/withdrawal; explicit freezing prevents it until deliberately lifted. An in-flight write based on an older summary revision cannot overwrite a human change. Existing summary/node IDs and feedback survive migration. Removing a node from the live tree hides it from current output but preserves its human feedback and context for owner inspection.
 
 **Finish when:** A topic can stay open while its one live summary is updated repeatedly, without owner intervention between writes.
+
+**Implementation notes:**
+
+- `Topic.SummaryPolicy` is `Live` or `Reviewed`, stored as a string. The entity default is `Reviewed`, which the migration gives existing topics and seed data keeps. `TopicAdminService.CreateAsync` sets `Live`. The create page offers no choice; the admin page switches with "Require review" and "Publish updates live".
+- The live selection is `Summary.IsLive` rather than a topic column. A unique partial index on `TopicId` where `IsLive = 1` allows one per topic, so two creators racing cannot both win. `TopicId` keeps its plain index by explicit declaration, because EF would otherwise drop it in favour of the partial one.
+- On a live topic with no live summary, the summariser's next `POST /summaries` creates the live summary, published and open to the summariser. A POST while one exists makes a private draft. The admin can make any summary live from the summaries list, which publishes it, opens it to the summariser and leaves the previous one as an ordinary published version closed to the summariser.
+- The live summary stays published while it is live, so unpublishing it is refused. Switching to review ends live mode: the summary stays published, is closed to the summariser and loses `IsLive`. The summariser cannot write to any published summary but the live one, whatever `IsAgentEditable` says, and the admin cannot open one to it.
+- Pausing the summariser is `IsAgentEditable = false` on the live summary. The admin page has Pause and Resume. The editor has an open/close button for any draft and for the live summary.
+- `Summary.Revision` starts at 1 and moves on with every summariser write and every `SummaryEditService` operation. Visibility, access and policy changes leave it alone. It is an EF concurrency token, so every save of a summary row is conditional on the revision loaded, and a lost race is refused whole: `stale_revision` for the summariser, `InvalidOperationException` for people and admin actions.
+- `SummaryDraft.BasedOnRevision` (`basedOnRevision` in JSON) names the revision read. A mismatch is `stale_revision` (409). It is required to revise the live summary (`revision_required`, 422) and optional elsewhere, so the reviewed `PUT` keeps working for clients that do not send it. `SummaryInfo` and `DraftResult` report `revision` and `isLive`.
+- Human edits take no expected revision. They are targeted operations on the current tree, and their revision bump is what makes an older summariser write fail.
+- Summariser citations no longer require frozen responses. Closing freezes nothing. `TopicAdminService.SetResponsesFrozenAsync` freezes or unfreezes every response the topic has now, and later responses arrive editable. Existing `IsFrozen` values are kept, and closed seed topics still arrive frozen.
+- `SummaryNode.ArchivedAt` marks a node a summariser write left out. Summariser writes never delete nodes, on drafts as well as the live summary. An archived node keeps its parent, citations, reactions and comments. `WithCitations` and `SaveDraftAsync` filter archived nodes at the include, and `SaveDraftAsync` detaches what it archives so the summary it returns holds only the current tree. An archived id cannot be carried forward, and new reactions and comments on an archived node are refused. Deleting a node by hand still deletes its subtree, archived nodes under it included.
+- `/topics/{code}/admin/summaries/{id}/archived` lists archived nodes with their parent's text, quotes, reaction counts and comments, hidden ones marked. The summaries list links to it with a count, and the editor has an Archived button.
+- The topic URL shows the live summary ahead of any newer published version.
+- The briefing drops "close the topic first". It gains an Updates line, a LIVE UPDATES or REVIEW section, `basedOnRevision`, and archiving in place of deletion. The copied prompt says whether the topic is live.
+- The `LiveSummaries` migration adds the four columns and the partial index. Existing topics become `Reviewed`, and existing summaries are at revision 1 and not live.
 
 ### LF-3 — Multiple contributions and disclosed chronological ordering
 
@@ -193,6 +210,8 @@ Keep existing reviewed endpoints usable. Old clients without revision IDs may co
 
 **Note from LF-3:** `/responses` lists newest first on timed topics, so a response arriving between pages shifts every later page by one. Comments list the commenter's responses by id as `commenterResponses`.
 
+**Note from LF-2:** The existing endpoints already cite any live response's current revision, frozen or not. The existing `POST` already creates the live summary on a live topic, guarded by the unique index (`live_summary_exists`), and `PUT` takes `basedOnRevision`, required on the live summary. The live-write operation can reuse `Summary.Revision`, `IsLive` and those rejections. `GET /summaries/{id}/comments` still includes comments on archived nodes, with the node's text.
+
 ### LF-6 — Topic-wide live updates and response-first readers
 
 **Change:** Extend/replace summary-scoped notifications with topic-scoped invalidations and audit every web write path. Schedule bounded, coalesced subscriber reloads after commit so a slow observer cannot hold up submission. Add an interactive topic reader that can render responses before any summary exists, discover the first visible summary, refresh its overview/tree and tallies, and handle visibility changes. Reuse the response cards on the attendee flow so people can read/react without leaving their feedback draft. Flip existing paired reader/editor panes into response-first DOM order and logical CSS layout.
@@ -200,6 +219,8 @@ Keep existing reviewed endpoints usable. Old clients without revision IDs may co
 **Validation:** In several open browsers, observe a submission, edit, withdrawal, response reaction, direct API summary write, first summary, manual edit, visibility change and summary deletion without refresh. A rejected write changes no viewer. Public/private transitions recheck access and clear content that is no longer visible. Reconnect reloads authoritative state. Subscriber disposal does not retain closed circuits. A typed response or node comment survives unrelated notifications. Historical-version URLs stay pinned.
 
 **Finish when:** Responses and reactions update independently of AI, and all visible parts of the current summary can change live.
+
+**Note from LF-2:** Admin live, pause and review changes, human edits to the live summary, and summariser writes do not publish to `SummaryLiveUpdates`. The editor does not reload when the summariser writes, and a human edit that loses a race shows an error and reloads. Making another summary live changes which summary the topic URL shows, so an open reader has to notice the selection moving.
 
 ### LF-7 — Presentation page and QR join flow
 
@@ -212,6 +233,8 @@ Label the automatically updated summary as live AI output, rather than presentin
 **Finish when:** The owner can project one stable URL containing everything needed to join and observe the session.
 
 **Note from LF-3:** Anonymous topics from before LF-3 record no timing, so their responses have no newest-first order. The presentation page needs to say so for them rather than imply an order.
+
+**Note from LF-2:** `Summary.IsLive` identifies the live summariser output to label, and `UpdatedAt` its last write. New topics are live by default and the create page does not say so, so the presentation setup should.
 
 ### LF-8 — Local Claude Code runner and ready-to-use setup
 
@@ -263,6 +286,7 @@ Provider eligibility and limits still come from the presenter's plan and workpla
 | 2026-10-25 10:00 | LF-1 implemented, pending review. Build clean, all domain tests pass, model matches migrations, and the migration was checked against a copy of an existing development database. |
 | 2026-10-25 10:38 | LF-1 reshaped in review: wording and timestamps moved from `Response` to revisions, and revisions no longer carry an author. Same checks repeated. |
 | 2026-10-25 11:32 | LF-3 implemented, pending review. Build clean, all domain tests pass, and model matches migrations. The migration was checked on a fresh database and on a copy of the development database. The respond flow was exercised in the running app with two cookie jars. |
+| 2026-10-25 14:41 | LF-2 implemented on top of LF-3, pending review. Build clean, all domain tests pass, and model matches migrations. The migration was checked on a fresh database and on a copy of the development database. Live writes, revision conflicts and the admin pages were exercised in the running app. |
 
 ## Provider guidance checked during planning
 

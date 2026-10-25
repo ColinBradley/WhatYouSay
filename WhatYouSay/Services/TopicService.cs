@@ -55,4 +55,13 @@ public class TopicService
             r => r.TopicId == topicId && !r.IsDeleted,
             cancellationToken);
     }
+
+    public async Task<int> CountFrozenResponsesAsync(Guid topicId, CancellationToken cancellationToken = default)
+    {
+        using var activity = WhatYouSayTelemetry.Source.Start();
+
+        return await mDb.Responses.CountAsync(
+            r => r.TopicId == topicId && !r.IsDeleted && r.IsFrozen,
+            cancellationToken);
+    }
 }

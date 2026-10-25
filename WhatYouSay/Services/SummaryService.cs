@@ -15,7 +15,8 @@ public class SummaryService
     }
 
     /// <summary>
-    /// The newest summary a non-admin is allowed to see: blessed by a human and published.
+    /// The summary a non-admin sees at the topic's own URL.
+    /// That is the live summary if there is one, and otherwise the newest published summary.
     /// </summary>
     public async Task<Summary?> FindLatestVisibleAsync(
         Guid topicId,
@@ -26,10 +27,19 @@ public class SummaryService
 
         var summary = await this.Detailed()
             .Where(s => s.TopicId == topicId && !s.IsDraft && s.IsPublic)
-            .OrderByDescending(s => s.CreatedAt)
+            .OrderByDescending(s => s.IsLive)
+            .ThenByDescending(s => s.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
 
         return Assembled(summary);
+    }
+
+    /// <summary>The topic's live summary, without its tree. Null when the topic has none.</summary>
+    public async Task<Summary?> FindLiveAsync(Guid topicId, CancellationToken cancellationToken = default)
+    {
+        using var activity = WhatYouSayTelemetry.Source.Start();
+
+        return await mDb.Summaries.FirstOrDefaultAsync(s => s.TopicId == topicId && s.IsLive, cancellationToken);
     }
 
     public async Task<Summary?> FindAsync(Guid summaryId, CancellationToken cancellationToken = default)
@@ -55,6 +65,24 @@ public class SummaryService
             .ToListAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// How many archived nodes each of the topic's summaries holds, keyed by summary id.
+    /// A summary with none has no entry.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<Guid, int>> CountArchivedAsync(
+        Guid topicId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        using var activity = WhatYouSayTelemetry.Source.Start();
+
+        return await mDb.SummaryNodes
+            .Where(n => n.Summary.TopicId == topicId && n.ArchivedAt != null)
+            .GroupBy(n => n.SummaryId)
+            .Select(group => new { SummaryId = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(entry => entry.SummaryId, entry => entry.Count, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Summary>> ListAllAsync(
         Guid topicId,
         CancellationToken cancellationToken = default
@@ -69,9 +97,15 @@ public class SummaryService
     }
 
     /// <summary>
-    /// Creates a draft, or replaces an existing one. Rejects the whole call rather than
-    /// applying it partially, so a summary is never half-cited.
+    /// Creates a summary, or replaces the overview and tree of an existing one.
+    /// Rejects the whole call rather than applying it partially, so a summary is never half-cited.
     /// </summary>
+    /// <remarks>
+    /// A new summary becomes the live summary when the topic is live and has none yet.
+    /// The live summary is published from the start. Any other new summary is a draft.
+    /// Stored nodes that the draft leaves out are archived rather than deleted, so the
+    /// reactions and comments on them survive.
+    /// </remarks>
     public async Task<Summary> SaveDraftAsync(
         Topic topic,
         SummaryDraft draft,
@@ -84,7 +118,7 @@ public class SummaryService
 
         var summary = replacing is { } id
             ? await mDb.Summaries
-                .Include(s => s.Nodes)
+                .Include(s => s.Nodes.Where(n => n.ArchivedAt == null))
                     .ThenInclude(n => n.References)
                 .FirstOrDefaultAsync(s => s.Id == id && s.TopicId == topic.Id, cancellationToken)
             : null;
@@ -94,28 +128,30 @@ public class SummaryService
             throw this.Reject(topic, "unknown_summary", "/", $"No summary {replacing} on this topic.");
         }
 
-        if (summary is not null && !summary.IsAgentEditable)
+        if (summary is not null)
         {
-            throw this.Reject(
-                topic,
-                "summary_not_agent_editable",
-                "/",
-                "That summary is not open to the summariser. An admin can hand it back, or "
-                + "create a new one instead.");
+            this.RequireWritable(topic, summary, draft);
         }
 
         var stored = summary?.Nodes.ToDictionary(node => node.Id) ?? [];
         var revisions = await this.ValidateAsync(topic, draft, stored, cancellationToken);
         var now = DateTimeOffset.UtcNow;
+        var creating = summary is null;
 
         if (summary is null)
         {
+            var live = topic.SummaryPolicy == SummaryPolicy.Live
+                && !await mDb.Summaries.AnyAsync(s => s.TopicId == topic.Id && s.IsLive, cancellationToken);
+
             summary = new Summary()
             {
                 Id = Guid.CreateVersion7(),
                 TopicId = topic.Id,
                 Body = draft.Body,
                 CreatedBy = createdBy,
+                IsLive = live,
+                IsDraft = !live,
+                IsPublic = live,
                 IsAgentEditable = true,
                 ResponseCountAtWrite = revisions.Count,
                 CreatedAt = now,
@@ -129,6 +165,7 @@ public class SummaryService
             summary.Body = draft.Body;
             summary.UpdatedAt = now;
             summary.ResponseCountAtWrite = revisions.Count;
+            summary.Revision++;
         }
 
         var kept = new HashSet<int>();
@@ -138,23 +175,64 @@ public class SummaryService
             Apply(draft.Nodes[i], null, i);
         }
 
-        // After the whole tree has been re-parented, so a node moved out from under a
-        // deleted one is no longer its dependent and does not cascade away with it.
-        foreach (var (storedId, node) in stored)
+        // An archived node keeps its parent, even a parent still in the tree, so the admin
+        // can see where it sat.
+        var archived = stored
+            .Where(entry => !kept.Contains(entry.Key))
+            .Select(entry => entry.Value)
+            .ToList();
+
+        foreach (var node in archived)
         {
-            if (!kept.Contains(storedId))
-            {
-                mDb.SummaryNodes.Remove(node);
-            }
+            node.ArchivedAt = now;
         }
 
-        await mDb.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await mDb.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw this.Reject(
+                topic,
+                "stale_revision",
+                "/basedOnRevision",
+                $"Summary {summary.Id} changed while this draft was being saved, so nothing was "
+                + "saved. GET it again and redo your changes against what is there now.");
+        }
+        catch (DbUpdateException) when (creating && summary.IsLive)
+        {
+            throw this.Reject(
+                topic,
+                "live_summary_exists",
+                "/",
+                "Another write created this topic's live summary first, so nothing was saved. "
+                + "GET /summaries to find it, and revise that one instead.");
+        }
 
+        Forget(archived);
         SummaryTree.Assemble(summary);
 
         WhatYouSayTelemetry.SummaryDrafted(topic);
 
         return summary;
+
+        // Takes archived nodes out of the summary in memory, so the summary handed back holds
+        // only the current tree, as a fresh read would. Each node is detached first, because
+        // removing a tracked node from the collection would delete it on the next save.
+        void Forget(List<SummaryNode> nodes)
+        {
+            foreach (var node in nodes)
+            {
+                foreach (var reference in node.References)
+                {
+                    mDb.Entry(reference).State = EntityState.Detached;
+                }
+
+                mDb.Entry(node).State = EntityState.Detached;
+                summary.Nodes.Remove(node);
+            }
+        }
 
         void Apply(NodeDraft draftNode, SummaryNode? parent, int ordinal)
         {
@@ -224,6 +302,58 @@ public class SummaryService
     }
 
     /// <summary>
+    /// Refuses a write to a summary the summariser may not change, or one based on a revision
+    /// that is no longer current.
+    /// </summary>
+    private void RequireWritable(Topic topic, Summary summary, SummaryDraft draft)
+    {
+        if (!summary.IsAgentEditable)
+        {
+            throw this.Reject(
+                topic,
+                "summary_not_agent_editable",
+                "/",
+                summary.IsLive
+                    ? "An admin has paused summariser updates to the live summary, so nothing was "
+                        + "saved. Try again once they resume them."
+                    : "That summary is not open to the summariser. An admin can hand it back, or "
+                        + "create a new one instead.");
+        }
+
+        if (!summary.IsDraft && !summary.IsLive)
+        {
+            throw this.Reject(
+                topic,
+                "summary_not_agent_editable",
+                "/",
+                "That summary is published, and only the live summary can change while people "
+                + "read it. Create a new summary instead.");
+        }
+
+        if (summary.IsLive && draft.BasedOnRevision is null)
+        {
+            throw this.Reject(
+                topic,
+                "revision_required",
+                "/basedOnRevision",
+                "This is the live summary, which people can edit while you work. Send the "
+                + "revision you read as basedOnRevision, so a change made since then is not "
+                + "overwritten.");
+        }
+
+        if (draft.BasedOnRevision is { } basedOn && basedOn != summary.Revision)
+        {
+            throw this.Reject(
+                topic,
+                "stale_revision",
+                "/basedOnRevision",
+                $"Summary {summary.Id} is at revision {summary.Revision}, but this draft is based "
+                + $"on revision {basedOn}. It has changed since you read it, so nothing was saved. "
+                + "GET it again and redo your changes against what is there now.");
+        }
+    }
+
+    /// <summary>
     /// Runs before anything is written, so a failure leaves nothing behind.
     /// Returns the current revision of every live response, keyed by response id.
     /// New citations are located in these.
@@ -241,7 +371,6 @@ public class SummaryService
         }
 
         var revisions = await CurrentRevisions(mDb, topic)
-            .Include(v => v.Response)
             .ToDictionaryAsync(v => v.ResponseId, cancellationToken);
 
         // Every problem is collected rather than thrown on, so one retry can fix the lot.
@@ -388,22 +517,6 @@ public class SummaryService
                 return;
             }
 
-            // The whole of the quote-rot guarantee, and the only rule here about
-            // ordering: an offset into text its author can still edit selects the wrong
-            // words later while still validating now.
-            if (!revision.Response.IsFrozen)
-            {
-                failures.Add(new GroundingFailure()
-                {
-                    Path = $"{path}/responseId",
-                    Reason = "response_not_frozen",
-                    Message = $"Response {reference.ResponseId} is still editable by whoever "
-                        + "wrote it, so it cannot be cited yet. Close the topic to freeze it.",
-                });
-
-                return;
-            }
-
             if (QuoteLocator.Locate(revision.Body, reference.Quote) is not null)
             {
                 return;
@@ -507,10 +620,10 @@ public class SummaryService
     }
 
     /// <summary>
-    /// Loads every node of the summary flat, in one query — EF cannot eager-load an arbitrary
-    /// depth, so the tree is stitched afterwards. Withdrawn responses are filtered out here
-    /// rather than at render time, so no caller can surface one, or any of its revisions, by
-    /// accident.
+    /// Loads every node of the current tree flat, in one query — EF cannot eager-load an
+    /// arbitrary depth, so the tree is stitched afterwards. Withdrawn responses, with every
+    /// revision of them, and archived nodes are filtered out here rather than at render time,
+    /// so no caller can surface one by accident.
     /// </summary>
     private IQueryable<Summary> Detailed()
     {
@@ -518,17 +631,51 @@ public class SummaryService
     }
 
     /// <summary>
-    /// Includes every node and each node's references to live responses.
+    /// Includes every node in the current tree, and each node's references to live responses.
     /// Each reference comes with its response and the revision it quotes.
+    /// Archived nodes are left out here, so no read of the current tree can surface one.
     /// </summary>
     internal static IQueryable<Summary> WithCitations(IQueryable<Summary> summaries)
     {
         return summaries
-            .Include(s => s.Nodes)
+            .Include(s => s.Nodes.Where(n => n.ArchivedAt == null))
                 .ThenInclude(n => n.References.Where(r => !r.Response.IsDeleted))
                     .ThenInclude(r => r.Response)
-            .Include(s => s.Nodes)
+            .Include(s => s.Nodes.Where(n => n.ArchivedAt == null))
                 .ThenInclude(n => n.References.Where(r => !r.Response.IsDeleted))
                     .ThenInclude(r => r.Revision);
+    }
+
+    /// <summary>
+    /// The nodes the summariser has archived from a summary, most recent first.
+    /// Each comes with its parent, its citations of live responses, and every reaction and
+    /// comment on it, hidden comments included. Empty when the summary is not on this topic.
+    /// </summary>
+    /// <remarks>
+    /// Untracked, because a tracked archived node would be fixed up into the tree of any
+    /// summary the same context had already loaded.
+    /// </remarks>
+    public async Task<IReadOnlyList<SummaryNode>> ListArchivedAsync(
+        Topic topic,
+        Guid summaryId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
+
+        return await mDb.SummaryNodes
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Where(n => n.SummaryId == summaryId && n.Summary.TopicId == topic.Id && n.ArchivedAt != null)
+            .Include(n => n.Parent)
+            .Include(n => n.References.Where(r => !r.Response.IsDeleted))
+                .ThenInclude(r => r.Response)
+            .Include(n => n.References.Where(r => !r.Response.IsDeleted))
+                .ThenInclude(r => r.Revision)
+            .Include(n => n.Reactions)
+            .Include(n => n.Comments)
+            .OrderByDescending(n => n.ArchivedAt)
+            .ThenBy(n => n.Id)
+            .ToListAsync(cancellationToken);
     }
 }

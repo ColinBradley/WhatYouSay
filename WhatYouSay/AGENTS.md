@@ -12,7 +12,10 @@ Throw `InvalidOperationException` for a rule a caller could have checked, and `S
 
 ## Invariants that span files
 
-- **A reference may only be created against a frozen response.** Closing a topic freezes every response then in it and the freeze never lifts, so quoting cannot rot underneath a summary. Reopening is free.
+- **A citation is located in a response's current revision, frozen or not.** Freezing is a separate admin choice, and closing a topic freezes nothing.
+- **A summary's `Revision` moves on with every write to its overview or tree, and nothing else.** It is a concurrency token, so a write saved over one it never saw fails instead of replacing it.
+- **A summariser write archives the nodes it leaves out; only a person deletes one.** Every read of a current tree filters out archived nodes at the include, as withdrawn responses are filtered, and anything that loads them for display does so untracked.
+- **Only the live summary is both published and open to the summariser.** A topic has at most one, the database enforces that, and it stays published while it is live.
 - **A response's wording and timing live only in its revisions.** `Response.Revise` adds a revision for each changed wording, and nothing changes a revision afterwards. A reference names one revision, and its quote and offsets index that revision's body. Every read of a revision is filtered on a live response, so withdrawing a response hides all of its wordings together.
 - **`Response.Id` is a v4 random Guid, never `CreateVersion7`.** A v7 Guid embeds a timestamp, and topics that record no timing order by `Id` — a time-ordered one would reconstruct submission order and roughly when each person answered, walking straight past the decision not to store a time.
 - **Every stored time follows the topic's timing setting, not its identity.** A topic that records no timing stores null in every `CreatedAt` it owns: revisions, comments and reactions. Decide with `Topic.RecordsTiming`, never `IsAnonymous`.

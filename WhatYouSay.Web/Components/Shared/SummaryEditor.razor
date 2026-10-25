@@ -16,19 +16,31 @@ else
             </div>
 
             <div class="controls">
+                @if (mSummary.IsLive)
+                {
+                    <span class="tag accent">Live</span>
+                }
+
                 <span class="tag @(mSummary.IsVisibleToPublic ? "good" : "warn")">
                     @(mSummary.IsVisibleToPublic ? "Published" : "Draft")
                 </span>
 
                 <a class="button" href="@($"/topics/{Code}/summary/{SummaryId}")">View</a>
 
+                <a class="button" href="@($"/topics/{Code}/admin/summaries/{SummaryId}/archived")">Archived</a>
+
+                <button @onclick="() => SetAgentEditableAsync(!mSummary.IsAgentEditable)"
+                        disabled="@(this.AgentAccessReason is not null)" title="@this.AgentAccessReason">
+                    @this.AgentAccessLabel
+                </button>
+
                 <button @onclick="() => SetPublishedAsync(true)" disabled="@mSummary.IsVisibleToPublic"
                         title="@(mSummary.IsVisibleToPublic ? "Already published." : null)">
                     Publish
                 </button>
 
-                <button @onclick="() => SetPublishedAsync(false)" disabled="@(!mSummary.IsVisibleToPublic)"
-                        title="@(mSummary.IsVisibleToPublic ? null : "Not published, so there is nothing to take back.")">
+                <button @onclick="() => SetPublishedAsync(false)" disabled="@(this.UnpublishReason is not null)"
+                        title="@this.UnpublishReason">
                     Unpublish
                 </button>
 
@@ -52,6 +64,25 @@ else
                 This version is published, so it is read-only. Unpublish it to make changes
                 &mdash; people are reading it, and reactions are attached to the nodes as they
                 stand.
+            </div>
+        }
+
+        @if (mSummary.IsLive)
+        {
+            <div class="notice accent">
+                This is the live summary, so readers see each change as soon as you make it.
+                @if (mSummary.IsAgentEditable)
+                {
+                    <text>
+                        The summariser keeps updating it as well. A summariser write based on a
+                        version from before your change is refused, but a later one may rework
+                        what you wrote, so pause the summariser while you make larger changes.
+                    </text>
+                }
+                else
+                {
+                    <text>Summariser updates are paused.</text>
+                }
             </div>
         }
 

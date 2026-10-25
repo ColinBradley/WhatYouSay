@@ -87,8 +87,8 @@ public static class SeedData
                 Id = Guid.NewGuid(),
                 Author = anonymous ? null : author,
                 AuthTokenHash = Secrets.HashToken(Secrets.NewToken()),
-                // Closing is what freezes, and a closed topic has to arrive that way or its
-                // summary cites text nothing will let an agent cite.
+                // Closed seed topics arrive frozen as well, so the admin's freeze controls
+                // have something to undo.
                 IsFrozen = !acceptingResponses,
             };
 

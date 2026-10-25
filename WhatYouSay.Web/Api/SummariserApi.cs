@@ -104,6 +104,7 @@ public static class SummariserApi
     private static async Task<ContentHttpResult> GetBriefingAsync(
         SummariserSession session,
         WhatYouSayContext db,
+        SummaryService summaries,
         HttpContext http,
         CancellationToken cancellationToken
     )
@@ -113,12 +114,13 @@ public static class SummariserApi
         using var activity = WebTelemetry.Source.Start().SetTopic(topic);
 
         var counts = await CountAsync(db, topic.Id, cancellationToken);
+        var live = await summaries.FindLiveAsync(topic.Id, cancellationToken);
         var baseUrl = $"{http.Request.Scheme}://{http.Request.Host}";
 
         WebTelemetry.BriefingServed(topic);
 
         return TypedResults.Text(
-            SummariserBriefing.For(topic, baseUrl, counts.Responses, counts.Summaries)
+            SummariserBriefing.For(topic, baseUrl, counts.Responses, counts.Summaries, live?.Id)
         );
     }
 
@@ -151,8 +153,9 @@ public static class SummariserApi
     }
 
     /// <summary>
-    /// Plain skip/take, no cursor: only a frozen response can be cited, so one arriving
-    /// mid-page can shift the window but cannot change anything already read.
+    /// Plain skip/take, no cursor. A response that arrives or is withdrawn mid-read can shift
+    /// the window. A citation is located in the response's current wording when it is written,
+    /// so a quote of wording that has since changed is refused, never stored with wrong offsets.
     /// </summary>
     private static async Task<Ok<ResponsePage>> GetResponsesAsync(
         SummariserSession session,
@@ -550,7 +553,8 @@ public static class SummariserApi
     {
         var status = rejection.Reason switch
         {
-            "topic_open" or "summary_not_agent_editable" => StatusCodes.Status409Conflict,
+            "summary_not_agent_editable" or "stale_revision" or "live_summary_exists" =>
+                StatusCodes.Status409Conflict,
             _ => StatusCodes.Status422UnprocessableEntity,
         };
 
@@ -609,6 +613,8 @@ public static class SummariserApi
         return new DraftResult()
         {
             SummaryId = summary.Id,
+            Revision = summary.Revision,
+            IsLive = summary.IsLive,
             EditUrl = $"/topics/{topic.Code}/admin/summaries/{summary.Id}",
             NodeCount = summary.Nodes.Count,
             MaxDepth = SummaryTree.Depth(summary.Roots),
@@ -621,9 +627,11 @@ public static class SummariserApi
         return new SummaryInfo()
         {
             Id = summary.Id,
+            Revision = summary.Revision,
             CreatedAt = summary.CreatedAt,
             IsDraft = summary.IsDraft,
             IsAgentEditable = summary.IsAgentEditable,
+            IsLive = summary.IsLive,
             IsPublic = summary.IsPublic,
             CreatedBy = summary.CreatedBy,
             NodeCount = summary.Nodes.Count,

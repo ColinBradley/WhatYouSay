@@ -35,8 +35,8 @@ else
             @if (mSummaries.Count == 0)
             {
                 <div class="notice">
-                    No summaries yet. Write one by hand, or close the topic and point an agent at
-                    <code>/mcp</code> with this topic&rsquo;s summariser token.
+                    No summaries yet. Write one by hand, or hand an agent the prompt from the
+                    <a href="@($"/topics/{Code}/admin")">admin page</a>.
                 </div>
             }
             else
@@ -64,12 +64,30 @@ else
                                     <td class="fine">
                                         @summary.Nodes.Count nodes,
                                         @SummaryTree.Depth(summary.Roots) deep
+
+                                        @if (mArchived.GetValueOrDefault(summary.Id) is > 0 and var archived)
+                                        {
+                                            <text>, </text>
+                                            <a href="@($"/topics/{Code}/admin/summaries/{summary.Id}/archived")">@archived archived</a>
+                                        }
                                     </td>
 
                                     <td>
-                                        <span class="tag @(summary.IsVisibleToPublic ? "good" : "warn")">
-                                            @(summary.IsVisibleToPublic ? "Published" : "Draft")
-                                        </span>
+                                        <div class="controls">
+                                            @if (summary.IsLive)
+                                            {
+                                                <span class="tag accent">Live</span>
+                                            }
+
+                                            <span class="tag @(summary.IsVisibleToPublic ? "good" : "warn")">
+                                                @(summary.IsVisibleToPublic ? "Published" : "Draft")
+                                            </span>
+
+                                            @if (summary.IsAgentEditable)
+                                            {
+                                                <span class="tag" title="The summariser may write to this version.">Summariser</span>
+                                            }
+                                        </div>
                                     </td>
 
                                     <td>
@@ -77,6 +95,13 @@ else
                                             <a class="button" href="@($"/topics/{Code}/summary/{summary.Id}")">View</a>
 
                                             <a class="button" href="@($"/topics/{Code}/admin/summaries/{summary.Id}")">Edit</a>
+
+                                            <button type="submit" name="Action"
+                                                    value="@($"{summary.Id}:live")"
+                                                    disabled="@(this.MakeLiveReason(summary) is not null)"
+                                                    title="@this.MakeLiveReason(summary)">
+                                                Make live
+                                            </button>
 
                                             <button type="submit" name="Action"
                                                     value="@($"{summary.Id}:publish")"
@@ -87,8 +112,8 @@ else
 
                                             <button type="submit" name="Action"
                                                     value="@($"{summary.Id}:unpublish")"
-                                                    disabled="@(!summary.IsVisibleToPublic)"
-                                                    title="@(summary.IsVisibleToPublic ? null : "Not published, so there is nothing to take back.")">
+                                                    disabled="@(UnpublishReason(summary) is not null)"
+                                                    title="@UnpublishReason(summary)">
                                                 Unpublish
                                             </button>
 
@@ -108,8 +133,9 @@ else
 
         <p class="fine" style="max-width: 52em">
             Publishing makes a summary visible to everyone with the link and lets anyone react to it
-            and comment on it. It also takes the agent off that version; you can hand it back from
-            the editor.
+            and comment on it. It also takes the summariser off that version. Making a summary live
+            publishes it and keeps it open to the summariser, so readers see each update as soon as
+            it is accepted.
         </p>
     </div>
 }

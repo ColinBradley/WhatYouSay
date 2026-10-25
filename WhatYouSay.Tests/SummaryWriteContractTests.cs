@@ -139,7 +139,7 @@ public class SummaryWriteContractTests : DatabaseTest
     }
 
     [TestMethod]
-    public async Task A_stored_id_left_out_of_the_payload_is_deleted()
+    public async Task A_stored_id_left_out_of_the_payload_is_archived()
     {
         using var activity = TestTelemetry.Source.Start();
 
@@ -157,16 +157,16 @@ public class SummaryWriteContractTests : DatabaseTest
             summary.Id,
             this.Cancellation);
 
+        var archived = await this.FreshAsync(leaf.Id);
+
         Assert.AreEqual(1, revised.Nodes.Count);
-        Assert.IsFalse(await mDb.SummaryNodes.AnyAsync(n => n.Id == leaf.Id, this.Cancellation));
+        Assert.IsNotNull(archived.ArchivedAt);
+        Assert.AreEqual("CI is slow", archived.Text);
     }
 
-    /// <summary>
-    /// The case the deletion pass is ordered for: a kept node moved out from under a deleted
-    /// one must not cascade away with its old parent.
-    /// </summary>
+    /// <summary>A kept node moved out from under an archived one leaves it behind.</summary>
     [TestMethod]
-    public async Task A_child_reparented_off_a_deleted_node_survives_it()
+    public async Task A_child_reparented_off_an_archived_node_stays_in_the_tree()
     {
         using var activity = TestTelemetry.Source.Start();
 
@@ -184,8 +184,10 @@ public class SummaryWriteContractTests : DatabaseTest
         var survivor = await this.FreshAsync(leaf.Id);
 
         Assert.IsNull(survivor.ParentId);
+        Assert.IsNull(survivor.ArchivedAt);
         Assert.AreEqual("CI is slow", survivor.Text);
-        Assert.IsFalse(await mDb.SummaryNodes.AnyAsync(n => n.Id == heading.Id, this.Cancellation));
+        Assert.IsNotNull((await this.FreshAsync(heading.Id)).ArchivedAt);
+        Assert.AreEqual(leaf.Id, revised.Roots.Single().Id);
     }
 
     [TestMethod]

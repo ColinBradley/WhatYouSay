@@ -24,6 +24,12 @@ public class Topic
 
     public bool AreResponsesPublic { get; set; }
 
+    /// <summary>
+    /// Whether the summariser's writes to the live summary are published straight away.
+    /// Defaults to Reviewed. Topics created through <c>TopicAdminService</c> start Live.
+    /// </summary>
+    public SummaryPolicy SummaryPolicy { get; set; }
+
     public ResponseIdentity ResponseIdentity { get; set; } = ResponseIdentity.Required;
 
     public ResponseTiming ResponseTiming { get; set; } = ResponseTiming.Recorded;
@@ -38,10 +44,6 @@ public class Topic
 
     public bool RecordsTiming => this.ResponseTiming == ResponseTiming.Recorded;
 
-    /// <summary>
-    /// Reopening is allowed only while nothing references the responses. Once a summary
-    /// exists the topic stays closed for good; run a new topic instead.
-    /// </summary>
     /// <summary>Identity is only unchangeable once somebody has answered under it.</summary>
     public bool CanChangeIdentity => this.Responses.Count == 0;
 }

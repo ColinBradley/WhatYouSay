@@ -4,6 +4,12 @@ public record SummaryInfo
 {
     public required Guid Id { get; init; }
 
+    /// <summary>
+    /// Goes up by one with every write to the overview or tree. Send it back as basedOnRevision
+    /// when revising.
+    /// </summary>
+    public required int Revision { get; init; }
+
     public required DateTimeOffset CreatedAt { get; init; }
 
     public required bool IsDraft { get; init; }
@@ -11,6 +17,9 @@ public record SummaryInfo
     public required bool IsPublic { get; init; }
 
     public required bool IsAgentEditable { get; init; }
+
+    /// <summary>Whether this is the topic's live summary, whose accepted writes readers see straight away.</summary>
+    public required bool IsLive { get; init; }
 
     public string? CreatedBy { get; init; }
 
@@ -93,10 +102,16 @@ public record CommenterResponseInfo
     public required string Body { get; init; }
 }
 
-/// <summary>What an agent gets back after a draft passes grounding validation.</summary>
+/// <summary>What an agent gets back after a write passes validation.</summary>
 public record DraftResult
 {
     public required Guid SummaryId { get; init; }
+
+    /// <summary>The revision this write created, to send as basedOnRevision on the next one.</summary>
+    public required int Revision { get; init; }
+
+    /// <summary>Whether the write went to the live summary, so readers already see it.</summary>
+    public required bool IsLive { get; init; }
 
     public required string EditUrl { get; init; }
 

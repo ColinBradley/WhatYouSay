@@ -212,15 +212,18 @@ public class CommentService
         CancellationToken cancellationToken
     )
     {
+        // Readers no longer see an archived node, so feedback for one can only come from a
+        // page that is out of date. It is refused rather than stored where nobody sees it.
         var belongs = await mDb.SummaryNodes.AnyAsync(
-            n => n.Id == nodeId && n.Summary.TopicId == topic.Id,
+            n => n.Id == nodeId && n.Summary.TopicId == topic.Id && n.ArchivedAt == null,
             cancellationToken);
 
         if (!belongs)
         {
             activity.RecordFailure("unknown_node");
 
-            throw new InvalidOperationException($"Node {nodeId} is not on a summary of this topic.");
+            throw new InvalidOperationException(
+                $"Node {nodeId} is not in the current tree of a summary on this topic.");
         }
     }
 }

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using WhatYouSay.Auth;
 using WhatYouSay.Data;
 using WhatYouSay.Services;
 
@@ -211,29 +212,34 @@ public class SummaryGroundingTests : DatabaseTest
     }
 
     /// <summary>
-    /// The rot guarantee is per reference rather than per topic now, so what is refused
-    /// is citing text its author can still edit — which names the actual problem.
+    /// A citation names the revision it quotes, so a response its author can still edit is
+    /// as safe to cite as a frozen one.
     /// </summary>
     [TestMethod]
-    public async Task A_response_its_author_can_still_edit_cannot_be_cited()
+    public async Task An_editable_response_on_an_open_topic_can_be_cited()
     {
         using var activity = TestTelemetry.Source.Start();
 
-        var (topic, responses) = await this.ClosedTopicAsync();
+        var topic = NewTopic(ResponseIdentity.Required);
 
-        var thawed = await mDb.Responses.SingleAsync(r => r.Id == responses[0], this.Cancellation);
-        thawed.IsFrozen = false;
+        mDb.Topics.Add(topic);
         await mDb.SaveChangesAsync(this.Cancellation);
 
-        var rejection = await Assert.ThrowsExactlyAsync<SummaryGroundingException>(
-            () => this.Service().SaveDraftAsync(
-                topic,
-                Draft(Cites("CI is slow", (responses[0], "22 minutes"))),
-                "agent",
-                null,
-                this.Cancellation));
+        await new ResponseService(mDb).SubmitAsync(topic, Secrets.NewToken(), AnnaSaid, "Anna", this.Cancellation);
 
-        Assert.AreEqual("response_not_frozen", rejection.Reason);
+        var response = await mDb.Responses.SingleAsync(this.Cancellation);
+
+        Assert.IsTrue(topic.IsAcceptingResponses);
+        Assert.IsFalse(response.IsFrozen);
+
+        var summary = await this.Service().SaveDraftAsync(
+            topic,
+            Draft(Cites("CI is slow", (response.Id, "22 minutes"))),
+            "agent",
+            null,
+            this.Cancellation);
+
+        Assert.AreEqual(response.Id, summary.Nodes.SelectMany(n => n.References).Single().ResponseId);
     }
 
     [TestMethod]
@@ -336,15 +342,13 @@ public class SummaryGroundingTests : DatabaseTest
         Assert.AreEqual(first.Id, second.Id);
         Assert.AreEqual(1, await mDb.Summaries.CountAsync(this.Cancellation));
 
-        // The old tree is gone rather than merged with the new one.
-        Assert.AreEqual(2, await mDb.SummaryNodes.CountAsync(this.Cancellation));
+        // The old tree is out of the summary rather than merged with the new one.
+        await using var fresh = this.NewContext();
 
-        Assert.AreEqual(
-            "On-call was noisy",
-            await mDb.SummaryNodes
-                .Where(n => n.ParentId != null)
-                .Select(n => n.Text)
-                .SingleAsync(this.Cancellation));
+        var reloaded = await new SummaryService(fresh).FindAsync(first.Id, this.Cancellation);
+
+        Assert.HasCount(2, reloaded!.Nodes);
+        Assert.AreEqual("On-call was noisy", reloaded.Roots.Single().Children.Single().Text);
     }
 
     [TestMethod]

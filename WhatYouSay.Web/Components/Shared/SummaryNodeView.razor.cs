@@ -31,7 +31,7 @@ public partial class SummaryNodeView
             ? $"“{reference.Quote}”"
             : $"“{reference.Quote}” (the response has been edited since)";
 
-    private static string Emoji(ReactionKind kind) =>
+    internal static string Emoji(ReactionKind kind) =>
         kind switch
         {
             ReactionKind.Agree => "\U0001F44D",
@@ -43,7 +43,7 @@ public partial class SummaryNodeView
             _ => "?",
         };
 
-    private static string Label(ReactionKind kind) =>
+    internal static string Label(ReactionKind kind) =>
         kind switch
         {
             ReactionKind.Agree => "Agree",

@@ -189,7 +189,8 @@ public class ResponseService
         activity.RecordFailure("response_frozen");
 
         throw new InvalidOperationException(
-            "This response was frozen when the topic closed, so it can no longer be changed.");
+            "The topic's admin has frozen this response, so it can't be changed until they allow "
+            + "editing again.");
     }
 
     /// <summary>Null on a topic that records no timing.</summary>

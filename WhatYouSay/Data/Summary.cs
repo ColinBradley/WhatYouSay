@@ -3,8 +3,9 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace WhatYouSay.Data;
 
 /// <summary>
-/// A version, not a living document. Each generation run creates a new one; human edits
-/// are never stomped by a re-run.
+/// One version of a topic's overview and note tree.
+/// Under the reviewed policy each generation run creates a new version.
+/// The live summary is the exception: the summariser revises it in place.
 /// </summary>
 public class Summary
 {
@@ -20,15 +21,29 @@ public class Summary
     /// </summary>
     public required string Body { get; set; }
 
-    /// <summary>True until a human blesses it.</summary>
+    /// <summary>True until published. The live summary is published from the start.</summary>
     public bool IsDraft { get; set; } = true;
 
     public bool IsPublic { get; set; }
 
     /// <summary>
     /// Whether the summariser token may write to this version.
+    /// A published version is only writable while it is the live summary.
     /// </summary>
     public bool IsAgentEditable { get; set; }
+
+    /// <summary>
+    /// Whether this is the topic's live summary, which the summariser keeps revising in place.
+    /// A topic has at most one, and it is always published.
+    /// </summary>
+    public bool IsLive { get; set; }
+
+    /// <summary>
+    /// Counts writes to the overview and the tree, starting at 1.
+    /// It is a concurrency token, so a save fails if another write landed after the summary was loaded.
+    /// Changes to visibility and summariser access leave it alone.
+    /// </summary>
+    public int Revision { get; set; } = 1;
 
     /// <summary>
     /// Live responses when the agent last wrote this version.
@@ -43,7 +58,10 @@ public class Summary
     /// <summary>"agent" or "human", shown in the version list.</summary>
     public string? CreatedBy { get; set; }
 
-    /// <summary>Every node in the tree, flat. Roots are the ones with no parent.</summary>
+    /// <summary>
+    /// Every node in the tree, flat. Roots are the ones with no parent.
+    /// Service reads leave archived nodes out.
+    /// </summary>
     public List<SummaryNode> Nodes { get; set; } = [];
 
     /// <summary>

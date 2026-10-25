@@ -86,7 +86,7 @@ public class ResponseServiceTests : DatabaseTest
     }
 
     [TestMethod]
-    public async Task Closing_a_topic_freezes_existing_responses()
+    public async Task A_frozen_response_cannot_be_edited_or_withdrawn()
     {
         using var activity = TestTelemetry.Source.Start();
 
@@ -96,9 +96,8 @@ public class ResponseServiceTests : DatabaseTest
         var response = await service.SubmitAsync(topic, Secrets.NewToken(), "original", "Anna", this.Cancellation);
 
         await new TopicAdminService(mDb)
-            .SetAcceptingResponsesAsync(topic, false, this.Cancellation);
+            .SetResponsesFrozenAsync(topic, true, this.Cancellation);
 
-        // This is what keeps summary quote offsets from rotting.
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
             () => service.EditAsync(topic, response, "changed", "Anna", this.Cancellation));
 

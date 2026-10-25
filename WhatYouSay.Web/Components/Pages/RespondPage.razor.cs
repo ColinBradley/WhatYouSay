@@ -10,7 +10,7 @@ namespace WhatYouSay.Web.Components.Pages;
 public partial class RespondPage
 {
     private const string FrozenReason =
-        "This was frozen when the topic closed, so the quotes taken from it stay accurate.";
+        "The topic's admin has frozen responses, so this can't be changed for now.";
 
     private const string NotYours =
         "That response is not one of yours on this topic, or it has been withdrawn.";
@@ -246,8 +246,8 @@ public partial class RespondPage
     {
         return this.Saved switch
         {
-            "new" => "Your answer is in. Add another whenever you like, or change one of yours below "
-                + "while this topic is open.",
+            "new" => "Your answer is in. Add another while this topic is open, or change one of yours "
+                + "below until the admin freezes responses.",
             "edited" => "Saved. This replaces what you wrote before.",
             "withdrawn" => "Withdrawn. That response and any quotes of it are gone from this topic, "
                 + "though a summary written earlier may still reflect it. Your other responses are untouched.",

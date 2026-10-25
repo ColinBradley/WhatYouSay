@@ -1,7 +1,7 @@
 namespace WhatYouSay.Services;
 
 /// <summary>
-/// What an agent submits to create or replace a draft summary. Nested rather than flat, so
+/// What an agent submits to create a summary or replace one. Nested rather than flat, so
 /// a mistyped parent cannot spawn a spurious node or a cycle. Carries no quote offsets: the
 /// app locates them, so a wrong offset is not expressible.
 /// </summary>
@@ -10,6 +10,14 @@ public record SummaryDraft
     public required string Body { get; init; }
 
     public required IReadOnlyList<NodeDraft> Nodes { get; init; }
+
+    /// <summary>
+    /// The revision of the summary that this draft replaces, as it was read.
+    /// A replacement is refused when the summary has moved past it.
+    /// Required to replace the live summary, optional for other summaries, and ignored when
+    /// creating one.
+    /// </summary>
+    public int? BasedOnRevision { get; init; }
 }
 
 /// <summary>

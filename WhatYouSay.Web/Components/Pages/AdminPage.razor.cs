@@ -27,7 +27,11 @@ public partial class AdminPage
 
     private int mResponseCount;
 
+    private int mFrozenCount;
+
     private int mSummaryCount;
+
+    private Summary? mLiveSummary;
 
     private IReadOnlyList<Crumb> mCrumbs = [];
 
@@ -60,6 +64,45 @@ public partial class AdminPage
 
     [SupplyParameterFromForm(FormName = "admin-settings")]
     public bool IsAnonymous { get; set; }
+
+    [SupplyParameterFromForm(FormName = "admin-freeze")]
+    public bool FreezeResponses { get; set; }
+
+    /// <summary>Which summary-updates button was pressed: pause, resume, review or live.</summary>
+    [SupplyParameterFromForm(FormName = "admin-summary-updates")]
+    public string? SummaryUpdates { get; set; }
+
+    private bool IsLive =>
+        mTopic?.SummaryPolicy == SummaryPolicy.Live;
+
+    private string? FreezeReason =>
+        mResponseCount switch
+        {
+            0 => "Nobody has responded yet.",
+            _ when mFrozenCount == mResponseCount => "Every response is already frozen.",
+            _ => null,
+        };
+
+    private string? ThawReason =>
+        mFrozenCount == 0 ? "No response is frozen." : null;
+
+    private string? PauseReason =>
+        (this.IsLive, mLiveSummary) switch
+        {
+            (false, _) => "With review on, the summariser only writes drafts, so there is nothing to pause.",
+            (_, null) => "There is no live summary yet.",
+            (_, { IsAgentEditable: false }) => "Summariser updates are already paused.",
+            _ => null,
+        };
+
+    private string? ResumeReason =>
+        (this.IsLive, mLiveSummary) switch
+        {
+            (false, _) => "With review on, the summariser only writes drafts, so there is nothing to resume.",
+            (_, null) => "There is no live summary yet.",
+            (_, { IsAgentEditable: true }) => "The summariser is already updating the live summary.",
+            _ => null,
+        };
 
     [SupplyParameterFromForm(FormName = "admin-settings")]
     public bool RecordsTiming { get; set; }
@@ -96,7 +139,9 @@ public partial class AdminPage
     {
         mShareLink = this.Navigation.ToAbsoluteUri($"/topics/{this.Code}").ToString();
         mResponseCount = await this.Topics.CountResponsesAsync(mTopic!.Id);
+        mFrozenCount = await this.Topics.CountFrozenResponsesAsync(mTopic.Id);
         mSummaryCount = (await this.Summaries.ListAllAsync(mTopic.Id)).Count;
+        mLiveSummary = await this.Summaries.FindLiveAsync(mTopic.Id);
 
         mCanChangeIdentityAndTiming = await this.Admin.CanChangeIdentityAndTimingAsync(mTopic);
         mFixedReason = mCanChangeIdentityAndTiming
@@ -142,6 +187,23 @@ public partial class AdminPage
     private async Task ReopenAsync()
     {
         await this.GuardedAsync(() => this.Admin.SetAcceptingResponsesAsync(mTopic!, true));
+    }
+
+    private async Task SetFrozenAsync()
+    {
+        await this.GuardedAsync(() => this.Admin.SetResponsesFrozenAsync(mTopic!, this.FreezeResponses));
+    }
+
+    private async Task SetSummaryUpdatesAsync()
+    {
+        await this.GuardedAsync(() => this.SummaryUpdates switch
+        {
+            "pause" or "resume" when mLiveSummary is { } live =>
+                this.Admin.SetAgentEditableAsync(mTopic!, live.Id, this.SummaryUpdates == "resume"),
+            "review" => this.Admin.SetSummaryPolicyAsync(mTopic!, SummaryPolicy.Reviewed),
+            "live" => this.Admin.SetSummaryPolicyAsync(mTopic!, SummaryPolicy.Live),
+            _ => Task.CompletedTask,
+        });
     }
 
     private async Task SaveSettingsAsync()

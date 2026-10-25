@@ -10,11 +10,13 @@ namespace WhatYouSay.Web.Api;
 /// </summary>
 public static class SummariserBriefing
 {
+    /// <param name="liveSummaryId">The topic's live summary. Null when it has none.</param>
     public static string For(
         Topic topic,
         string baseUrl,
         int responseCount,
-        int summaryCount
+        int summaryCount,
+        Guid? liveSummaryId
     )
     {
         var api = $"{baseUrl}/api/topics/{topic.Code}";
@@ -41,6 +43,7 @@ public static class SummariserBriefing
               Status     {{status}}
               Identity   {{IdentityLine(topic.ResponseIdentity)}}
               Timing     {{TimingLine(topic.ResponseTiming)}}
+              Updates    {{UpdatesLine(topic.SummaryPolicy)}}
 
             AUTHENTICATION
 
@@ -63,7 +66,8 @@ public static class SummariserBriefing
             And, for a second pass over an existing summary:
 
               GET  {{api}}/summaries
-                   Every version, newest first, each saying whether you may write to it.
+                   Every version, newest first, each saying whether you may write to it,
+                   whether it is the live summary, and its revision.
 
               GET  {{api}}/summaries/{id}
                    One version in full: the tree, the quotes each node cites, and the
@@ -176,10 +180,16 @@ public static class SummariserBriefing
               id + text     revise it - the text is yours now, so it needs a citation
               id, no text   carry it forward exactly as it stands
               text, no id   a new node - it needs a citation
-              id left out   delete it
+              id left out   archive it - it leaves the tree, and the admin keeps any
+                            reactions and comments people left on it
 
             Position and nesting always come from the payload, so a bare {"id": 12} can be
             moved, reparented and reordered freely.
+
+            Send "basedOnRevision" alongside "body" and "nodes": the revision you read from
+            GET /summaries/{id}. If anyone has written to the summary since, nothing is saved
+            and you get a 409. Read it again and redo your changes on what is there now. It is
+            required on the live summary, and every successful write returns the new revision.
 
             You will find nodes you cannot cite. A person wrote them - people may assert
             without a quote, and you may not. That is not a defect to tidy up. Carry them
@@ -205,8 +215,8 @@ public static class SummariserBriefing
             Name people who gave a name, and refer to an anonymous response as a response
             and nothing more.
 
-            Start a new summary rather than continuing somebody else's. A version being
-            open to you is the admin's decision, not an invitation.
+            Apart from the live summary, start a new summary rather than continuing somebody
+            else's. A version being open to you is the admin's decision, not an invitation.
 
             On a second pass, read the comments first and answer what people said rather
             than starting cold.
@@ -246,24 +256,51 @@ public static class SummariserBriefing
             """
         );
 
-        if (topic.IsAcceptingResponses)
-        {
-            text.Append(
-                $$"""
+        text.Append(
+            topic.SummaryPolicy == SummaryPolicy.Live
+                ? LiveSection(api, liveSummaryId)
+                : """
 
 
-                BEFORE YOU START
+                REVIEW
 
-                This topic is still accepting responses, so nothing in it can be cited yet -
-                an offset into text its author can still edit would select the wrong words
-                later. Ask whoever gave you this token to close the topic first; that freezes
-                every response in it, for good.
+                What you write is a draft. The admin reviews it and publishes it - you cannot.
                 """
-            );
-        }
+        );
 
         return text.ToString();
     }
+
+    private static string LiveSection(string api, Guid? liveSummaryId)
+    {
+        var start = liveSummaryId is { } id
+            ? $"""
+                Its live summary is {id}. Revise it with PUT {api}/summaries/{id}, and
+                everyone with the link sees each accepted write straight away.
+                """
+            : """
+                It has no live summary yet, so your first POST becomes the live summary and is
+                published straight away. Revise that one with PUT from then on.
+                """;
+
+        return $$"""
+
+
+            LIVE UPDATES
+
+            This topic publishes summariser updates as they are accepted.
+            {{start}}
+
+            People can edit the live summary while you work, so every PUT to it must carry
+            basedOnRevision. A POST while a live summary exists makes a private draft for the
+            admin to review instead.
+            """;
+    }
+
+    private static string UpdatesLine(SummaryPolicy policy) =>
+        policy == SummaryPolicy.Live
+            ? "live - accepted writes to the live summary are published straight away"
+            : "reviewed - what you write stays a draft until the admin publishes it";
 
     private static string IdentityLine(ResponseIdentity identity) =>
         identity switch

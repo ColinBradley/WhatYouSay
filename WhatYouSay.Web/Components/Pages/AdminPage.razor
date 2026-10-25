@@ -48,6 +48,11 @@ else
             <p class="quiet">@mTopic.Title</p>
         </section>
 
+        @if (mError is not null)
+        {
+            <div class="notice danger" role="alert">@mError</div>
+        }
+
         <div class="columns">
             <section class="stack wide">
                 <h2>This topic</h2>
@@ -80,21 +85,20 @@ else
                 @if (mTopic.IsAcceptingResponses)
                 {
                     <p class="fine">
-                        Closing freezes every response so the quotes in a summary stay accurate.
-                        You can reopen whenever you like; what is already frozen stays frozen.
+                        Closing stops new responses arriving. It freezes nothing, so people can
+                        still edit or withdraw what they wrote. You can reopen whenever you like.
                     </p>
 
                     <form method="post" @formname="admin-close" @onsubmit="CloseAsync">
                         <AntiforgeryToken />
-                        <button class="primary" type="submit">Close and summarise</button>
+                        <button type="submit">Close to new responses</button>
                     </form>
                 }
                 else
                 {
                     <p class="fine">
-                        This topic is closed, and every response in it is frozen. Reopening lets
-                        new answers arrive; the frozen ones stay that way, so nothing already
-                        quoted can move.
+                        This topic is closed to new responses. People can still edit or withdraw
+                        what they wrote, unless you freeze it.
                     </p>
 
                     <form method="post" @formname="admin-reopen" @onsubmit="ReopenAsync">
@@ -102,6 +106,95 @@ else
                         <button type="submit">Reopen</button>
                     </form>
                 }
+
+                <h2>Editing</h2>
+
+                <p class="fine">
+                    @mFrozenCount of @mResponseCount @(mResponseCount == 1 ? "response is" : "responses are")
+                    frozen. A frozen response cannot be edited or withdrawn by the person who wrote
+                    it until you allow editing again. Responses that arrive after a freeze start
+                    editable.
+                </p>
+
+                <form method="post" @formname="admin-freeze" @onsubmit="SetFrozenAsync" class="controls">
+                    <AntiforgeryToken />
+
+                    <button type="submit" name="FreezeResponses" value="true"
+                            disabled="@(this.FreezeReason is not null)" title="@this.FreezeReason">
+                        Freeze responses
+                    </button>
+
+                    <button type="submit" name="FreezeResponses" value="false"
+                            disabled="@(this.ThawReason is not null)" title="@this.ThawReason">
+                        Allow editing
+                    </button>
+                </form>
+
+                <h2>Summary updates</h2>
+
+                @if (this.IsLive)
+                {
+                    <p class="fine">
+                        Live: the summariser keeps one live summary up to date, and readers see
+                        each update as soon as it is accepted. You can edit the live summary too.
+                    </p>
+
+                    @if (mLiveSummary is null)
+                    {
+                        <p class="fine">
+                            There is no live summary yet. The summariser&rsquo;s first new summary
+                            becomes it, or you can make one live from
+                            <a href="@($"/topics/{Code}/admin/summaries")">Summaries</a>.
+                        </p>
+                    }
+                    else
+                    {
+                        <p class="fine">
+                            The live summary is
+                            <a href="@($"/topics/{Code}/summary/{mLiveSummary.Id}")">here</a>
+                            (<a href="@($"/topics/{Code}/admin/summaries/{mLiveSummary.Id}")">edit</a>).
+                            @(mLiveSummary.IsAgentEditable
+                                ? "The summariser is updating it."
+                                : "Summariser updates are paused.")
+                        </p>
+                    }
+                }
+                else
+                {
+                    <p class="fine">
+                        Reviewed: the summariser writes drafts, and nothing it writes is seen until
+                        you publish it.
+                    </p>
+                }
+
+                <form method="post" @formname="admin-summary-updates" @onsubmit="SetSummaryUpdatesAsync" class="controls">
+                    <AntiforgeryToken />
+
+                    <button type="submit" name="SummaryUpdates" value="pause"
+                            disabled="@(this.PauseReason is not null)" title="@this.PauseReason">
+                        Pause summariser
+                    </button>
+
+                    <button type="submit" name="SummaryUpdates" value="resume"
+                            disabled="@(this.ResumeReason is not null)" title="@this.ResumeReason">
+                        Resume summariser
+                    </button>
+
+                    @if (this.IsLive)
+                    {
+                        <button type="submit" name="SummaryUpdates" value="review"
+                                title="The live summary stays published as an ordinary version, and the summariser writes drafts from then on.">
+                            Require review
+                        </button>
+                    }
+                    else
+                    {
+                        <button type="submit" name="SummaryUpdates" value="live"
+                                title="The summariser's next new summary, or one you choose, becomes the live summary.">
+                            Publish updates live
+                        </button>
+                    }
+                </form>
             </section>
 
             <section class="stack wide">

@@ -50,6 +50,7 @@ public class TopicAdminService
             IsPubliclyListed = isPubliclyListed,
             AreResponsesPublic = areResponsesPublic,
             IsAcceptingResponses = true,
+            SummaryPolicy = SummaryPolicy.Live,
             CreatedAt = DateTimeOffset.UtcNow,
         };
 
@@ -66,6 +67,10 @@ public class TopicAdminService
         return Secrets.VerifyPassword(topic.AdminPasswordHash, password);
     }
 
+    /// <summary>
+    /// Opens or closes the topic to new responses.
+    /// Closing freezes nothing, so responders can still edit and withdraw what they wrote.
+    /// </summary>
     public async Task SetAcceptingResponsesAsync(
         Topic topic,
         bool accepting,
@@ -76,24 +81,159 @@ public class TopicAdminService
 
         topic.IsAcceptingResponses = accepting;
 
-        // Closing is what freezes, and the freeze never lifts. Reopening therefore costs
-        // nothing: what was collected stays frozen, new answers arrive editable, and the
-        // next close freezes those.
-        if (!accepting)
-        {
-            // Through the tracker rather than ExecuteUpdate: a caller holding a Response
-            // over this call would otherwise still see it as editable.
-            var thawed = await mDb.Responses
-                .Where(r => r.TopicId == topic.Id && !r.IsFrozen)
-                .ToListAsync(cancellationToken);
+        await mDb.SaveChangesAsync(cancellationToken);
+    }
 
-            foreach (var response in thawed)
-            {
-                response.IsFrozen = true;
-            }
+    /// <summary>
+    /// Freezes every response the topic has now, or lets responders edit them all again.
+    /// Responses that arrive after a freeze start editable.
+    /// </summary>
+    public async Task SetResponsesFrozenAsync(
+        Topic topic,
+        bool frozen,
+        CancellationToken cancellationToken = default
+    )
+    {
+        using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
+
+        // Through the tracker rather than ExecuteUpdate: a caller holding a Response over
+        // this call would otherwise still see its old state.
+        var changing = await mDb.Responses
+            .Where(r => r.TopicId == topic.Id && r.IsFrozen != frozen)
+            .ToListAsync(cancellationToken);
+
+        foreach (var response in changing)
+        {
+            response.IsFrozen = frozen;
         }
 
         await mDb.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Chooses whether the summariser's writes to the live summary are published straight away.
+    /// </summary>
+    /// <remarks>
+    /// Switching to review ends the live summary.
+    /// It stays published as an ordinary version, and it is closed to the summariser, so
+    /// nothing the summariser writes reaches readers without the admin.
+    /// </remarks>
+    public async Task SetSummaryPolicyAsync(
+        Topic topic,
+        SummaryPolicy policy,
+        CancellationToken cancellationToken = default
+    )
+    {
+        using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
+
+        topic.SummaryPolicy = policy;
+
+        if (policy == SummaryPolicy.Reviewed
+            && await this.FindLiveAsync(topic, cancellationToken) is { } live)
+        {
+            live.IsLive = false;
+            live.IsAgentEditable = false;
+        }
+
+        await this.SaveSummaryChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Makes a summary the topic's live summary, which publishes it and opens it to the summariser.
+    /// The previous live summary stays published as an ordinary version, closed to the summariser.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The topic has review switched on.</exception>
+    public async Task MakeLiveAsync(
+        Topic topic,
+        Guid summaryId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
+
+        if (topic.SummaryPolicy != SummaryPolicy.Live)
+        {
+            activity.RecordFailure("summaries_reviewed");
+
+            throw new InvalidOperationException(
+                "This topic has review switched on, so it has no live summary. Switch live "
+                + "updates on first.");
+        }
+
+        var summary = await this.RequireSummaryAsync(topic, summaryId, cancellationToken);
+
+        if (summary.IsLive)
+        {
+            return;
+        }
+
+        var previous = await this.FindLiveAsync(topic, cancellationToken);
+
+        // The previous one is cleared and saved first, because the database allows only one
+        // live summary per topic at any moment, even partway through a save.
+        await using var transaction = await mDb.Database.BeginTransactionAsync(cancellationToken);
+
+        if (previous is not null)
+        {
+            previous.IsLive = false;
+            previous.IsAgentEditable = false;
+
+            await this.SaveSummaryChangesAsync(cancellationToken);
+        }
+
+        summary.IsLive = true;
+        summary.IsDraft = false;
+        summary.IsPublic = true;
+        summary.IsAgentEditable = true;
+        summary.UpdatedAt = DateTimeOffset.UtcNow;
+
+        try
+        {
+            await this.SaveSummaryChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            activity.RecordFailure("live_summary_exists");
+
+            throw new InvalidOperationException(
+                "The summariser made a live summary while this was being saved. Reload and "
+                + "choose again.");
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Opens a summary to the summariser, or closes it.
+    /// Closing the live summary pauses the summariser's updates without ending live mode.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// Opening a published summary that is not the live summary, since readers would then see
+    /// the summariser's writes without review.
+    /// </exception>
+    public async Task SetAgentEditableAsync(
+        Topic topic,
+        Guid summaryId,
+        bool editable,
+        CancellationToken cancellationToken = default
+    )
+    {
+        using var activity = WhatYouSayTelemetry.Source.Start().SetTopic(topic);
+
+        var summary = await this.RequireSummaryAsync(topic, summaryId, cancellationToken);
+
+        if (editable && !summary.IsDraft && !summary.IsLive)
+        {
+            activity.RecordFailure("published_not_live");
+
+            throw new InvalidOperationException(
+                "A published summary is only open to the summariser while it is the live "
+                + "summary. Unpublish it, or make it live, first.");
+        }
+
+        summary.IsAgentEditable = editable;
+
+        await this.SaveSummaryChangesAsync(cancellationToken);
     }
 
     /// <summary>
@@ -193,10 +333,8 @@ public class TopicAdminService
     /// Publishing blesses a summary and shows it in one move: there is no state where a
     /// summary is final but nobody can read it.
     /// </summary>
-    /// <exception cref="SummaryGroundingException">
-    /// The tree has a branch ending in a claim nothing supports. The agent could not have
-    /// submitted that, but a human editor can produce it a node at a time, and publishing is
-    /// where it stops.
+    /// <exception cref="InvalidOperationException">
+    /// Unpublishing the live summary, which stays published for as long as it is live.
     /// </exception>
     public async Task SetSummaryVisibilityAsync(
         Topic topic,
@@ -209,19 +347,29 @@ public class TopicAdminService
 
         var summary = await this.RequireSummaryAsync(topic, summaryId, cancellationToken);
 
+        if (!published && summary.IsLive)
+        {
+            activity.RecordFailure("summary_live");
+
+            throw new InvalidOperationException(
+                "This is the live summary, so it stays published. Switch on review, or make "
+                + "another summary live, before unpublishing it.");
+        }
 
         summary.IsDraft = !published;
         summary.IsPublic = published;
 
         // Publishing hands the version back to the humans. Re-opening it to the agent is
-        // then a deliberate act rather than a bit somebody forgot to flip.
-        if (published)
+        // then a deliberate act rather than a bit somebody forgot to flip. The live summary
+        // is the exception, because staying open to the agent is what makes it live.
+        if (published && !summary.IsLive)
         {
             summary.IsAgentEditable = false;
         }
+
         summary.UpdatedAt = DateTimeOffset.UtcNow;
 
-        await mDb.SaveChangesAsync(cancellationToken);
+        await this.SaveSummaryChangesAsync(cancellationToken);
     }
 
     /// <summary>
@@ -267,7 +415,34 @@ public class TopicAdminService
 
         mDb.Summaries.Remove(summary);
 
-        await mDb.SaveChangesAsync(cancellationToken);
+        await this.SaveSummaryChangesAsync(cancellationToken);
+    }
+
+    private async Task<Summary?> FindLiveAsync(Topic topic, CancellationToken cancellationToken)
+    {
+        return await mDb.Summaries.FirstOrDefaultAsync(
+            s => s.TopicId == topic.Id && s.IsLive,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Saves changes to summaries. A summary's revision is a concurrency token, so a save
+    /// fails when the summariser or an editor wrote to the summary after it was loaded.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The summary changed after it was loaded.</exception>
+    private async Task SaveSummaryChangesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await mDb.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            Activity.Current.RecordFailure("stale_revision");
+
+            throw new InvalidOperationException(
+                "The summary changed while this was being saved, so nothing was saved. Try again.");
+        }
     }
 
     private async Task<Summary> RequireSummaryAsync(

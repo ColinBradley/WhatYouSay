@@ -10,49 +10,89 @@ namespace WhatYouSay.Tests;
 public class TopicLifecycleTests : DatabaseTest
 {
     [TestMethod]
-    public async Task Closing_freezes_every_response_in_the_topic()
+    public async Task Closing_freezes_nothing()
     {
         using var activity = TestTelemetry.Source.Start();
 
         var (topic, _) = await this.OpenTopicAsync();
 
+        await this.Admin().SetAcceptingResponsesAsync(topic, false, this.Cancellation);
+
+        Assert.IsFalse(topic.IsAcceptingResponses);
         Assert.IsFalse(await mDb.Responses.AnyAsync(r => r.IsFrozen, this.Cancellation));
+    }
+
+    [TestMethod]
+    public async Task A_closed_topic_still_lets_people_edit_and_withdraw_what_they_wrote()
+    {
+        using var activity = TestTelemetry.Source.Start();
+
+        var (topic, token) = await this.OpenTopicAsync();
+        var responses = new ResponseService(mDb);
 
         await this.Admin().SetAcceptingResponsesAsync(topic, false, this.Cancellation);
 
-        Assert.IsTrue(await mDb.Responses.AllAsync(r => r.IsFrozen, this.Cancellation));
+        var own = (await responses.ListOwnAsync(topic, token, this.Cancellation)).Single();
+
+        await responses.EditAsync(topic, own, "Reworded after closing", "Anna", this.Cancellation);
+
+        Assert.AreEqual("Reworded after closing", own.Current.Body);
+
+        await responses.WithdrawAsync(topic, own, this.Cancellation);
+
+        Assert.IsTrue(own.IsDeleted);
     }
 
-    /// <summary>
-    /// The rot guarantee rides on the response rather than on a topic that can never reopen,
-    /// so reopening threatens nothing: what was collected stays frozen for good.
-    /// </summary>
+    /// <summary>Freezing holds until the admin lifts it, whether or not the topic is open.</summary>
     [TestMethod]
-    public async Task Reopening_leaves_what_was_already_frozen_frozen()
+    public async Task A_freeze_holds_until_the_admin_allows_editing_again()
     {
         using var activity = TestTelemetry.Source.Start();
 
         var (topic, token) = await this.OpenTopicAsync();
         var admin = this.Admin();
+        var responses = new ResponseService(mDb);
 
+        await admin.SetResponsesFrozenAsync(topic, true, this.Cancellation);
+
+        var own = (await responses.ListOwnAsync(topic, token, this.Cancellation)).Single();
+
+        Assert.IsTrue(own.IsFrozen);
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => responses.EditAsync(topic, own, "Rewritten", "Anna", this.Cancellation));
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => responses.WithdrawAsync(topic, own, this.Cancellation));
+
+        // Closing and reopening is a separate question and lifts nothing.
         await admin.SetAcceptingResponsesAsync(topic, false, this.Cancellation);
         await admin.SetAcceptingResponsesAsync(topic, true, this.Cancellation);
 
-        var first = await mDb.Responses.SingleAsync(this.Cancellation);
+        Assert.IsTrue(own.IsFrozen);
 
-        Assert.IsTrue(first.IsFrozen);
+        await admin.SetResponsesFrozenAsync(topic, false, this.Cancellation);
 
-        await new ResponseService(mDb).SubmitAsync(topic, Secrets.NewToken(), "Arrived later", "Sam", this.Cancellation);
+        await responses.EditAsync(topic, own, "Rewritten", "Anna", this.Cancellation);
 
-        var later = await mDb.Responses.SingleAsync(r => r.Revisions.Any(v => v.Body == "Arrived later"), this.Cancellation);
+        Assert.AreEqual("Rewritten", own.Current.Body);
+    }
+
+    [TestMethod]
+    public async Task A_response_arriving_after_a_freeze_starts_editable()
+    {
+        using var activity = TestTelemetry.Source.Start();
+
+        var (topic, _) = await this.OpenTopicAsync();
+        var responses = new ResponseService(mDb);
+
+        await this.Admin().SetResponsesFrozenAsync(topic, true, this.Cancellation);
+
+        var later = await responses.SubmitAsync(topic, Secrets.NewToken(), "Arrived later", "Sam", this.Cancellation);
 
         Assert.IsFalse(later.IsFrozen);
 
-        // The frozen one is no longer the author's to change; the new one still is.
-        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            () => new ResponseService(mDb).EditAsync(topic, first, "Rewritten", "Anna", this.Cancellation));
-
-        await new ResponseService(mDb).EditAsync(topic, later, "Reworded", "Sam", this.Cancellation);
+        await responses.EditAsync(topic, later, "Reworded", "Sam", this.Cancellation);
     }
 
     [TestMethod]
@@ -108,9 +148,8 @@ public class TopicLifecycleTests : DatabaseTest
     }
 
     /// <summary>
-    /// The seeder closes topics by setting the flag rather than going through the service,
-    /// so it has to freeze them itself. Without this the seeded retro cites text an agent
-    /// would then be refused permission to cite.
+    /// The seeder freezes the responses of the topics it closes, so the admin's freeze
+    /// controls have something to undo.
     /// </summary>
     [TestMethod]
     public async Task Every_seeded_closed_topic_arrives_frozen()

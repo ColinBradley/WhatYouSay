@@ -62,12 +62,40 @@ public partial class SummaryEditor : IAsyncDisposable
     [EditorRequired]
     public Guid SummaryId { get; set; }
 
-    /// <summary>Published versions are read-only; unpublish is the way back in.</summary>
+    /// <summary>
+    /// Published versions are read-only, except the live summary. Unpublishing is the way back in.
+    /// </summary>
     internal bool IsLocked =>
-        mSummary is not null && !mSummary.IsDraft;
+        mSummary is not null && !mSummary.IsDraft && !mSummary.IsLive;
 
     internal string? LockedReason =>
         this.IsLocked ? "Published, so it is read-only. Unpublish it to make changes." : null;
+
+    private string? UnpublishReason =>
+        mSummary switch
+        {
+            { IsLive: true } => "The live summary stays published. Require review, or make another summary live, first.",
+            { IsVisibleToPublic: false } => "Not published, so there is nothing to take back.",
+            _ => null,
+        };
+
+    private string AgentAccessLabel =>
+        (mSummary?.IsLive, mSummary?.IsAgentEditable) switch
+        {
+            (true, true) => "Pause summariser",
+            (true, _) => "Resume summariser",
+            (_, true) => "Close to summariser",
+            _ => "Open to summariser",
+        };
+
+    /// <summary>
+    /// Why the summariser access button is disabled, or null when it is enabled.
+    /// Only opening a summary to the summariser can be refused.
+    /// </summary>
+    private string? AgentAccessReason =>
+        mSummary is { IsAgentEditable: false, IsDraft: false, IsLive: false }
+            ? "Published, so only the live summary can be open to the summariser."
+            : null;
 
     internal IReadOnlyList<Response> Responses =>
         mResponses;
@@ -356,6 +384,13 @@ public partial class SummaryEditor : IAsyncDisposable
 
             this.StateHasChanged();
         }
+    }
+
+    private Task SetAgentEditableAsync(bool editable)
+    {
+        return this.RunAsync((services, topic) =>
+            services.GetRequiredService<TopicAdminService>()
+                .SetAgentEditableAsync(topic, this.SummaryId, editable));
     }
 
     private async Task DeleteSummaryAsync()

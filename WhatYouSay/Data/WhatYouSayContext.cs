@@ -41,6 +41,7 @@ public class WhatYouSayContext : DbContext
             // Enums as strings throughout: a sqlite3 session should show "Anonymous", not
             // "2", and reordering members must never reinterpret existing rows.
             topic.Property(s => s.ResponseIdentity).HasConversion<string>();
+            topic.Property(s => s.SummaryPolicy).HasConversion<string>();
             topic.Property(s => s.ResponseTiming).HasConversion<string>();
         });
 
@@ -66,6 +67,18 @@ public class WhatYouSayContext : DbContext
 
         model.Entity<Summary>(summary =>
         {
+            summary.Property(s => s.Revision).IsConcurrencyToken();
+
+            // Declared explicitly, because EF would otherwise let the partial index below
+            // stand in for it. A partial index only serves queries that repeat its filter.
+            summary.HasIndex(s => s.TopicId);
+
+            // At most one live summary per topic. The database enforces it, so two writers
+            // racing to create the live summary cannot both succeed.
+            summary.HasIndex(s => s.TopicId, "IX_Summaries_LiveTopicId")
+                .IsUnique()
+                .HasFilter("\"IsLive\" = 1");
+
             summary.HasOne(s => s.Topic)
                 .WithMany(s => s.Summaries)
                 .HasForeignKey(s => s.TopicId)

@@ -14,7 +14,7 @@ public enum NodeMove
 }
 
 /// <summary>
-/// A human's edits to a draft summary, one operation at a time.
+/// A human's edits to a draft or to the live summary, one operation at a time.
 /// </summary>
 /// <remarks>
 /// Separate from <see cref="SummaryService"/> because the two have opposite shapes: an agent
@@ -30,7 +30,7 @@ public class SummaryEditService
         mDb = db;
     }
 
-    /// <summary>The draft with its whole tree, references and their responses.</summary>
+    /// <summary>The summary with its current tree, references and their responses.</summary>
     public async Task<Summary?> LoadAsync(
         Topic topic,
         Guid summaryId,
@@ -58,7 +58,7 @@ public class SummaryEditService
         CancellationToken cancellationToken = default
     )
     {
-        var summary = await this.RequireDraftAsync(topic, summaryId, cancellationToken);
+        var summary = await this.RequireEditableAsync(topic, summaryId, cancellationToken);
 
         summary.Body = body.Trim();
 
@@ -73,7 +73,7 @@ public class SummaryEditService
         CancellationToken cancellationToken = default
     )
     {
-        var summary = await this.RequireDraftAsync(topic, summaryId, cancellationToken);
+        var summary = await this.RequireEditableAsync(topic, summaryId, cancellationToken);
         var node = Require(summary, nodeId);
         var trimmed = text.Trim();
 
@@ -97,7 +97,7 @@ public class SummaryEditService
         CancellationToken cancellationToken = default
     )
     {
-        var summary = await this.RequireDraftAsync(topic, summaryId, cancellationToken);
+        var summary = await this.RequireEditableAsync(topic, summaryId, cancellationToken);
 
         if (parentId is { } id)
         {
@@ -123,7 +123,10 @@ public class SummaryEditService
         return node.Id;
     }
 
-    /// <summary>Takes the node's whole subtree with it, along with every quote and reaction on it.</summary>
+    /// <summary>
+    /// Takes the node's whole subtree with it, archived nodes under it included, along with
+    /// every quote, reaction and comment on them.
+    /// </summary>
     public async Task DeleteNodeAsync(
         Topic topic,
         Guid summaryId,
@@ -131,7 +134,7 @@ public class SummaryEditService
         CancellationToken cancellationToken = default
     )
     {
-        var summary = await this.RequireDraftAsync(topic, summaryId, cancellationToken);
+        var summary = await this.RequireEditableAsync(topic, summaryId, cancellationToken);
         var node = Require(summary, nodeId);
         var doomed = SummaryTree.Subtree(summary, node).ToList();
 
@@ -158,7 +161,7 @@ public class SummaryEditService
         CancellationToken cancellationToken = default
     )
     {
-        var summary = await this.RequireDraftAsync(topic, summaryId, cancellationToken);
+        var summary = await this.RequireEditableAsync(topic, summaryId, cancellationToken);
         var node = Require(summary, nodeId);
         var siblings = SummaryTree.Siblings(summary, node.ParentId);
         var at = siblings.IndexOf(node);
@@ -219,7 +222,7 @@ public class SummaryEditService
         CancellationToken cancellationToken = default
     )
     {
-        var summary = await this.RequireDraftAsync(topic, summaryId, cancellationToken);
+        var summary = await this.RequireEditableAsync(topic, summaryId, cancellationToken);
         var node = Require(summary, nodeId);
 
         var revision = await SummaryService.CurrentRevisions(mDb, topic)
@@ -274,7 +277,7 @@ public class SummaryEditService
         CancellationToken cancellationToken = default
     )
     {
-        var summary = await this.RequireDraftAsync(topic, summaryId, cancellationToken);
+        var summary = await this.RequireEditableAsync(topic, summaryId, cancellationToken);
 
         var reference = await mDb.References.FirstOrDefaultAsync(
             r => r.Id == referenceId && r.Node.SummaryId == summary.Id,
@@ -298,17 +301,31 @@ public class SummaryEditService
     )
     {
         summary.UpdatedAt = DateTimeOffset.UtcNow;
+        summary.Revision++;
 
         // A version an agent wrote stops being purely the agent's the moment a person
         // changes it, and the version list is where that shows.
         summary.CreatedBy = "human";
 
-        await mDb.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await mDb.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new InvalidOperationException(
+                "The summary changed while this edit was being saved, so it was not saved. "
+                + "Make the change again on the summary as it is now.");
+        }
 
         WhatYouSayTelemetry.SummaryEdited(topic, kind);
     }
 
-    private async Task<Summary> RequireDraftAsync(
+    /// <summary>
+    /// Loads a summary that a person may edit: a draft, or the live summary.
+    /// Any other published summary is read-only.
+    /// </summary>
+    private async Task<Summary> RequireEditableAsync(
         Topic topic,
         Guid summaryId,
         CancellationToken cancellationToken
@@ -317,7 +334,7 @@ public class SummaryEditService
         var summary = await this.LoadAsync(topic, summaryId, cancellationToken)
             ?? throw new InvalidOperationException($"No summary {summaryId} on this topic.");
 
-        if (!summary.IsDraft)
+        if (!summary.IsDraft && !summary.IsLive)
         {
             throw new InvalidOperationException(
                 "This summary is published. Unpublish it before making changes, so nobody is "

@@ -155,10 +155,17 @@ namespace WhatYouSay.Migrations
                     b.Property<bool>("IsDraft")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsLive")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("IsPublic")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("ResponseCountAtWrite")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
                         .HasColumnType("INTEGER");
 
                     b.Property<Guid>("TopicId")
@@ -172,6 +179,10 @@ namespace WhatYouSay.Migrations
 
                     b.HasIndex("TopicId");
 
+                    b.HasIndex(new[] { "TopicId" }, "IX_Summaries_LiveTopicId")
+                        .IsUnique()
+                        .HasFilter("\"IsLive\" = 1");
+
                     b.ToTable("Summaries");
                 });
 
@@ -180,6 +191,9 @@ namespace WhatYouSay.Migrations
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("ArchivedAt")
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Ordinal")
                         .HasColumnType("INTEGER");
@@ -277,6 +291,10 @@ namespace WhatYouSay.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("SummariserTokenHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SummaryPolicy")
                         .IsRequired()
                         .HasColumnType("TEXT");
 

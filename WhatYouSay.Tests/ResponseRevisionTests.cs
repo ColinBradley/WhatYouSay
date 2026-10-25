@@ -104,8 +104,6 @@ public class ResponseRevisionTests : DatabaseTest
 
         var (topic, response) = await this.SubmittedAsync();
 
-        await new TopicAdminService(mDb).SetAcceptingResponsesAsync(topic, false, this.Cancellation);
-
         var summary = await new SummaryService(mDb).SaveDraftAsync(
             topic,
             new SummaryDraft()
@@ -124,8 +122,6 @@ public class ResponseRevisionTests : DatabaseTest
             null,
             this.Cancellation);
 
-        // There is no owner action to unfreeze a response yet, so the test clears the flag.
-        response.IsFrozen = false;
         await new ResponseService(mDb).EditAsync(topic, response, AnnaLater, "Anna", this.Cancellation);
 
         var reference = await this.OnlyReferenceAsync(summary.Id);

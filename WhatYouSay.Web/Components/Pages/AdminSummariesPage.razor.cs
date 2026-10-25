@@ -12,6 +12,8 @@ public partial class AdminSummariesPage
 
     private List<Summary> mSummaries = [];
 
+    private IReadOnlyDictionary<Guid, int> mArchived = new Dictionary<Guid, int>();
+
     private int mLiveResponses;
 
     private IReadOnlyList<Crumb> mCrumbs = [];
@@ -73,12 +75,35 @@ public partial class AdminSummariesPage
         var versions = await this.Summaries.ListAllAsync(mTopic!.Id);
 
         mLiveResponses = await this.Topics.CountResponsesAsync(mTopic.Id);
+        mArchived = await this.Summaries.CountArchivedAsync(mTopic.Id);
         mSummaries = [];
 
         foreach (var version in versions)
         {
             mSummaries.Add(await this.Summaries.FindAsync(version.Id) ?? version);
         }
+    }
+
+    private string? MakeLiveReason(Summary summary)
+    {
+        if (summary.IsLive)
+        {
+            return "Already the live summary.";
+        }
+
+        return mTopic?.SummaryPolicy == SummaryPolicy.Live
+            ? null
+            : "Review is on, so there is no live summary. Switch to live updates on the admin page first.";
+    }
+
+    private static string? UnpublishReason(Summary summary)
+    {
+        if (summary.IsLive)
+        {
+            return "The live summary stays published. Require review, or make another summary live, first.";
+        }
+
+        return summary.IsVisibleToPublic ? null : "Not published, so there is nothing to take back.";
     }
 
     /// <summary>
@@ -120,6 +145,10 @@ public partial class AdminSummariesPage
         {
             switch (parts[1])
             {
+                case "live":
+                    await this.Admin.MakeLiveAsync(mTopic, summaryId);
+                    break;
+
                 case "publish":
                     await this.Admin.SetSummaryVisibilityAsync(mTopic, summaryId, true);
                     break;
@@ -134,6 +163,13 @@ public partial class AdminSummariesPage
             }
         }
         catch (SummaryGroundingException failure)
+        {
+            mError = failure.Message;
+            await this.LoadAsync();
+
+            return;
+        }
+        catch (InvalidOperationException failure)
         {
             mError = failure.Message;
             await this.LoadAsync();

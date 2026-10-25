@@ -17,7 +17,7 @@ public class Response
     public required string AuthTokenHash { get; set; }
 
     /// <summary>
-    /// Prevent editing. Helping tie references to responses - otherwise they can drift.
+    /// Stops the responder editing or withdrawing the response. Only the admin sets or clears it.
     /// </summary>
     public bool IsFrozen { get; set; }
 
